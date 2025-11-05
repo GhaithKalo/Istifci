@@ -1,0 +1,221 @@
+<style>
+  /* Modern Ürün Kartı Tasarımı */
+  .product-card {
+    border-radius: 12px;
+    background-color: #fff;
+    transition: box-shadow 0.3s ease, transform 0.3s ease;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    width: 100%;
+    cursor: pointer;
+  }
+
+  .product-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1) !important;
+  }
+
+  .product-card .card-img-top {
+    border-top-left-radius: 12px;
+    border-top-right-radius: 12px;
+    object-fit: contain;
+    height: 200px;
+    background-color: #f8f9fa;
+    padding: 1rem;
+  }
+
+  .product-card .card-body {
+    flex: 1 1 auto;
+    padding: 1rem;
+  }
+
+  .product-card .card-title {
+    font-size: 1.1rem;
+    color: #343a40;
+  }
+
+  .product-card .card-meta {
+    font-size: 0.85rem;
+  }
+
+  .product-card .stock-status .badge {
+    font-size: 0.8rem;
+    padding: 0.4em 0.7em;
+    font-weight: 500;
+  }
+
+  /* Tree View Styles */
+  .accordion-button:not(.collapsed) {
+    background-color: #e7f1ff;
+    color: #0d6efd;
+  }
+
+  .accordion-button:focus {
+    box-shadow: none;
+    border-color: rgba(0,0,0,.125);
+  }
+
+  .list-group-item .btn-link {
+    color: #212529;
+  }
+
+  .list-group-item .btn-link:hover {
+    color: #0d6efd;
+    background-color: #f8f9fa;
+  }
+
+  .list-group-item .collapse {
+    transition: all 0.2s ease;
+  }
+
+  .badge {
+    font-size: 0.75em;
+  }
+
+  /* Category/Type tree connectors */
+  .category-toolbar {
+    position: sticky;
+    top: 0.5rem; /* stay near top */
+    z-index: 1025;
+    background: rgba(255,255,255,0.95);
+    padding: 0.4rem 0.6rem;
+    border-radius: 6px;
+    border-bottom: 1px solid rgba(0,0,0,0.04);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+  }
+
+  .tree-node {
+    position: relative;
+  }
+
+  /* thin vertical connector line */
+  .tree-node:before {
+    content: '';
+    position: absolute;
+    left: -12px;
+    top: 12px;
+    bottom: 12px;
+    width: 1px;
+    background: rgba(0,0,0,0.06);
+  }
+
+  /* thin horizontal connector for each type item */
+  .type-list > li:before {
+    content: '';
+    position: absolute;
+    left: -10px;
+    top: 12px;
+    width: 10px;
+    height: 1px;
+    background: rgba(0,0,0,0.06);
+  }
+
+  /* Highlight for selected type buttons */
+  button[data-type].type-active,
+  .btn-type-active {
+    background-color: #0d6efd;
+    color: #fff !important;
+    border-color: #0d6efd;
+  }
+
+
+  .product-card .card-footer {
+    flex-shrink: 0;
+    background: #ffffff;
+    border-top: 1px solid #f1f1f1;
+    min-height: 60px;
+    align-items: center;
+    display: flex;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+  }
+
+  /* Responsive ayarlar */
+  @media (max-width: 992px) {
+    .col-md-6 {
+      max-width: 50% !important;
+    }
+    .col-md-12, .col-12 {
+      max-width: 100% !important;
+    }
+  }
+
+  /* Footer taşmasını engelleme */
+  footer {
+    padding: 1rem;
+    text-align: center;
+    font-size: 0.85rem;
+    white-space: normal;
+    word-wrap: break-word;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  /* Mobil için borrow-form input ve button tam genişlik */
+  @media (max-width: 576px) {
+    .borrow-form {
+      flex-direction: column !important;
+      gap: 0.5rem;
+    }
+
+    .borrow-form input,
+    .borrow-form button {
+      width: 100% !important;
+    }
+
+    .product-card {
+      padding: 0.75rem;
+    }
+
+    .product-card img {
+      max-height: 140px !important;
+    }
+  }
+
+  /* Sayaç input grubu ve butonları küçültme */
+  .amount-input-group {
+    width: 110px !important;
+  }
+  .amount-btn {
+    padding: 0 5px;
+    font-size: 0.85rem;
+  }
+  .amount-input {
+    font-size: 0.85rem;
+    padding: 0 4px;
+  }
+
+  .borrow-form,
+  form.d-inline-block {
+    flex-shrink: 1;
+    min-width: auto;
+  }
+
+  .d-none {
+    display: none !important;
+  }
+  body.modal-open {
+  padding-right: 0 !important;
+  overflow-y: scroll;
+  }
+
+  /* Selectize.js'in Bootstrap'in .form-select sınıfıyla oluşturduğu çift ok sorununu düzeltir.
+     Selectize bir elementi devraldığında, orijinal <select> elementine 'selectized' sınıfını ekler.
+     Bu seçici, hem .form-select hem de .selectized sınıfına sahip elementleri hedefleyerek Bootstrap okunu gizler. */
+  select.form-select.selectized {
+    background-image: none;
+    padding-right: 1rem !important; /* Ok kaldırılınca oluşan boşluğu düzelt */
+  }
+
+  /* Selectize.js'i Bootstrap 5 form-control stiliyle eşleştir */
+  .selectize-input, .selectize-control.single .selectize-input.input-active {
+    background: var(--bs-body-bg) !important;
+    border-color: var(--bs-border-color) !important;
+    border-radius: var(--bs-border-radius) !important;
+    padding: .375rem .75rem !important;
+    min-height: calc(1.5em + .75rem + calc(var(--bs-border-width) * 2)) !important;
+  }
+
+</style>

@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block title %}Izu Nar Lab Malzemeleri{% endblock %}
+
+{% block content %}
+<h3 class="mb-4">IzuNar Lab Malzemeleri</h3>
+
+<div class="mb-4 d-flex align-items-center gap-2 flex-wrap">
+  {% if current_user.has_add_permission() %}
+    <a href="{{ url_for('add_component') }}" class="btn btn-primary btn-sm rounded">
+      <i class="bi bi-plus-circle me-1"></i> Ürün Ekle
+    </a>
+  {% endif %}
+</div>
+
+<form method="get" action="{{ url_for('index') }}" class="mb-3">
+  <div class="input-group">
+    <input
+      type="search"
+      name="q"
+      class="form-control"
+      placeholder="Ürün adı, türü veya koduna göre ara..."
+      value="{{ request.args.get('q', '') }}"
+      aria-label="Ara"
+      autocomplete="off"
+    >
+    <button class="btn btn-outline-primary" type="submit">
+      <i class="bi bi-search"></i> Ara
+    </button>
+  </div>
+</form>
+
+{# --- Arama Sonucu --- #}
+{% if search_query %}
+  <h4>“{{ search_query }}” için arama sonuçları</h4>
+  {% for type, comps in grouped_components.items() %}
+    <h5 class="mt-4">{{ type }}</h5>
+    <div class="row g-4 products-container">
+      {% for comp in comps %}
+        {% set component = comp %}
+        {% include 'partials/product_card.html' %}
+      {% endfor %}
+    </div>
+  {% endfor %}
+
+{# --- Kategori Yoksa: Kategori Listesi --- #}
+{% elif not selected_category %}
+  <h4>Kategoriler</h4>
+  <ul class="list-unstyled d-flex flex-wrap gap-2">
+    {% for cat in all_categories %}
+      <li>
+        <a href="{{ url_for('index', category=cat) }}" class="btn btn-outline-primary">
+          {{ cat.capitalize() }}
+        </a>
+      </li>
+    {% endfor %}
+  </ul>
+
+{# --- Kategori Seçiliyse --- #}
+{% elif selected_category and grouped_components %}
+  <h4>{{ selected_category.capitalize() }} Kategorisindeki Ürün Türleri</h4>
+  <ul class="list-unstyled d-flex flex-wrap gap-2">
+    {% for type in all_types %}
+      <li>
+        <button
+          class="btn btn-outline-secondary"
+          data-type="{{ type|replace(' ', '_') }}"
+          aria-expanded="false"
+          aria-controls="products-{{ type|replace(' ', '_') }}"
+        >
+          {{ type }}
+        </button>
+      </li>
+    {% endfor %}
+  </ul>
+
+  {# --- Ürün Kartları sadece kategori görünümünde --- #}
+  {% for type, comps in grouped_imaged_components.items() %}
+    <div id="products-{{ type|replace(' ', '_') }}"
+         class="row g-4 products-container d-none"
+         style="margin-top: 1rem;">
+      {% for comp in comps %}
+        {% set component = comp %}
+        {% include 'partials/product_card.html' %}
+      {% endfor %}
+    </div>
+  {% endfor %}
+
+  
+  {% for type, comps in grouped_nullIMG_components.items() %}
+    <div id="products-{{ type|replace(' ', '_') }}"
+         class="row g-4 products-container d-none"
+         style="margin-top: 1rem;">
+      {% for comp in comps %}
+        {% set component = comp %}
+        {% include 'partials/product_card.html' %}
+      {% endfor %}
+    </div>
+  {% endfor %}
+{% endif %}
+{% endblock %}
+
+{% block styles %}
+  {% include 'partials/index_styles.html' %}
+{% endblock %}
+
+{% block scripts %}
+  <!-- jQuery and Selectize (for in-place location creation) -->
+  <script src="{{url_for('static' ,filename='js/jquery-3.7.1.min.js') }}"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/selectize.default.css') }}">
+  <script src="{{ url_for('static', filename='js/selectize.min.js') }}"></script>
+  {% include 'partials/index_scripts.html' %}
+{% endblock %}

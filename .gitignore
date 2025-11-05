@@ -1,0 +1,19 @@
+__pycache__/
+migrations/
+instance/database.db
+*.pyc
+venv/
+.env
+.env.local
+.env.*
+.DS_Store
+uploads/
+static/uploads/
+tmp/
+
+# Virtualenvs that might be placed in /var/www
+/var/www/venv/
+
+# IDE files
+.vscode/
+.idea/

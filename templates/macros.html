@@ -1,0 +1,23 @@
+{% macro csrf_token_field() %}
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+{% endmacro %}
+
+{% macro render_form_field(field, label=None, type="text", placeholder="", class_="form-control") %}
+    <div class="mb-3">
+        {% if label %}
+            <label for="{{ field.id }}" class="form-label">{{ label }}</label>
+        {% endif %}
+        <input 
+            type="{{ type }}" 
+            id="{{ field.id }}" 
+            name="{{ field.name }}" 
+            value="{{ field.data or '' }}" 
+            placeholder="{{ placeholder }}" 
+            class="{{ class_ }}">
+        
+        {% if field.errors %}
+            <div class="text-danger mt-1">{{ field.errors[0] }}</div>
+        {% endif %}
+    </div>
+{% endmacro %}
+

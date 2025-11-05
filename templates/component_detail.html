@@ -1,0 +1,251 @@
+{% extends 'base.html' %}
+{% block title %}{{ component.name }} ({{ component.code or 'Kodsuz' }}) - Bileşen Detayı{% endblock %}
+
+{% block styles %}
+<style>
+    /* Not ikonları için stil */
+    .bi-chat-left-text {
+        cursor: pointer;
+        color: #6c757d;
+    }
+</style>
+{% endblock %}
+
+
+{% block content %}
+<div class="container mt-5 mb-5">
+    <div class="card shadow-sm p-4 border-0 rounded-3" style="background-color: #f9f9f9;">
+        <div class="row g-4">
+            <div class="col-md-4 text-center">
+       {% if component.image_url %}
+       <img src="{{ component.image_url }}"
+         class="img-fluid rounded shadow-sm" alt="{{ component.name }}">
+       {% else %}
+       <img src="{{ url_for('static', filename='uploads/Photoroom_20250531_173915-Photoroom.png') }}"
+         class="img-fluid rounded shadow-sm" alt="{{ component.name }}">
+       {% endif %}
+            </div>
+            <div class="col-md-8">
+                <h2 class="fw-bold text-primary">{{ component.name }}</h2>
+
+                <p><strong>Kod:</strong> {{ component.code or 'Belirtilmemiş' }}</p>
+
+                <p><strong>Ürün Tipi:</strong>
+                    {% if component.category %}
+                        {% if component.category in ['demirbas', 'gerec'] %}
+                        <span class="badge bg-primary">{{ component.category.capitalize() }}</span>
+                        {% elif component.category == 'sarf' %}
+                        <span class="badge bg-secondary">{{ component.category.capitalize() }}</span>
+                        {% else %}
+                        <span class="badge bg-info">{{ component.category.capitalize() }}</span>
+                        {% endif %}
+                    {% else %}
+                        <span class="badge bg-light text-dark">Belirtilmemiş</span>
+                    {% endif %}
+                </p>
+
+                <p><strong>Tür:</strong> {{ component.type }}</p>
+
+                {% if component.tags %}
+                  <p><strong>Etiketler:</strong> 
+                    {% for tag in component.tags %}
+                      <span class="badge bg-info text-dark me-1">{{ tag.name }}</span>
+                    {% endfor %}
+                  </p>
+                {% endif %}
+
+                <p><strong>Varsayilan Yer:</strong> {{ component.location }}</p>
+                <p><strong>Açıklama:</strong> {{ component.description }}</p>
+                <p>Stok: <strong class="text-success">{{ component.quantity }}</strong></p>
+                <p><strong>Parça Numarası:</strong> {{ component.part_number or '-' }}</p>
+
+                {% if current_user.is_authenticated and current_user.role == 'admin' %}
+                <div class="mb-3">
+                 <a href="{{ url_for('edit_component', comp_id=component.id) }}" class="btn btn-outline-primary">
+                 <i class="bi bi-pencil-square"></i> Düzenle
+                 </a>
+                </div>
+                {% endif %}
+
+                {% if current_user.role == 'admin' %}
+                <form method="POST" action="{{ url_for('update_stock', comp_id=component.id) }}"
+                      class="d-inline-flex align-items-center gap-2 mt-3 flex-wrap">
+                    <input type="hidden" id="action-input" name="action" value="">
+                    <input type="number" name="amount" id="amount-input" value="1" {% if is_fixed_asset(component.category) %}max="1" min="1"{% else %}min="1"{% endif %}
+                           class="form-control form-control-sm" style="width: 80px;" required>
+                    <input type="text" name="serial_number" class="form-control form-control-sm" placeholder="Seri No (demirbaş)" style="width: 160px;" {% if not is_fixed_asset(component.category) %}disabled{% endif %}>
+
+                    <div class="btn-group" role="group" aria-label="Stok Güncelle">
+                        <button type="submit" onclick="setAction('decrease')" class="btn btn-outline-danger">
+                            <i class="bi bi-dash-circle-fill"></i> Azalt
+                        </button>
+                        <button type="submit" onclick="setAction('increase')" class="btn btn-outline-success">
+                            <i class="bi bi-plus-circle-fill"></i> Arttır
+                        </button>
+                    </div>
+                </form>
+
+                {% endif %}
+
+                <hr class="my-4">
+
+                {% if is_fixed_asset(component.category) %}
+                <h4 class="text-secondary fw-semibold">Seri Numaraları</h4>
+                <table class="table table-sm table-bordered">
+                  <thead class="table-light">
+                    <tr>
+                      <th>Seri No</th>
+                      <th>Zimmetli</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for item in component.inventory_items %}
+                      <tr>
+                        <td>{{ item.serial_number }}</td>
+                        <td>
+                          {% if item.assigned_to %}
+                            {% set user = item.assigned_to | get_user_by_username %}
+                            {% if user and current_user.is_admin() %}
+                              <a href="{{ url_for('edit_user', user_id=user.id) }}" class="text-decoration-none">
+                                <i class="bi bi-person-fill me-1"></i>{{ item.assigned_to }}
+                              </a>
+                            {% else %}
+                              <i class="bi bi-person-fill me-1"></i>{{ item.assigned_to }}
+                            {% endif %}
+                          {% else %}
+                            <span class="text-success fst-italic">Boşta</span>
+                          {% endif %}
+                        </td>
+                      </tr>
+                    {% else %}
+                      <tr><td colspan="2" class="text-center">Kayıtlı seri numarası yok.</td></tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+
+                <h4 class="text-secondary fw-semibold mt-4">Ödünç Alma Geçmişi</h4>
+                {% if borrow_history %}
+                <div class="table-responsive mt-3 mb-4">
+                    <table class="table table-striped table-bordered align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Kullanıcı</th>
+                                <th>Seri No</th>
+                                <th>Ödünç Alınma</th>
+                                <th>İade</th>
+                                <th>Lokasyon</th>
+                                <th>Not</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for record in borrow_history %}
+                            <tr>
+                                <td>
+                                    {% set user = record.user_name | get_user_by_username %}
+                                    {% if user and current_user.is_admin() %}
+                                        <a href="{{ url_for('edit_user', user_id=user.id) }}" class="text-decoration-none">
+                                            <i class="bi bi-person-fill me-1"></i>{{ record.user_name }}
+                                        </a>
+                                    {% else %}
+                                        <i class="bi bi-person-fill me-1"></i>{{ record.user_name }}
+                                    {% endif %}
+                                </td>
+                                <td><span class="font-monospace">{{ record.serial_number }}</span></td>
+                                <td>{{ record.borrow_date.strftime('%d-%m-%Y') }}</td>
+                                <td>
+                                    {% if record.return_date %}
+                                        <span class="text-muted">{{ record.return_date.strftime('%d-%m-%Y') }}</span>
+                                    {% else %}
+                                        <span class="badge bg-danger">İade Edilmedi</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ record.location or '-' }}</td>
+                                <td>
+                                    {% if record.notes %}
+                                    <i class="bi bi-chat-left-text"
+                                       data-bs-toggle="popover"
+                                       data-bs-trigger="focus"
+                                       tabindex="0"
+                                       data-bs-content="{{ record.notes }}"></i>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted mt-3">Henüz ödünç alma geçmişi bulunmamaktadır.</p>
+                {% endif %}
+                {% endif %}
+
+                {% if component.category == 'sarf' %}
+                <h4 class="text-secondary fw-semibold">Sarf Etme Geçmişi</h4>
+                {% if consume_history %}
+                <div class="table-responsive mt-3">
+                    <table class="table table-striped table-bordered align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Kullanıcı</th>
+                                <th>Sarf Tarihi</th>
+                                <th>Miktar</th>
+                                <th>Not</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for record in consume_history %}
+                            <tr>
+                                <td>
+                                    {% set user = record.user_name | get_user_by_username %}
+                                    {% if user and current_user.is_admin() %}
+                                        <a href="{{ url_for('edit_user', user_id=user.id) }}" class="text-decoration-none">
+                                            <i class="bi bi-person-fill me-1"></i>{{ record.user_name }}
+                                        </a>
+                                    {% else %}
+                                        <i class="bi bi-person-fill me-1"></i>{{ record.user_name }}
+                                    {% endif %}
+                                </td>
+                                <td>{{ record.timestamp.strftime('%d-%m-%Y %H:%M') }}</td>
+                                <td><span class="badge bg-secondary">{{ record.amount }}</span></td>
+                                <td>
+                                    {% if record.notes %}
+                                    <i class="bi bi-chat-left-text"
+                                       data-bs-toggle="popover"
+                                       data-bs-trigger="focus"
+                                       tabindex="0"
+                                       data-bs-content="{{ record.notes }}"></i>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted mt-3">Henüz sarf etme geçmişi bulunmamaktadır.</p>
+                {% endif %}
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function setAction(action) {
+        document.getElementById('action-input').value = action;
+    }
+    function confirmDelete(componentName) {
+        return confirm(`"${componentName}" isimli ürünü silmek üzeresiniz. Bu işlem geri alınamaz. Emin misiniz?`);
+    }
+    // Popover'ları başlat
+    document.addEventListener('DOMContentLoaded', function () {
+        var popoverTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="popover"]'));
+        var popoverList = popoverTriggerList.map(function (popoverTriggerEl) {
+            return new bootstrap.Popover(popoverTriggerEl);
+        });
+    });
+</script>
+{% endblock %}

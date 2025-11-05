@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container my-4">
+  <h2 class="mb-4 text-primary fw-bold">İstek Listesi</h2>
+
+  <form method="post" class="row g-3 mb-5">
+    <div class="col-md-5">
+      <input type="text" name="name" class="form-control form-control-lg" maxlength="100" placeholder="Ürün Adı" required>
+    </div>
+    <div class="col-md-5">
+      <input type="text" name="description" class="form-control form-control-lg" maxlength="150" placeholder="Açıklama (Opsiyonel)">
+    </div>
+    <div class="col-md-2 d-grid">
+      <button type="submit" class="btn btn-primary btn-lg">Ekle</button>
+    </div>
+  </form>
+
+  <div class="list-group">
+    {% for req in requests %}
+    <div class="list-group-item list-group-item-action mb-2 shadow-sm rounded position-relative">
+      
+      {% if current_user.is_authenticated and current_user.role == "admin" %}
+          <form method="post" action="{{ url_for('delete_request', req_id=req.id) }}"
+           class="position-absolute top-0 end-0 m-2"
+           onsubmit="return confirm('Bu isteği silmek istediğinize emin misiniz?');">
+             <button type="submit" class="btn btn-sm btn-outline-danger">
+              <i class="bi bi-trash"></i>
+             </button>
+          </form>
+      {% endif %}
+
+      
+      <h5 class="mb-1 fw-semibold text-dark">{{ req.name }}</h5>
+      <p class="mb-1 text-muted">{{ req.description or "-" }}</p>
+      <small class="text-secondary">
+        <i class="bi bi-person"></i>
+        {{ req.user.username if req.user else "Bilinmiyor" }}
+      </small>
+      <small class="text-secondary d-block mt-1">{{ req.created_at.strftime('%d.%m.%Y') }}</small>
+      
+    </div>
+    {% else %}
+    <p class="text-muted fst-italic">Henüz istek bulunmamaktadır.</p>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

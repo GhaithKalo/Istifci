@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Yeni Kullanıcı Ekle{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <h2>Yeni Kullanıcı Ekle</h2>
+
+    <form method="POST">
+        <div class="mb-3">
+            <label for="username" class="form-label">Kullanıcı Adı</label>
+            <input type="text" class="form-control" id="username" name="username" required>
+        </div>
+
+        <div class="mb-3">
+            <label for="password" class="form-label">Şifre</label>
+            <input type="password" class="form-control" id="password" name="password" required>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label d-block">Rol</label>
+            <div class="btn-group" role="group" aria-label="Rol Seçimi">
+                <input type="radio" class="btn-check" name="role" id="role_user" value="user" autocomplete="off" checked>
+                <label class="btn btn-outline-primary" for="role_user">Kullanıcı</label>
+
+                <input type="radio" class="btn-check" name="role" id="role_admin" value="admin" autocomplete="off">
+                <label class="btn btn-outline-danger" for="role_admin">Admin</label>
+            </div>
+        </div>
+
+        <div class="form-check mb-2">
+            <input type="checkbox" class="form-check-input" id="can_add_product" name="can_add_product">
+            <label class="form-check-label" for="can_add_product">Ürün ekleme yetkisi</label>
+        </div>
+
+        <div class="form-check mb-3">
+            <input type="checkbox" class="form-check-input" id="can_delete_product" name="can_delete_product">
+            <label class="form-check-label" for="can_delete_product">Ürün silme yetkisi</label>
+        </div>
+
+        <button type="submit" class="btn btn-primary">Ekle</button>
+        <a href="{{ url_for('manage_users') }}" class="btn btn-secondary">İptal</a>
+    </form>
+</div>
+
+<!-- JavaScript: Admin seçilince yetkileri otomatik ayarla -->
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const roleUser = document.getElementById('role_user');
+    const roleAdmin = document.getElementById('role_admin');
+    const addCheckbox = document.getElementById('can_add_product');
+    const deleteCheckbox = document.getElementById('can_delete_product');
+
+    function updatePermissionFields() {
+        if (roleAdmin.checked) {
+            addCheckbox.checked = true;
+            addCheckbox.disabled = true;
+            deleteCheckbox.checked = true;
+            deleteCheckbox.disabled = true;
+        } else {
+            addCheckbox.disabled = false;
+            deleteCheckbox.disabled = false;
+        }
+    }
+
+    roleUser.addEventListener('change', updatePermissionFields);
+    roleAdmin.addEventListener('change', updatePermissionFields);
+
+    // Sayfa ilk yüklendiğinde kontrol et
+    updatePermissionFields();
+});
+</script>
+{% endblock %}

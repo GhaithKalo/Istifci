@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Dashboard{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+  <div class="card shadow-lg rounded-4 p-5 bg-white border-0" style="max-width: 600px; margin: auto;">
+    <div class="text-center mb-4">
+      <i class="bi bi-shield-lock-fill fs-1 text-primary"></i>
+      <h1 class="mb-2 text-primary fw-bold">Admin Paneline Hoşgeldiniz</h1>
+      <p class="lead text-muted">
+        Sistem ayarları, kullanıcı yönetimi ve diğer yönetimsel işlemleri buradan kolayca gerçekleştirebilirsiniz.
+      </p>
+    </div>
+    <h4 class="mb-3 text-secondary fw-semibold text-center">Yönetim Menüsü</h4>
+    <div class="list-group list-group-flush">
+      <a href="{{ url_for('manage_users') }}" class="list-group-item list-group-item-action d-flex align-items-center gap-3 py-3 border-0 rounded-3 shadow-sm mb-2 admin-menu-item">
+        <i class="bi bi-people-fill fs-4 text-success"></i>
+        <div>
+          <span class="fw-semibold">Kullanıcı Yönetimi</span>
+          <div class="small text-muted">Kullanıcı ekle, düzenle, sil</div>
+        </div>
+      </a>
+      <a href="{{ url_for('admin_borrow_return') }}" class="list-group-item list-group-item-action d-flex align-items-center gap-3 py-3 border-0 rounded-3 shadow-sm mb-2 admin-menu-item">
+        <i class="bi bi-handbag-fill fs-4 text-info"></i>
+        <div>
+          <span class="fw-semibold">Ödünç Al/Ver</span>
+          <div class="small text-muted">Admin olarak ödünç işlemleri</div>
+        </div>
+      </a>
+      <a href="{{ url_for('component_list') }}" class="list-group-item list-group-item-action d-flex align-items-center gap-3 py-3 border-0 rounded-3 shadow-sm mb-2 admin-menu-item">
+        <i class="bi bi-cpu-fill fs-4 text-warning"></i>
+        <div>
+          <span class="fw-semibold">Bileşenler</span>
+          <div class="small text-muted">Tüm bileşenleri görüntüle</div>
+        </div>
+      </a>
+      <a href="{{ url_for('low_stock') }}" class="list-group-item list-group-item-action d-flex align-items-center gap-3 py-3 border-0 rounded-3 shadow-sm admin-menu-item">
+        <i class="bi bi-exclamation-triangle-fill fs-4 text-danger"></i>
+        <div>
+          <span class="fw-semibold">Azalan Stoklar</span>
+          <div class="small text-muted">Stok seviyesi düşük olanlar</div>
+        </div>
+      </a>
+    </div>
+  </div>
+</div>
+<style>
+  .admin-menu-item:hover {
+    background: linear-gradient(90deg, #e3f2fd 0%, #fff 100%);
+    transform: scale(1.02);
+    transition: all 0.2s;
+  }
+</style>
+{% endblock %}

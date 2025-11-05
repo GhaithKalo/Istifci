@@ -1,0 +1,471 @@
+{% extends 'base.html' %}
+{% block title %}Yeni Bileşen Ekle{% endblock %}
+
+{% block content %}
+<!-- Selectize CSS -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/selectize.default.css') }}">
+
+<style>
+  /* Sayfa arka planı ve kart tasarımı */
+  body {
+    background: #f4f6fa;
+  }
+  .card {
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 2px 16px #00000010;
+    border: none;
+  }
+  /* Form etiketleri ve inputlar */
+  .form-label {
+    font-weight: 500;
+    color: #222;
+    margin-bottom: 6px;
+  }
+  .form-control, .form-select {
+    border-radius: 8px;
+    border: 1px solid #dbe2ea;
+    font-size: 1rem;
+    padding: 0.5rem 0.9rem;
+    background: #f8fafc;
+    transition: border-color 0.2s;
+  }
+  .form-control:focus, .form-select:focus {
+    border-color: #0d6efd;
+    background: #fff;
+    box-shadow: none;
+  }
+  /* Butonlar */
+  .btn-primary {
+    border-radius: 8px;
+    font-weight: 500;
+    padding: 0.5rem 2rem;
+    background: #0d6efd;
+    border: none;
+    box-shadow: 0 2px 8px #0d6efd22;
+    transition: background 0.2s;
+  }
+  .btn-primary:hover {
+    background: #0b5ed7;
+  }
+  .btn-danger {
+    border-radius: 8px;
+    font-weight: 500;
+    padding: 0.5rem 1.2rem;
+    background: #dc3545;
+    border: none;
+    margin-left: 8px;
+  }
+  .btn-danger:hover {
+    background: #bb2d3b;
+  }
+  .btn-outline-primary, .btn-outline-secondary {
+    border-radius: 8px;
+    font-weight: 500;
+    padding: 0.5rem 0.5rem;
+  }
+  /* Input grup ve açıklama metni */
+  .input-group.mb-2 {
+    margin-bottom: 0 !important;
+  }
+  .form-text {
+    color: #6c757d;
+    font-size: 0.95em;
+    margin-top: 2px;
+  }
+  /* Selectize kutusu tasarımı */
+  .selectize-control.single .selectize-input {
+    border-radius: 8px;
+    border: 1px solid #dbe2ea;
+    background: #f8fafc;
+    min-height: 40px;
+    font-size: 1rem;
+    box-shadow: none;
+    padding: 0.4rem 0.8rem;
+    display: flex;
+    align-items: center;
+    position: relative;
+  }
+  .selectize-control.single .selectize-input.has-items {
+    background: #e9f3ff;
+    border-color: #0d6efd;
+  }
+  .selectize-control.single .selectize-input > div {
+    background: #0d6efd;
+    color: #fff;
+    border-radius: 8px;
+    padding: 0.25rem 0.8rem 0.25rem 1.6rem;
+    font-weight: 500;
+    position: relative;
+    margin-right: 0;
+    margin-left: 0;
+  }
+  .selectize-control.single .selectize-input > input {
+    margin-left: 0.5rem;
+  }
+  .selectize-control.single .selectize-input:after {
+    display: none !important;
+  }
+  select.form-select {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    background-image: none !important;
+  }
+  /* Demirbaş alanları varsayılan olarak gizli */
+  .demirbas-only {
+    display: none;
+  }
+  /* Mobil uyum */
+  @media (max-width: 600px) {
+    .card {
+      padding: 1rem !important;
+    }
+    .btn-group[role="group"] {
+      min-width: 100px;
+      max-width: 100%;
+    }
+  }
+</style>
+
+<div class="container py-5">
+  <div class="card shadow-sm p-4 border-0 rounded-3 mx-auto" style="max-width: 600px;">
+    <h2 class="fw-bold text-primary mb-4 text-center">Yeni Bileşen Ekle</h2>
+    <!-- Bileşen ekleme formu başlangıcı -->
+    <form method="POST" enctype="multipart/form-data" action="{{ url_for('add_component') }}" id="add-component-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+      <!-- 1. Ürün Tipi Seçimi -->
+      <div class="mb-3">
+        <label class="form-label">Ürün Tipi</label>
+        <div class="btn-group w-100" role="group" aria-label="Ürün Tipi">
+          <input type="hidden" name="category" id="category-input" required>
+          <button type="button" class="btn btn-outline-primary w-33" id="btn-demirbas" onclick="selectCategory('demirbas')">Demirbaş</button>
+          <button type="button" class="btn btn-outline-primary w-33" id="btn-gerec" onclick="selectCategory('gerec')">Gereçler</button>
+          <button type="button" class="btn btn-outline-secondary w-33" id="btn-sarf" onclick="selectCategory('sarf')">Sarf</button>
+        </div>
+      </div>
+
+      <!-- 2. Bileşen Adı -->
+      <div class="mb-3">
+        <label for="name" class="form-label">Bileşen Adı</label>
+        <input type="text" class="form-control" id="name" name="name" placeholder="Bileşen adı" required maxlength="50">
+        <div class="form-text">En fazla 50 karakter.</div>
+      </div>
+
+      <!-- 3. Bileşen Türü (Selectize + Silme) -->
+      <div class="mb-3 d-flex align-items-center">
+        <div style="flex:1;">
+          <label for="type" class="form-label">Tür</label>
+          <select id="type-select" name="type" class="form-select" placeholder="Tür seçin veya ekleyin..." maxlength="30">
+            {% for t in types %}
+            <option value="{{ t }}">{{ t }}</option>
+            {% endfor %}
+          </select>
+          <div class="form-text">Yeni tür eklemek için yazıp Enter'a basın. En fazla 30 karakter.</div>
+        </div>
+        <!-- Seçili türü silme butonu -->
+        <button type="button" id="delete-type-btn" class="btn btn-danger ms-2" title="Seçili türü sil">Sil</button>
+      </div>
+
+      <!-- 4. Açıklama -->
+      <div class="mb-3">
+        <label for="description" class="form-label">Açıklama</label>
+        <textarea class="form-control" id="description" name="description" placeholder="Açıklama" maxlength="200"></textarea>
+        <div class="form-text">En fazla 200 karakter.</div>
+      </div>
+
+      <!-- 5. Konum (Selectize createable single-select) -->
+      <div class="mb-3">
+        <label for="location" class="form-label">Varsayılan Yer</label>
+        <select id="location-select" name="location" class="form-select" placeholder="Varsayılan yer seçin veya ekleyin..." maxlength="50">
+          {% if locations %}
+            {% for loc in locations %}
+              <option value="{{ loc }}">{{ loc }}</option>
+            {% endfor %}
+          {% endif %}
+        </select>
+        <div class="form-text">En fazla 50 karakter.</div>
+      </div>
+
+      <!-- 6. Stok Miktarı -->
+      <div class="mb-3">
+        <label for="quantity" class="form-label">Stok Miktarı</label>
+        <input type="number" class="form-control" id="quantity" name="quantity" min="0" value="0" required>
+      </div>
+
+      <!-- 7. Etiketler (Selectize + manuel ekleme) -->
+      <div class="mb-3">
+        <label for="tags" class="form-label">Etiketler</label>
+        <div class="input-group mb-2">
+          <input type="text" id="new-tag-input" class="form-control" placeholder="Yeni etiket adı girin" maxlength="50">
+          <button type="button" id="add-tag-button" class="btn btn-outline-secondary">Ekle</button>
+        </div>
+        <select id="tags" name="tags[]" multiple class="form-control" placeholder="Etiket seçin veya ekleyin..." maxlength="50">
+          {% for tag in existing_tags %}
+            <option value="{{ tag.id }}" {% if tag.id|string in selected_tags %}selected{% endif %}>{{ tag.name }}</option>
+          {% endfor %}
+        </select>
+        <div class="form-text">Her etiket en fazla 50 karakter olabilir.</div>
+      </div>
+
+      <!-- 8. Demirbaş ise Sahiplik Kısaltması (sadece demirbaşta görünür) -->
+      <div class="mb-3 demirbas-only" style="display:none; flex-direction: column;">
+        <label for="owner_prefix" class="form-label">Sahiplik Kısaltması</label>
+        <div class="d-flex align-items-center">
+          <select id="owner-prefix-select" name="owner_prefix" class="form-select" placeholder="Kısaltma seçin veya ekleyin..." maxlength="10" style="flex:1;">
+            {% if owner_prefixes %}
+              {% for prefix in owner_prefixes %}
+                <option value="{{ prefix }}">{{ prefix }}</option>
+              {% endfor %}
+            {% endif %}
+          </select>
+          <button type="button" id="delete-owner-prefix-btn" class="btn btn-danger ms-2" title="Seçili kısaltmayı sil">Sil</button>
+        </div>
+        <div class="form-text mt-1">Her kısaltma en fazla 10 karakter olabilir.<br>Seri numaralarının başına otomatik eklenecektir.</div>
+      </div>
+
+      <!-- 9. Demirbaş ise Seri Numaraları (sadece demirbaşta görünür) -->
+      <div class="mb-3 demirbas-only" style="display:none;">
+        <label for="serial_numbers" class="form-label">Seri Numaraları</label>
+        <textarea class="form-control" id="serial_numbers" name="serial_numbers" rows="3" placeholder="Seri numaralarını virgülle ayırarak girin (örn: 001, 002, 003)" maxlength="100"></textarea>
+        <div class="form-text">Toplamda en fazla 100 karakter.</div>
+      </div>
+
+      <!-- Fotoğraf (opsiyonel) -->
+      <div class="mb-3">
+        <label for="photo" class="form-label">Fotoğraf Yükle (Opsiyonel)</label>
+        <input type="file" class="form-control" id="photo" name="photo" accept="image/*">
+      </div>
+
+      <!-- Formu gönder butonu -->
+      <button type="submit" class="btn btn-primary w-100 mt-3">Ekle</button>
+    </form>
+    <!-- Bileşen ekleme formu sonu -->
+  </div>
+</div>
+
+<!-- Selectize ve jQuery -->
+<script src="{{ url_for('static', filename='js/jquery-3.7.1.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/selectize.min.js') }}"></script>
+<script>
+$(document).ready(function () {
+  // Etiketler için Selectize
+  $('#tags').selectize({
+    plugins: ['remove_button'],
+    create: function(input, callback) {
+      callback({ value: 'new_' + input, text: input });
+    },
+    persist: false,
+    placeholder: 'Etiket seçin veya yazıp Enter ile ekleyin',
+    maxItems: null
+  });
+
+  // Tür için Selectize
+  var typeSelectize = $('#type-select').selectize({
+    create: function(input, callback) {
+      // Girilen türün tekrar eklenmesini engelle
+      const normalizedInput = input.replace(/\s+/g, '').toLowerCase();
+      const exists = Object.values(this.options).some(opt =>
+        opt.text.replace(/\s+/g, '').toLowerCase() === normalizedInput
+      );
+      if (exists) {
+        alert('Bu tür zaten mevcut!');
+        callback();
+      } else {
+        callback({ value: input, text: input });
+      }
+    },
+    persist: false,
+    placeholder: 'Tür seçin veya yazıp Enter ile ekleyin',
+    maxItems: 1
+  })[0].selectize;
+
+  // Sahiplik kısaltması için Selectize
+  var ownerPrefixSelectize = $('#owner-prefix-select').selectize({
+    create: function(input, callback) {
+      // Her kısaltma en fazla 10 karakter olabilir
+      if (input.length > 10) {
+        alert('Her kısaltma en fazla 10 karakter olabilir.');
+        callback();
+        return;
+      }
+      const normalizedInput = input.replace(/\s+/g, '').toUpperCase();
+      const exists = Object.values(this.options).some(opt =>
+        opt.text.replace(/\s+/g, '').toUpperCase() === normalizedInput
+      );
+      if (exists) {
+        alert('Bu kısaltma zaten mevcut!');
+        callback();
+      } else {
+        callback({ value: input, text: input });
+      }
+    },
+    persist: false,
+    placeholder: 'Kısaltma seçin veya yazıp Enter ile ekleyin',
+    maxItems: 1
+  })[0].selectize;
+
+  // Varsayılan yer için Selectize (createable single select)
+  var locationSelectize = $('#location-select').selectize({
+    create: function(input, callback) {
+      if (input.length > 50) {
+        alert('Konum en fazla 50 karakter olabilir.');
+        callback();
+        return;
+      }
+      var forbiddenChars = /[(){}[\]'"]/;
+      if (forbiddenChars.test(input)) {
+        alert('Konum adında parantez, tırnak işareti gibi özel karakterler kullanılamaz.');
+        callback();
+        return;
+      }
+      callback({ value: input, text: input });
+    },
+    persist: false,
+    placeholder: 'Varsayılan yer seçin veya yazıp Enter ile ekleyin',
+    maxItems: 1
+  })[0].selectize;
+
+  // Eğer isterseniz konum silme butonu ekleyebilirsiniz. Şimdilik klavyeden temizleme yeterlidir.
+
+  // Tür silme butonu
+  $('#delete-type-btn').on('click', function () {
+    var selected = typeSelectize.items[0];
+    if (selected) {
+      typeSelectize.removeOption(selected);
+      typeSelectize.clear();
+    }
+  });
+
+  // Sahiplik kısaltması silme butonu
+  $('#delete-owner-prefix-btn').on('click', function () {
+    var selected = ownerPrefixSelectize.items[0];
+    if (selected) {
+      ownerPrefixSelectize.removeOption(selected);
+      ownerPrefixSelectize.clear();
+    }
+  });
+
+  // Yeni etiket ekleme butonu
+  $('#add-tag-button').on('click', function () {
+    const newTagName = $('#new-tag-input').val().trim();
+    if (!newTagName) {
+      alert('Lütfen yeni etiket adını giriniz.');
+      return;
+    }
+    if (newTagName.length > 50) {
+      alert('Her etiket en fazla 50 karakter olabilir.');
+      return;
+    }
+    const $tagSelect = $('#tags').selectize();
+    const tagSelectize = $tagSelect[0].selectize;
+
+    const normalizedNewTag = newTagName.replace(/\s+/g, '').toLowerCase();
+    const exists = Object.values(tagSelectize.options).some(opt =>
+      opt.text.replace(/\s+/g, '').toLowerCase() === normalizedNewTag
+    );
+    if (exists) {
+      alert('Bu etiket zaten mevcut!');
+      $('#new-tag-input').val('');
+      return;
+    }
+    tagSelectize.addOption({ value: 'new_' + newTagName, text: newTagName });
+    tagSelectize.refreshOptions();
+    tagSelectize.addItem('new_' + newTagName);
+    $('#new-tag-input').val('');
+  });
+
+  // Form gönderilmeden önce ürün tipi kontrolü
+  $('#add-component-form').on('submit', function(e) {
+    const categoryValue = $('#category-input').val();
+    if (!categoryValue) {
+      e.preventDefault();
+      alert('Lütfen ürün tipi seçiniz (Demirbaş veya Sarf).');
+      return false;
+    }
+  });
+
+  // Demirbaş alanlarının görünürlüğünü güncelle
+  function isFixedAssetCategory(category) {
+    if (!category) return false;
+    const c = category.toString().toLowerCase();
+    return ['demirbas', 'demirbaş', 'gerec', 'gereç', 'gerecler', 'gereçler'].includes(c);
+  }
+
+  function updateDemirbasFieldsVisibility() {
+    const category = $('#category-input').val();
+    if (isFixedAssetCategory(category)) {
+      $('.demirbas-only').css('display', 'flex');
+    } else {
+      $('.demirbas-only').css('display', 'none');
+    }
+  }
+
+  // Ürün tipi butonlarına tıklanınca güncelle (Demirbaş ve Gereçler demirbaş-only alanlarını gösterir)
+  $('#btn-demirbas, #btn-gerec, #btn-sarf').on('click', function () {
+    setTimeout(updateDemirbasFieldsVisibility, 10);
+  });
+
+  // Ürün tipi inputu değişirse güncelle
+  $('#category-input').on('change', updateDemirbasFieldsVisibility);
+
+  // Sayfa ilk açıldığında kontrol et
+  updateDemirbasFieldsVisibility();
+});
+
+// Ürün tipi seçimi fonksiyonu
+function selectCategory(category) {
+  const categoryInput = document.getElementById('category-input');
+  const btnDemirbas = document.getElementById('btn-demirbas');
+  const btnGerec = document.getElementById('btn-gerec');
+  const btnSarf = document.getElementById('btn-sarf');
+
+  // Buton stillerini güncelle
+  btnDemirbas.classList.remove('active', 'selected', 'btn-primary');
+  btnSarf.classList.remove('active', 'selected', 'btn-secondary');
+  // reset all three buttons to outline state
+  btnDemirbas.classList.add('btn-outline-primary');
+  btnGerec.classList.add('btn-outline-primary');
+  btnSarf.classList.add('btn-outline-secondary');
+
+  if (category === 'demirbas' || category === 'gerec' || category === 'gereç') {
+    // Demirbaş-like categories: highlight Demirbaş or Gereç button
+    if (category === 'demirbas') {
+      btnDemirbas.classList.add('active', 'selected', 'btn-primary');
+      btnDemirbas.classList.remove('btn-outline-primary');
+      // reset gerec/sarf
+      btnGerec.classList.remove('active', 'selected', 'btn-primary');
+      btnGerec.classList.add('btn-outline-primary');
+      btnSarf.classList.remove('active', 'selected', 'btn-secondary');
+      btnSarf.classList.add('btn-outline-secondary');
+    } else {
+      // treat 'gerec' as demirbaş
+      btnGerec.classList.add('active', 'selected', 'btn-primary');
+      btnGerec.classList.remove('btn-outline-primary');
+      btnDemirbas.classList.remove('active', 'selected', 'btn-primary');
+      btnDemirbas.classList.add('btn-outline-primary');
+      btnSarf.classList.remove('active', 'selected', 'btn-secondary');
+      btnSarf.classList.add('btn-outline-secondary');
+    }
+    document.querySelectorAll('.demirbas-only').forEach(el => el.style.display = 'flex');
+  } else {
+    // Sarf seçildi
+    btnSarf.classList.add('active', 'selected', 'btn-secondary');
+    btnSarf.classList.remove('btn-outline-secondary');
+    // reset demirbaş/gerec
+    btnDemirbas.classList.remove('active', 'selected', 'btn-primary');
+    btnDemirbas.classList.add('btn-outline-primary');
+    btnGerec.classList.remove('active', 'selected', 'btn-primary');
+    btnGerec.classList.add('btn-outline-primary');
+    document.querySelectorAll('.demirbas-only').forEach(el => el.style.display = 'none');
+  }
+
+  categoryInput.value = category;
+  // Alanları güncelle
+  if (typeof updateDemirbasFieldsVisibility === 'function') {
+    updateDemirbasFieldsVisibility();
+  }
+}
+</script>
+{% endblock %}

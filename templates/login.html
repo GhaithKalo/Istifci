@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Giriş Yap{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-4">
+    <h3>Giriş Yap</h3>
+    <form action="/login" method="post">
+      <div class="mb-3">
+        <label class="form-label">Kullanıcı Adı</label>
+        <input name="username" class="form-control" required>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Şifre</label>
+        <input name="password" type="password" class="form-control" required>
+      </div>
+      <button class="btn btn-primary w-100">Giriş</button>
+    </form>
+  </div>
+</div>
+{% endblock %}
+

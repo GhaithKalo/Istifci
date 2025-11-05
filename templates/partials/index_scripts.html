@@ -1,0 +1,155 @@
+<script>
+  function toggleProducts(typeId) {
+    const allContainers = document.querySelectorAll('.products-container');
+    allContainers.forEach(container => {
+      if (container.id === 'products-' + typeId) {
+        container.classList.toggle('d-none');
+      } else {
+        container.classList.add('d-none');
+      }
+    });
+
+    // Update aria-expanded and visual highlight for type buttons
+    const buttons = document.querySelectorAll('button[data-type]');
+    buttons.forEach(button => {
+      const btnType = button.getAttribute('data-type');
+      const isTarget = btnType === typeId;
+      // aria-expanded should reflect whether the corresponding products are visible
+      const panel = document.getElementById('products-' + btnType);
+      const visible = panel && !panel.classList.contains('d-none');
+      button.setAttribute('aria-expanded', visible ? 'true' : 'false');
+      if (isTarget && visible) {
+        button.classList.add('type-active');
+      } else {
+        button.classList.remove('type-active');
+      }
+    });
+  }
+
+  // helper for buttons with data-type attribute
+  function toggleProductsFromButton(btn) {
+    const typeId = btn.dataset.type;
+    toggleProducts(typeId);
+  }
+
+  function adjustAmount(btn, delta) {
+    const input = btn.parentElement.querySelector('input[type=number]');
+    let value = parseInt(input.value) || 1;
+    const max = parseInt(input.max) || 999;
+    value = Math.min(Math.max(value + delta, 1), max);
+    input.value = value;
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('input[type="number"]').forEach(input => {
+      input.addEventListener('input', () => {
+        const compId = input.id.split('-')[1];
+        const consumeInput = document.getElementById('consume-amount-' + compId);
+        if (consumeInput) {
+          consumeInput.value = input.value;
+        }
+      });
+    });
+
+    const searchForm = document.querySelector('form[action="{{ url_for("index") }}"]');
+    if (searchForm) {
+      searchForm.addEventListener('submit', function(e) {
+        const input = this.querySelector('input[name="q"]');
+        if (input && input.value.trim() === '') {
+          e.preventDefault();
+          window.location.href = "{{ url_for('index') }}";
+        }
+      });
+    }
+  });
+
+  function confirmConsume(event, compId, compName) {
+    const amountInput = document.getElementById('amount-' + compId);
+    const amount = amountInput ? amountInput.value : 'belirtilmemiş';
+    return confirm(`${compName} ürününden ${amount} adet sarf etmek üzeresiniz. Emin misiniz?`);
+  }
+
+
+function toggleBorrowForm(compId) {
+  const form = document.getElementById(`borrow-form-${compId}`);
+  // find the toggle button by data-borrow-id (we replaced inline onclicks)
+  const toggleBtn = document.querySelector(`button[data-borrow-id="${compId}"]`);
+
+  if (!form) return;
+
+  if (form.classList.contains('d-none')) {
+    form.classList.remove('d-none');
+    if (toggleBtn) toggleBtn.style.display = 'none'; // hide the toggle button when form is visible
+    // Form açıldığında Selectize elementine odaklanarak yeniden çizilmesini sağla
+    const selectizeInstance = $(form).find('.location-select')[0].selectize;
+    if (selectizeInstance) selectizeInstance.focus();
+
+  } else {
+    form.classList.add('d-none');
+    if (toggleBtn) toggleBtn.style.display = 'inline-block'; // show toggle btn again
+  }
+}
+
+
+  function adjustAmount(btn, delta) {
+    const input = btn.parentElement.querySelector('input[type=number]');
+    const current = parseInt(input.value) || 1;
+    const max = parseInt(input.max) || 999;
+    const newVal = Math.min(Math.max(current + delta, 1), max);
+    input.value = newVal;
+  }
+
+  // Tree View Scripts
+  document.addEventListener('DOMContentLoaded', function() {
+    // Ürün türü butonlarına tıklama olayı ekle
+    document.querySelectorAll('button[data-type]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const t = btn.getAttribute('data-type');
+        if (t) toggleProducts(t);
+      });
+    });
+
+    // Ürün kartlarını tıklanabilir yap
+    document.querySelectorAll('.product-card[data-href]').forEach(card => {
+      card.addEventListener('click', () => {
+        const href = card.getAttribute('data-href');
+        if (href) window.open(href, '_blank');
+      });
+    });
+
+    // "Ödünç Al" butonlarına tıklama olayı ekle
+    document.querySelectorAll('[data-borrow-id]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-borrow-id');
+        if (id) toggleBorrowForm(id);
+      });
+    });
+
+    // Konum (location) alanları için Selectize'ı başlat
+    if (window.jQuery && window.jQuery.fn.selectize) {
+      $('.location-select').selectize({
+        create: true,
+        persist: false,
+        maxItems: 1,
+        placeholder: 'Urunu kullanicaginiz alani secin veya girin',
+        createFilter: function(input) {
+          // Engellenen karakterler: () {} [] ' "
+          var forbiddenChars = /[(){}[\]'"]/;
+          if (forbiddenChars.test(input)) {
+            // İstenmeyen karakterler varsa, kullanıcıya bir uyarı göster
+            // ve tag oluşturmayı engelle
+            alert('Konum adında parantez, tırnak işareti gibi özel karakterler kullanılamaz.');
+            return false;
+          }
+          return true;
+        }
+      });
+
+      $('.serial-number-select').selectize({
+        persist: false,
+        maxItems: 1,
+        placeholder: 'Seri numarası seçin...'
+      });
+    }
+  });
+</script>

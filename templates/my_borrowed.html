@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block title %}Ödünç Aldıklarım{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <h1 class="display-5 text-center mb-4">Ödünç Aldıklarım</h1>
+
+  <div class="row justify-content-center">
+    <div class="col-12 col-lg-10">
+
+    {% if borrowed_items %}
+      {% for component, current_borrowed, serial_numbers in borrowed_items %}
+        <div class="card mb-4 shadow-sm">
+          <div class="card-body">
+            <div class="row align-items-center">
+              <div class="col-md-4">
+                <div class="d-flex align-items-center">
+                  <img src="{{ component.image_url }}" alt="{{ component.name }}" 
+                       class="img-fluid rounded" style="max-width: 120px; height: auto;" />
+                  <div class="ms-3">
+                    <h5 class="card-title mb-1">{{ component.name }}</h5>
+                    <p class="card-text text-muted">
+                      Ödünç Aldığınız: <span class="fw-bold text-primary">{{ current_borrowed }}</span> adet
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="col-md-8">
+                <form method="post" action="{{ url_for('return_component', comp_id=component.id) }}" 
+                      class="d-flex flex-wrap align-items-center justify-content-end gap-3">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                  <input type="hidden" name="next" value="{{ url_for('my_borrowed') }}">
+                  <input type="hidden" name="amount" value="1">
+
+                  {% if component.category and is_fixed_asset(component.category) %}
+                    <div class="form-group mb-0">
+                      <p class="text-muted mb-1 small">
+                        {% for sn in serial_numbers %}
+                          <span class="badge bg-light text-dark me-1" style="font-size: 1rem; padding: 0.5em 0.7em;">{{ sn }}</span>
+                          <input type="hidden" name="serial_number" value="{{ sn }}">
+                        {% else %}
+                          <span class="fst-italic">(Seri numarası yok)</span>
+                        {% endfor %}
+                      </p>
+                    </div>
+                  {% endif %}
+
+                  <button type="submit" class="btn btn-success btn-sm">
+                    <i class="bi bi-arrow-return-left me-1"></i> İade Et
+                  </button>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+      {% endfor %}
+    {% else %}
+      <div class="alert alert-info text-center" role="alert">
+        <i class="bi bi-info-circle me-2"></i>
+        Şu anda iade edilecek ürününüz yok.
+      </div>
+    {% endif %}
+
+    <div class="text-center mt-4">
+      <a href="{{ url_for('index') }}" class="btn btn-outline-primary">
+        <i class="bi bi-house-door me-1"></i> Ana Sayfaya Dön
+      </a>
+    </div>
+  </div>
+</div>
+{% endblock %}
+

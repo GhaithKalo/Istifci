@@ -1,0 +1,93 @@
+<div class="col-md-6 col-lg-4 mb-4">
+    <div class="card product-card h-100 shadow-sm border-0">
+     {% if component.image_url %}
+      <a href="{{ url_for('component_detail', comp_id=component.id) }}" target="_blank">
+      <img src="{{ component.image_url }}" class="card-img-top" alt="{{ component.name }}">
+      </a>
+     {% else %}
+      <a href="{{ url_for('component_detail', comp_id=component.id) }}" target="_blank">
+      <img src="{{ url_for('static', filename='uploads/Photoroom_20250531_173915-Photoroom.png') }}" class="card-img-top" alt="{{ component.name }}">
+      </a>
+     {% endif %}
+
+    <div class="card-body">
+      <h5 class="card-title fw-bold">{{ component.name }}</h5>
+      <div class="card-meta text-muted">
+        <span>Tür: {{ component.type or 'Bilinmiyor' }}</span>
+        <span class="mx-2">|</span>
+        <span>Kod: {{ component.code or 'Yok' }}</span>
+      </div>
+      <div class="stock-status mt-2">
+        {% if component.quantity == 0 %}
+          <span class="badge bg-danger">Stok Tükendi</span>
+        {% else %}
+          <span class="badge bg-success">Stok: {{ component.quantity }}</span>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card-footer" onclick="event.stopPropagation();">
+      {% if current_user.is_authenticated %}
+        {% if component.category == 'sarf' %}
+          <form method="POST" action="{{ url_for('process_item', comp_id=component.id) }}" class="d-flex align-items-center">
+            <input type="hidden" name="action" value="consume">
+            <div class="input-group input-group-sm me-2" style="width: 120px;">
+              <button type="button" class="btn btn-outline-secondary" onclick="adjustAmount(this, -1)">-</button>
+              <input name="amount" type="number" class="form-control" value="1" min="1" max="{{ component.quantity }}">
+              <button type="button" class="btn btn-outline-secondary" onclick="adjustAmount(this, 1)">+</button>
+            </div>
+            <div class="flex-grow-1">
+              <input type="text" name="notes" class="form-control form-control-sm" placeholder="Sarf notu (opsiyonel)">
+            </div>
+            <button type="submit" class="btn btn-danger btn-sm ms-2">Sarf Et</button>
+          </form>
+
+        {% elif is_fixed_asset(component.category) %}
+          <button class="btn btn-warning btn-sm fw-bold" data-borrow-id="{{ component.id }}">
+            Ödünç Al
+          </button>
+          
+          <form method="POST" action="{{ url_for('process_item', comp_id=component.id) }}" id="borrow-form-{{ component.id }}" class="mt-2 d-none">
+            <!-- Fixed-asset borrow: amount is always 1 (hidden) -->
+            <input type="hidden" name="action" value="borrow">
+            <input type="hidden" name="amount" value="1">
+
+            <!-- Location input (selectize-enabled). Populate with global locations so
+                 locations added by other users become available here. -->
+<div class="mb-2">
+  <label for="location-select-{{ component.id }}" class="form-label small">Gideceği Konum</label>
+  <select id="location-select-{{ component.id }}" name="location" class="location-select" placeholder="Calismak icin gotureceginiz yeri secin...">
+    {% if component.location %}
+      <option value="{{ component.location|clean_text }}">{{ component.location|clean_text }}</option>
+    {% endif %}
+    {% if locations %}
+      {% for loc in locations %}
+        {% if not component.location or component.location != loc %}
+          <option value="{{ loc|clean_text }}">{{ loc|clean_text }}</option>
+        {% endif %}
+      {% endfor %}
+    {% endif %}
+        </select>
+        </div>
+
+            <!-- Seri numarası seçimi -->
+            <div class="mb-2">
+                <label for="serial-number-select-{{ component.id }}" class="form-label small">Seri Numarası</label>
+                <select id="serial-number-select-{{ component.id }}" name="serial_number" class="serial-number-select" placeholder="Seri numarası seç..." required>
+                    <option value=""></option>
+                    {% for item in component.inventory_items %}{% if not item.assigned_to %}
+                    <option value="{{ item.serial_number }}">{{ item.serial_number }}</option>
+                    {% endif %}{% endfor %}
+                </select>
+            </div>
+            
+            <!-- Not Ekleme Alanı -->
+            <textarea name="notes" class="form-control form-control-sm mb-2" placeholder="Not ekle (opsiyonel)" rows="2"></textarea>
+
+            <button type="submit" class="btn btn-primary btn-sm w-100" id="borrow-submit-{{ component.id }}">Onayla ve Ödünç Al</button>
+          </form>
+        {% endif %}
+      {% endif %}
+    </div>
+  </div>
+</div>

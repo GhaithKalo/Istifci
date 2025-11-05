@@ -1,0 +1,297 @@
+{% extends 'base.html' %}
+{% block title %}Bileşeni Düzenle{% endblock %}
+
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/selectize.default.css') }}">
+<style>
+  /* Stil kodları add.html'den alındı ve bu sayfaya uyarlandı */
+  body { background: #f4f6fa; }
+  .card {
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 2px 16px #00000010;
+    border: none;
+    max-width: 700px;
+    margin: auto;
+  }
+  .form-label { font-weight: 500; color: #333; }
+  .form-control, .form-select, .selectize-input {
+    border-radius: 8px;
+    border: 1px solid #dbe2ea;
+    background: #f8fafc;
+    transition: border-color 0.2s;
+  }
+  .form-control:focus, .form-select:focus, .selectize-input.focus {
+    border-color: #0d6efd;
+    background: #fff;
+    box-shadow: none;
+  }
+  .btn-primary {
+    border-radius: 8px;
+    font-weight: 500;
+    background: #0d6efd;
+    border: none;
+  }
+  .btn-outline-primary, .btn-outline-secondary { border-radius: 8px; font-weight: 500; }
+  .demirbas-only { display: none; }
+  .current-photo {
+    max-width: 150px;
+    max-height: 150px;
+    border-radius: 8px;
+    border: 2px solid #eee;
+    object-fit: cover;
+  }
+  .btn-group .btn.active { z-index: 2; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="container py-5">
+  <div class="card shadow-sm p-4">
+    <h2 class="fw-bold text-primary mb-4 text-center">Bileşeni Düzenle</h2>
+
+    <!-- Düzenleme Formu -->
+    <form method="POST" enctype="multipart/form-data"
+          action="{{ url_for('edit_component', comp_id=component.id) }}"
+          id="edit-component-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+      <!-- Mevcut Fotoğraf -->
+      {% if component.image_url %}
+      <div class="mb-3 text-center">
+        <label class="form-label d-block">Mevcut Fotoğraf</label>
+        <img src="{{ component.image_url }}" alt="{{ component.name }}" class="current-photo">
+      </div>
+      {% endif %}
+
+
+<!-- Kategori Seçimi -->
+<div class="mb-3">
+  <label class="form-label">Ürün Tipi</label>
+  <div class="btn-group w-100" role="group">
+    <input type="hidden" name="category" id="category-input" value="{{ component.category }}" required>
+    
+    <!-- Demirbaş -->
+    <button type="button"
+            class="btn {% if component.category in ['demirbas', 'demirbaş'] %}btn-primary active{% else %}btn-outline-primary{% endif %}"
+            id="btn-demirbas"
+            onclick="selectCategory('demirbas')">
+      Demirbaş
+    </button>
+
+    <!-- Gereç -->
+    <button type="button"
+            class="btn {% if component.category in ['gerec', 'gereç'] %}btn-primary active{% else %}btn-outline-primary{% endif %}"
+            id="btn-gerec"
+            onclick="selectCategory('gerec')">
+      Gereç
+    </button>
+
+    <!-- Sarf (engelleme eklendi) -->
+    <button type="button"
+            class="btn {% if component.category == 'sarf' %}btn-secondary active{% else %}btn-outline-secondary{% endif %}"
+            id="btn-sarf"
+            onclick="selectCategory('sarf')"
+            {% if component.category in ['demirbas', 'demirbaş', 'gerec', 'gereç'] %}disabled{% endif %}>
+      Sarf
+    </button>
+  </div>
+</div>
+      <!-- Diğer Form Alanları -->
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label for="name" class="form-label">Bileşen Adı</label>
+          <input type="text" class="form-control" id="name" name="name" value="{{ component.name }}" required>
+        </div>
+        <div class="col-md-6">
+          <label for="type-select" class="form-label">Tür</label>
+          <select id="type-select" name="type" class="form-select" required>
+            {% for t in types %}
+              <option value="{{ t }}" {% if component.type == t %}selected{% endif %}>{{ t }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-6">
+          <label for="part_number" class="form-label">Parça Numarası</label>
+          <input type="text" class="form-control" name="part_number" id="part_number" value="{{ component.part_number or '' }}">
+        </div>
+        <div class="col-md-6">
+          <label for="location-select" class="form-label">Varsayılan Konum</label>
+          <select id="location-select" name="location" class="form-select">
+            {% for loc in locations %}
+              <option value="{{ loc }}" {% if component.location == loc %}selected{% endif %}>{{ loc }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-12">
+          <label for="description" class="form-label">Açıklama</label>
+          <textarea class="form-control" id="description" name="description" rows="3">{{ component.description or '' }}</textarea>
+        </div>
+        <div class="col-md-6">
+          <label for="quantity" class="form-label">Stok Miktarı</label>
+          <input type="number" class="form-control" id="quantity" name="quantity" value="{{ component.quantity }}" min="0" required>
+        </div>
+        <div class="col-md-6">
+          <label for="photo" class="form-label">Yeni Fotoğraf Yükle</label>
+          <input type="file" class="form-control" id="photo" name="photo" accept="image/*">
+        </div>
+      </div>
+
+      <!-- Etiketler -->
+      <div class="mt-3">
+        <label for="tags" class="form-label">Etiketler</label>
+        <select id="tags" name="tags[]" class="form-select" multiple>
+          {% for tag in existing_tags %}
+            <option value="{{ tag.id }}" {% if tag.id|string in selected_tags %}selected{% endif %}>{{ tag.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Demirbaş Alanları -->
+      <div class="mt-3 demirbas-only">
+        <label for="serial_numbers" class="form-label">Seri Numaraları</label>
+        <textarea class="form-control" id="serial_numbers" name="serial_numbers" rows="3" placeholder="Seri numaralarını virgülle ayırarak girin">{{ component.inventory_items | map(attribute='serial_number') | join(', ') }}</textarea>
+        <div class="form-text">Sadece bu bileşene ait, virgülle ayrılmış seri numaraları.</div>
+      </div>
+
+      <!-- Kaydet & Vazgeç Butonları -->
+      <div class="d-flex justify-content-end gap-2 mt-4">
+        <button type="submit" class="btn btn-primary">Değişiklikleri Kaydet</button>
+        <a href="{{ url_for('component_detail', comp_id=component.id) }}" class="btn btn-secondary">Vazgeç</a>
+      </div>
+    </form>
+
+    <!-- Silme Formu -->
+    {% if current_user.has_delete_permission() %}
+    <form method="POST" action="{{ url_for('delete_component', comp_id=component.id) }}"
+          onsubmit="return confirmDelete('{{ component.name|escape }}');"
+          class="mt-3 text-end">
+      <button type="submit" class="btn btn-outline-danger">
+        <i class="bi bi-trash-fill me-1"></i> Ürünü Sil
+      </button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/jquery-3.7.1.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/selectize.min.js') }}"></script>
+<script>
+
+$(document).ready(function () {
+  // Selectize başlatma
+  $('#tags').selectize({
+    plugins: ['remove_button'],
+    create: function(input, callback) {
+      callback({ value: 'new_' + input, text: input });
+    },
+    persist: false,
+    placeholder: 'Etiket seçin veya ekleyin...'
+  });
+  $('#type-select').selectize({
+    create: true,
+    persist: false,
+    placeholder: 'Tür seçin veya ekleyin...'
+  });
+  $('#location-select').selectize({
+    create: true,
+    persist: false,
+    placeholder: 'Varsayılan konum seçin veya ekleyin...',
+    createFilter: function(input) {
+      var forbiddenChars = /[(){}[\]'"]/;
+      if (forbiddenChars.test(input)) {
+        alert('Konum adında parantez, tırnak işareti gibi özel karakterler kullanılamaz.');
+        return false;
+      }
+      return true;
+    }
+  });
+
+  // Demirbaş alanlarının görünürlüğünü güncelle
+  function isFixedAssetCategory(category) {
+    if (!category) return false;
+    const c = category.toString().toLowerCase();
+    return ['demirbas', 'demirbaş', 'gerec', 'gereç', 'gerecler', 'gereçler'].includes(c);
+  }
+
+  function updateDemirbasFieldsVisibility() {
+    const category = $('#category-input').val();
+    if (isFixedAssetCategory(category)) {
+      $('.demirbas-only').css('display', 'block');
+    } else {
+      $('.demirbas-only').css('display', 'none');
+    }
+  }
+
+  // Ürün tipi butonlarına tıklanınca güncelle
+  $('#btn-demirbas, #btn-gerec, #btn-sarf').on('click', function () {
+    setTimeout(updateDemirbasFieldsVisibility, 10);
+  });
+
+  // Sayfa ilk açıldığında ve kategori değiştiğinde alanları güncelle
+  updateDemirbasFieldsVisibility();
+  selectCategory($('#category-input').val());
+});
+
+// Ürün tipi seçimi fonksiyonu
+function selectCategory(category) {
+  const categoryInput = document.getElementById('category-input');
+  const currentCategory = categoryInput.value;
+
+  if (currentCategory !== category) {
+    if (!confirm('Ürün tipini değiştirmek istediğinizden emin misiniz?')) {
+      return;
+    }
+  }
+
+  const btnDemirbas = document.getElementById('btn-demirbas');
+  const btnGerec = document.getElementById('btn-gerec');
+  const btnSarf = document.getElementById('btn-sarf');
+
+  // Buton stillerini sıfırla
+  btnDemirbas.classList.remove('active', 'selected', 'btn-primary', 'btn-outline-primary');
+  btnGerec.classList.remove('active', 'selected', 'btn-primary', 'btn-outline-primary');
+  btnSarf.classList.remove('active', 'selected', 'btn-secondary', 'btn-outline-secondary');
+
+  // Varsayılan outline stillerini ekle
+  btnDemirbas.classList.add('btn-outline-primary');
+  btnGerec.classList.add('btn-outline-primary');
+  btnSarf.classList.add('btn-outline-secondary');
+
+  if (category === 'demirbas') {
+    btnDemirbas.classList.add('active', 'selected', 'btn-primary');
+    btnDemirbas.classList.remove('btn-outline-primary');
+  } else if (category === 'gerec') {
+    btnGerec.classList.add('active', 'selected', 'btn-primary');
+    btnGerec.classList.remove('btn-outline-primary');
+  } else if (category === 'sarf') {
+    btnSarf.classList.add('active', 'selected', 'btn-secondary');
+    btnSarf.classList.remove('btn-outline-secondary');
+  }
+
+  categoryInput.value = category;
+  if (typeof updateDemirbasFieldsVisibility === 'function') {
+    updateDemirbasFieldsVisibility();
+  }
+}
+
+    function setAction(action) {
+        document.getElementById('action-input').value = action;
+    }
+    function confirmDelete(componentName) {
+        return confirm(`"${componentName}" isimli ürünü silmek üzeresiniz. Bu işlem geri alınamaz. Emin misiniz?`);
+    }
+    // Popover'ları başlat
+    document.addEventListener('DOMContentLoaded', function () {
+        var popoverTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="popover"]'));
+        var popoverList = popoverTriggerList.map(function (popoverTriggerEl) {
+            return new bootstrap.Popover(popoverTriggerEl);
+        });
+    });
+
+</script>
+{% endblock %}

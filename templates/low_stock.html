@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container my-4">
+  <h2 class="mb-4 text-danger fw-bold">Azalan Stoklar</h2>
+
+  <div class="d-flex flex-wrap justify-content-center gap-2 mb-4">
+    <a href="{{ url_for('low_stock') }}" class="btn btn-sm {% if not selected_category %}btn-primary{% else %}btn-outline-primary{% endif %}">Tümü</a>
+    {% for category in all_categories %}
+      <a href="{{ url_for('low_stock', category=category) }}" class="btn btn-sm {% if selected_category == category %}btn-primary{% else %}btn-outline-primary{% endif %}">{{ category }}</a>
+    {% endfor %}
+  </div>
+
+  {% if components %}
+  <div class="list-group">
+    {% for comp in components %}
+    <div class="list-group-item d-flex justify-content-between align-items-center shadow-sm rounded mb-2">
+      <div>
+        <h5 class="mb-0">{{ comp.name }}</h5>
+        <small class="text-muted">{{ comp.category }}</small>
+      </div>
+      <div>
+        <span class="badge bg-warning text-dark fs-6 me-3">{{ comp.quantity }}</span>
+        <span class="text-danger fw-semibold">Stok tükeniyor / Satın alınmalı!</span>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="alert alert-success" role="alert">
+    Tüm ürünlerin stoğu yeterli veya seçilen kategoriye ait azalan stoklu ürün yok.
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

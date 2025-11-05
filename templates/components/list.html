@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="mb-0">Bileşenler Listesi</h2>
+    <a href="{{ url_for('add_component') }}" class="btn btn-primary">
+      <i class="bi bi-plus-lg"></i> Yeni Bileşen Ekle
+    </a>
+  </div>
+
+  <div class="table-responsive">
+    <table class="table table-hover align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>
+            <a href="{{ url_for('component_list', sort='name', 
+                               direction='desc' if sort_by == 'name' and sort_direction == 'asc' else 'asc') }}" 
+               class="text-dark text-decoration-none d-flex align-items-center">
+              Bileşen Adı
+              {% if sort_by == 'name' %}
+                <i class="bi bi-arrow-{{ 'down' if sort_direction == 'asc' else 'up' }} ms-1"></i>
+              {% endif %}
+            </a>
+          </th>
+          <th>
+            <a href="{{ url_for('component_list', sort='type',
+                               direction='desc' if sort_by == 'type' and sort_direction == 'asc' else 'asc') }}"
+               class="text-dark text-decoration-none d-flex align-items-center">
+              Tür
+              {% if sort_by == 'type' %}
+                <i class="bi bi-arrow-{{ 'down' if sort_direction == 'asc' else 'up' }} ms-1"></i>
+              {% endif %}
+            </a>
+          </th>
+          <th>Konum</th>
+          <th>
+            <a href="{{ url_for('component_list', sort='quantity',
+                               direction='desc' if sort_by == 'quantity' and sort_direction == 'asc' else 'asc') }}"
+               class="text-dark text-decoration-none d-flex align-items-center">
+              Stok
+              {% if sort_by == 'quantity' %}
+                <i class="bi bi-arrow-{{ 'down' if sort_direction == 'asc' else 'up' }} ms-1"></i>
+              {% endif %}
+            </a>
+          </th>
+          <th class="text-end">İşlemler</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for component in components %}
+          <tr>
+            <td>
+              <a href="{{ url_for('component_detail', comp_id=component.id) }}" class="text-decoration-none text-dark">
+                {{ component.name }}
+              </a>
+            </td>
+            <td>{{ component.type }}</td>
+            <td>{{ component.location or "-" }}</td>
+            <td>{{ component.quantity }}</td>
+            <td class="text-end">
+              <a href="{{ url_for('edit_component', comp_id=component.id) }}" 
+                 class="btn btn-sm btn-outline-primary me-2">
+                <i class="bi bi-pencil"></i> Düzenle
+              </a>
+              <button type="button" 
+                      class="btn btn-sm btn-outline-danger" 
+                      onclick="confirmDelete({{ component.id }}, '{{ component.name }}')">
+                <i class="bi bi-trash"></i> Sil
+              </button>
+            </td>
+          </tr>
+        {% else %}
+          <tr>
+            <td colspan="5" class="text-center py-4 text-muted">
+              Hiç bileşen bulunamadı.
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Silme Onay Modalı -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Bileşeni Sil</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p id="deleteConfirmText"></p>
+        <div class="alert alert-warning mt-3">
+          <strong>Uyarı:</strong> Bu işlem geri alınamaz. Bileşenle ilişkili tüm ödünç alma kayıtları ve envanter bilgileri de kalıcı olarak silinecektir.
+        </div>
+        <div class="form-check mt-3">
+          <input class="form-check-input" type="checkbox" id="deleteConfirmCheckbox">
+          <label class="form-check-label" for="deleteConfirmCheckbox">
+            Evet, bu bileşeni silmek istediğimi onaylıyorum.
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
+        <button type="submit" form="deleteForm" class="btn btn-danger" id="deleteConfirmButton" disabled>Sil</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% block scripts %}
+<script>
+const deleteModalEl = document.getElementById('deleteModal');
+const deleteForm = document.createElement('form');
+deleteForm.id = 'deleteForm';
+deleteForm.method = 'POST';
+document.body.appendChild(deleteForm);
+
+const deleteConfirmCheckbox = document.getElementById('deleteConfirmCheckbox');
+const deleteConfirmButton = document.getElementById('deleteConfirmButton');
+
+deleteConfirmCheckbox.addEventListener('change', function() {
+  deleteConfirmButton.disabled = !this.checked;
+});
+
+deleteModalEl.addEventListener('hidden.bs.modal', function () {
+  deleteConfirmCheckbox.checked = false;
+  deleteConfirmButton.disabled = true;
+});
+
+function confirmDelete(componentId, componentName) {
+  const modal = new bootstrap.Modal(deleteModalEl);
+  const confirmText = document.getElementById('deleteConfirmText');
+  deleteForm.action = `/component/${componentId}/delete`;
+  confirmText.textContent = `"${componentName}" bileşenini silmek istediğinize emin misiniz?`;
+  modal.show();
+}
+</script>
+{% endblock %}
+
+{% endblock %}
