@@ -339,6 +339,9 @@ class RequestMessage(db.Model):
 
     message_type = db.Column(db.String(20), nullable=False, default='chat')  # 'chat', 'status_event', 'admin_note'
     body = db.Column(db.Text, nullable=True)
+    attachment_path = db.Column(db.String(500), nullable=True)
+    attachment_name = db.Column(db.String(255), nullable=True)
+    attachment_mime = db.Column(db.String(120), nullable=True)
 
     status_from = db.Column(db.String(30), nullable=True)
     status_to = db.Column(db.String(30), nullable=True)

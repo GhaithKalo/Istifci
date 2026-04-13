@@ -509,18 +509,6 @@
           </div>
           {% endif %}
           
-          <!-- Admin Notu -->
-          {% if req.admin_note %}
-          <div class="detail-item" style="grid-column: 1 / -1;">
-            <span class="detail-label"><i class="bi bi-sticky me-1"></i>Yönetici Notu</span>
-            <span class="detail-value">
-              <div class="alert {% if req.req_status == 'reddedildi' %}alert-danger{% elif req.req_status == 'kabul' %}alert-success{% else %}alert-info{% endif %} mb-0 py-2">
-                <i class="bi bi-info-circle me-1"></i>{{ req.admin_note }}
-              </div>
-            </span>
-          </div>
-          {% endif %}
-          
           {% else %}
           <!-- Tek ürün (eski format) veya arıza/bakım isteği -->
           
@@ -715,19 +703,70 @@
           </div>
           {% endif %}
           
-          <!-- Admin Notu -->
-          {% if req.admin_note %}
-          <div class="detail-item" style="grid-column: 1 / -1;">
-            <span class="detail-label"><i class="bi bi-sticky me-1"></i>Yönetici Notu</span>
-            <span class="detail-value">
-              <div class="alert {% if req.req_status == 'reddedildi' %}alert-danger{% elif req.req_status == 'kabul' %}alert-success{% else %}alert-info{% endif %} mb-0 py-2">
-                <i class="bi bi-info-circle me-1"></i>{{ req.admin_note }}
-              </div>
-            </span>
-          </div>
-          {% endif %}
-          
           {% endif %} {# End of else block for single product #}
+
+          <!-- Konuşma -->
+          {% set conv = conversation_map.get(req.id, []) %}
+          <div class="detail-item" style="grid-column: 1 / -1;">
+            <span class="detail-label"><i class="bi bi-chat-square-text me-1"></i>Konuşma</span>
+            <div class="conversation-thread mt-2">
+              {% if conv %}
+                {% for msg in conv %}
+                <div class="conversation-item role-{{ msg.author_role }}">
+                  <div class="conversation-meta d-flex justify-content-between">
+                    <span>
+                      <strong>{{ msg.author }}</strong>
+                      {% if msg.message_type == 'status_event' %}<span class="badge bg-warning text-dark ms-1">Durum</span>{% endif %}
+                      {% if msg.message_type == 'admin_note' %}<span class="badge bg-info text-dark ms-1">Admin Notu</span>{% endif %}
+                      {% if msg.legacy %}<span class="badge bg-secondary ms-1">Eski Not</span>{% endif %}
+                    </span>
+                    <span>{{ msg.created_at|tr_date(True) if msg.created_at else '' }}</span>
+                  </div>
+                  {% if msg.body %}
+                  <div class="small">{{ msg.body|e|replace('\n', '<br>')|safe }}</div>
+                  {% endif %}
+                  {% if msg.attachment_path %}
+                  <div class="mt-2">
+                    <a class="btn btn-sm btn-outline-primary" href="{{ url_for('static', filename=msg.attachment_path) }}" target="_blank">
+                      <i class="bi bi-paperclip me-1"></i>{{ msg.attachment_name or 'Dosya' }}
+                    </a>
+                  </div>
+                  {% endif %}
+                  {% if msg.message_type == 'chat' and msg.author_role == 'user' and msg.author_user_id == current_user.id and msg.id %}
+                  <div class="mt-2 d-flex gap-2">
+                    <form method="post" action="{{ url_for('edit_request_message', req_id=req.id, msg_id=msg.id) }}" class="d-flex gap-2 flex-grow-1">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                      <input type="hidden" name="next" value="{{ request.full_path if request.query_string else request.path }}">
+                      <input type="text" name="message" class="form-control form-control-sm" value="{{ msg.body }}" maxlength="2000" placeholder="Mesajı düzenle">
+                      <button type="submit" class="btn btn-sm btn-outline-secondary">Güncelle</button>
+                    </form>
+                    <form method="post" action="{{ url_for('delete_request_message', req_id=req.id, msg_id=msg.id) }}">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                      <input type="hidden" name="next" value="{{ request.full_path if request.query_string else request.path }}">
+                      <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Mesaj silinsin mi?')">Sil</button>
+                    </form>
+                  </div>
+                  {% endif %}
+                </div>
+                {% endfor %}
+              {% else %}
+                <div class="text-muted small">Henüz mesaj yok.</div>
+              {% endif %}
+            </div>
+
+            <form method="post" action="{{ url_for('request_messages', req_id=req.id) }}" class="mt-2" enctype="multipart/form-data" onclick="event.stopPropagation();">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <input type="hidden" name="next" value="{{ request.full_path if request.query_string else request.path }}">
+              <div class="mb-2">
+                <textarea name="message" class="form-control form-control-sm" rows="2" maxlength="2000" placeholder="Mesaj yazın..."></textarea>
+              </div>
+              <div class="d-flex gap-2 align-items-center">
+                <input type="file" name="attachment" class="form-control form-control-sm">
+                <button type="submit" class="btn btn-sm btn-primary">Gönder</button>
+              </div>
+              <small class="text-muted">Desteklenen: resim, PDF, Office, zip/txt/csv.</small>
+            </form>
+          </div>
         </div>
         
       </div>
