@@ -6,6 +6,9 @@ from datetime import datetime
 from types import SimpleNamespace
 from unittest.mock import patch
 
+TEST_DB_PATH = os.path.join(tempfile.gettempdir(), "istifci_unittest.db")
+os.environ["DATABASE_URL"] = f"sqlite:///{TEST_DB_PATH}"
+
 from app import (
     _process_tags,
     app,
@@ -20,29 +23,10 @@ from models import BorrowLog, Component, Request, RequestItem, Tag, User
 
 
 class BaseDbTestCase(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls._tmpdir = tempfile.TemporaryDirectory()
-        db_path = os.path.join(cls._tmpdir.name, "test.db")
-        app.config.update(
-            TESTING=True,
-            WTF_CSRF_ENABLED=False,
-            SQLALCHEMY_DATABASE_URI=f"sqlite:///{db_path}",
-        )
-        with app.app_context():
-            db.drop_all()
-            db.create_all()
-
-    @classmethod
-    def tearDownClass(cls):
-        with app.app_context():
-            db.session.remove()
-            db.drop_all()
-        cls._tmpdir.cleanup()
-
     def setUp(self):
         self.ctx = app.app_context()
         self.ctx.push()
+        app.config.update(TESTING=True, WTF_CSRF_ENABLED=False)
         db.session.remove()
         db.drop_all()
         db.create_all()
