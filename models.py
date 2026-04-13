@@ -269,6 +269,14 @@ class Request(db.Model):
     added_component = db.relationship('Component', foreign_keys=[added_component_id])
     # Birden fazla ürün için ilişki
     items = db.relationship('RequestItem', backref='request', cascade='all, delete-orphan', lazy='dynamic')
+    # İstek bazlı sohbet/zaman çizelgesi mesajları
+    messages = db.relationship(
+        'RequestMessage',
+        backref='request',
+        cascade='all, delete-orphan',
+        lazy='select',
+        order_by='RequestMessage.created_at.asc(), RequestMessage.id.asc()'
+    )
     
     @property
     def total_items_price(self):
@@ -316,3 +324,29 @@ class RequestItem(db.Model):
     # İlişkiler
     component = db.relationship('Component', foreign_keys=[component_id], backref='request_items')
     added_component = db.relationship('Component', foreign_keys=[added_component_id])
+
+
+class RequestMessage(db.Model):
+    """
+    Bir isteğe ait sohbet mesajlarını ve durum geçiş olaylarını saklar.
+    """
+    id = db.Column(db.Integer, primary_key=True)
+    request_id = db.Column(db.Integer, db.ForeignKey('request.id', ondelete='CASCADE'), nullable=False, index=True)
+
+    author_user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='SET NULL'), nullable=True)
+    author_username_snapshot = db.Column(db.String(64), nullable=True)
+    author_role = db.Column(db.String(20), nullable=False, default='user')  # 'admin', 'user', 'system'
+
+    message_type = db.Column(db.String(20), nullable=False, default='chat')  # 'chat', 'status_event', 'admin_note'
+    body = db.Column(db.Text, nullable=True)
+
+    status_from = db.Column(db.String(30), nullable=True)
+    status_to = db.Column(db.String(30), nullable=True)
+
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    user = db.relationship('User', backref=db.backref('request_messages', lazy=True))
+
+    __table_args__ = (
+        db.Index('ix_request_message_request_id_created_at', 'request_id', 'created_at'),
+    )

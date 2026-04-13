@@ -14,6 +14,7 @@ from flask_wtf.csrf import generate_csrf
 from sqlalchemy import func, or_, event, case
 from sqlalchemy.orm import joinedload, selectinload, subqueryload
 from collections import defaultdict, Counter
+from datetime import datetime
 from zoneinfo import ZoneInfo # Python 3.9+
 import os, re, logging, sys
 from dotenv import load_dotenv
@@ -42,7 +43,7 @@ LDAP_GROUP_MEMBER_ATTR = os.environ.get('LDAP_GROUP_MEMBER_ATTR', 'memberUid')
 from ldap3 import Server, Connection, ALL, SUBTREE
 
 # Proje içi modüller
-from models import db, User, Component, BorrowLog, Project, ProjectItem, Tag, Request, InventoryItem, RequestItem
+from models import db, User, Component, BorrowLog, Project, ProjectItem, Tag, Request, InventoryItem, RequestItem, RequestMessage
 
 # ==============================================================================
 # YARDIMCI FONKSİYONLAR
@@ -62,6 +63,112 @@ def is_fixed_asset(category: str) -> bool:
 
 def clean_text(s):
     return re.sub(r"[\"'()]", "", s)
+
+
+REQUEST_MESSAGE_MAX_LENGTH = 2000
+
+
+def status_label(status: str) -> str:
+    labels = {
+        'beklemede': 'Beklemede',
+        'reddedildi': 'Reddedildi',
+        'kabul': 'Kabul Edildi',
+        'tamamlandi': 'Tamamlandı'
+    }
+    return labels.get(status or '', status or '-')
+
+
+def build_request_conversation_map(requests_list):
+    """
+    Şablonlarda kullanılmak üzere request_id -> conversation entries map üretir.
+    Legacy admin_note alanını, ilgili timeline'da admin_note mesajı yoksa sentetik olarak ekler.
+    """
+    conversation_map = {}
+    for req in requests_list:
+        entries = []
+        has_admin_note_message = False
+
+        for msg in (req.messages or []):
+            if msg.message_type == 'admin_note':
+                has_admin_note_message = True
+            entries.append({
+                'id': msg.id,
+                'author_role': msg.author_role or 'user',
+                'author': msg.author_username_snapshot or ('Sistem' if msg.author_role == 'system' else 'Bilinmiyor'),
+                'message_type': msg.message_type or 'chat',
+                'body': msg.body or '',
+                'status_from': msg.status_from,
+                'status_to': msg.status_to,
+                'created_at': msg.created_at,
+                'legacy': False
+            })
+
+        if req.admin_note and not has_admin_note_message:
+            entries.append({
+                'id': None,
+                'author_role': 'admin',
+                'author': 'Admin',
+                'message_type': 'admin_note',
+                'body': req.admin_note,
+                'status_from': None,
+                'status_to': None,
+                'created_at': req.created_at,
+                'legacy': True
+            })
+
+        entries.sort(key=lambda e: (e.get('created_at') or datetime.min, e.get('id') or 0))
+        conversation_map[req.id] = entries
+
+    return conversation_map
+
+
+def append_status_event_message(req, old_status: str, new_status: str):
+    if old_status == new_status:
+        return
+
+    event_message = RequestMessage(
+        request_id=req.id,
+        author_role='system',
+        author_username_snapshot='Sistem',
+        message_type='status_event',
+        body=f"Durum güncellendi: {status_label(old_status)} → {status_label(new_status)}",
+        status_from=old_status,
+        status_to=new_status
+    )
+    db.session.add(event_message)
+
+
+def append_admin_note_message(req, note: str, admin_user):
+    note = (note or '').strip()
+    if not note:
+        return
+
+    admin_note_message = RequestMessage(
+        request_id=req.id,
+        author_user_id=admin_user.id if admin_user else None,
+        author_username_snapshot=admin_user.username if admin_user else 'Admin',
+        author_role='admin',
+        message_type='admin_note',
+        body=note
+    )
+    db.session.add(admin_note_message)
+
+
+def build_request_return_url(default_endpoint: str, req_id: int):
+    """
+    Mesaj sonrası dönüş URL'sini güvenli şekilde oluşturur.
+    Sadece relatif next değerini kabul eder ve request kart anchor'ını ekler.
+    """
+    next_url = request.form.get('next', '').strip()
+    if next_url.startswith('/'):
+        target = next_url
+    else:
+        target = request.referrer or url_for(default_endpoint)
+
+    anchor = f"#request-{req_id}"
+    if '#' in target:
+        return target
+    return f"{target}{anchor}"
 
 def get_locations() -> list[str]:
     """
@@ -1391,7 +1498,7 @@ def requests():
         return redirect(url_for('requests'))
 
     # Build base query - herkes sadece kendi isteklerini görür
-    base_q = Request.query.filter_by(created_by=current_user.id)
+    base_q = Request.query.options(selectinload(Request.messages)).filter_by(created_by=current_user.id)
 
     # Calculate stats before filtering (but after user filter)
     stats = {
@@ -1433,9 +1540,11 @@ def requests():
         base_q = base_q.order_by(Request.created_at.desc())
 
     requests_list = base_q.all()
+    conversation_map = build_request_conversation_map(requests_list)
 
     return render_template('requests.html', 
                            requests=requests_list, 
+                           conversation_map=conversation_map,
                            current_status=status,
                            current_type=req_type,
                            current_search=search_query,
@@ -1619,6 +1728,74 @@ def delete_request(req_id):
     flash('İstekler silinemez.', 'danger')
     return redirect(url_for('requests'))
 
+
+@app.route('/request/<int:req_id>/messages', methods=['POST'])
+@login_required
+def request_messages(req_id):
+    """İstek sahibi kullanıcı için sohbet mesajı ekleme."""
+    req = Request.query.get_or_404(req_id)
+    if req.created_by != current_user.id:
+        abort(403)
+
+    if req.req_status in ('reddedildi', 'tamamlandi'):
+        flash('Bu istek için sohbet kapalıdır.', 'warning')
+        return redirect(build_request_return_url('requests', req.id))
+
+    message_body = request.form.get('message', '').strip()
+    if not message_body:
+        flash('Mesaj boş olamaz.', 'danger')
+        return redirect(build_request_return_url('requests', req.id))
+    if len(message_body) > REQUEST_MESSAGE_MAX_LENGTH:
+        flash(f'Mesaj en fazla {REQUEST_MESSAGE_MAX_LENGTH} karakter olabilir.', 'danger')
+        return redirect(build_request_return_url('requests', req.id))
+
+    message = RequestMessage(
+        request_id=req.id,
+        author_user_id=current_user.id,
+        author_username_snapshot=current_user.username,
+        author_role='user',
+        message_type='chat',
+        body=message_body
+    )
+    db.session.add(message)
+    db.session.commit()
+    flash('Mesaj gönderildi.', 'success')
+    return redirect(build_request_return_url('requests', req.id))
+
+
+@app.route('/admin/request/<int:req_id>/messages', methods=['POST'])
+@login_required
+def admin_request_messages(req_id):
+    """Admin için istek sohbetine mesaj ekleme."""
+    if not current_user.is_admin():
+        abort(403)
+
+    req = Request.query.get_or_404(req_id)
+    if req.req_status in ('reddedildi', 'tamamlandi'):
+        flash('Bu istek için sohbet kapalıdır.', 'warning')
+        return redirect(build_request_return_url('admin_requests', req.id))
+
+    message_body = request.form.get('message', '').strip()
+    if not message_body:
+        flash('Mesaj boş olamaz.', 'danger')
+        return redirect(build_request_return_url('admin_requests', req.id))
+    if len(message_body) > REQUEST_MESSAGE_MAX_LENGTH:
+        flash(f'Mesaj en fazla {REQUEST_MESSAGE_MAX_LENGTH} karakter olabilir.', 'danger')
+        return redirect(build_request_return_url('admin_requests', req.id))
+
+    message = RequestMessage(
+        request_id=req.id,
+        author_user_id=current_user.id,
+        author_username_snapshot=current_user.username,
+        author_role='admin',
+        message_type='chat',
+        body=message_body
+    )
+    db.session.add(message)
+    db.session.commit()
+    flash('Mesaj gönderildi.', 'success')
+    return redirect(build_request_return_url('admin_requests', req.id))
+
 # ==============================================================================
 # ADMİN PANELİ ROTALARI
 # ==============================================================================
@@ -1773,7 +1950,7 @@ def admin_requests():
         'tamamlandi': Request.query.filter_by(req_status='tamamlandi').count()
     }
     
-    q = Request.query
+    q = Request.query.options(selectinload(Request.messages))
     if status and status != 'all':
         q = q.filter_by(req_status=status)
     
@@ -1804,8 +1981,10 @@ def admin_requests():
         q = q.order_by(Request.created_at.desc())
 
     requests_list = q.all()
+    conversation_map = build_request_conversation_map(requests_list)
     return render_template('admin/manage_requests.html', 
                           requests=requests_list, 
+                          conversation_map=conversation_map,
                           current_status=status, 
                           current_type=req_type,
                           current_search=search_query,
@@ -1842,9 +2021,12 @@ def admin_set_request_status(req_id):
         flash('Reddedilmiş istekler kabul edilemez.', 'warning')
         return redirect(url_for('admin_requests'))
     
+    old_status = req.req_status
     req.req_status = new_status
+    append_status_event_message(req, old_status, new_status)
     if admin_note:
         req.admin_note = admin_note
+        append_admin_note_message(req, admin_note, current_user)
     db.session.commit()
     flash('İstek durumu güncellendi.', 'success')
     return redirect(url_for('admin_requests'))
@@ -1915,9 +2097,12 @@ def admin_bulk_request_status():
                 skipped_count += 1
                 continue
         
+        old_status = req.req_status
         req.req_status = new_status
+        append_status_event_message(req, old_status, new_status)
         if admin_note:
             req.admin_note = admin_note
+            append_admin_note_message(req, admin_note, current_user)
         updated_count += 1
     
     db.session.commit()

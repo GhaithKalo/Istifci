@@ -222,6 +222,29 @@
   .card-content {
     padding-right: 2.5rem;
   }
+
+  .conversation-thread {
+    background: #fff;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    max-height: 300px;
+    overflow-y: auto;
+    padding: 0.75rem;
+  }
+  .conversation-item {
+    border-radius: 8px;
+    padding: 0.6rem 0.75rem;
+    margin-bottom: 0.5rem;
+    border: 1px solid #e9ecef;
+  }
+  .conversation-item.role-admin { background: #eef5ff; border-color: #cfe2ff; }
+  .conversation-item.role-user { background: #f8f9fa; }
+  .conversation-item.role-system { background: #fff3cd; border-color: #ffe69c; }
+  .conversation-meta {
+    font-size: 0.72rem;
+    color: #6c757d;
+    margin-bottom: 0.25rem;
+  }
 </style>
 
 <div class="container my-4">
