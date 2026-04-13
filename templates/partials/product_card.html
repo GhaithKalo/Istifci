@@ -12,16 +12,30 @@
 
     <div class="card-body">
       <h5 class="card-title fw-bold">{{ component.name }}</h5>
-      <div class="card-meta text-muted">
-        <span>Tür: {{ component.type or 'Bilinmiyor' }}</span>
-        <span class="mx-2">|</span>
-        <span>Kod: {{ component.code or 'Yok' }}</span>
+      <div class="card-tags mt-2">
+        {% if component.tags %}
+          {% for tag in component.tags %}
+            <span class="badge bg-primary bg-opacity-75 me-1 mb-1">
+              <i class="bi bi-tag-fill me-1"></i>{{ tag.name }}
+            </span>
+          {% endfor %}
+        {% else %}
+          <span class="badge bg-secondary bg-opacity-50">
+            <i class="bi bi-tag me-1"></i>Etiketsiz
+          </span>
+        {% endif %}
       </div>
       <div class="stock-status mt-2">
-        {% if component.quantity == 0 %}
-          <span class="badge bg-danger">Stok Tükendi</span>
+        {% set available = component.inventory_items|selectattr('assigned_to', 'none')|rejectattr('is_defective')|list|length if component.inventory_items else component.quantity %}
+        {% set defective_count = component.inventory_items|selectattr('is_defective')|list|length if component.inventory_items else 0 %}
+        {% set total = component.quantity - defective_count %}
+        {% if available == 0 %}
+          <span class="badge bg-danger">Stok: ({{ available }}/{{ total }})</span>
         {% else %}
-          <span class="badge bg-success">Stok: {{ component.quantity }}</span>
+          <span class="badge bg-success">Stok: ({{ available }}/{{ total }})</span>
+        {% endif %}
+        {% if defective_count > 0 %}
+          <span class="badge bg-warning text-dark ms-1"><i class="bi bi-exclamation-triangle"></i> {{ defective_count }} Arızalı</span>
         {% endif %}
       </div>
     </div>

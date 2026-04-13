@@ -36,20 +36,36 @@ component_tag = db.Table(
 class User(db.Model, UserMixin):
     """
     Uygulamadaki kullanıcıları temsil eden model.
-    Kullanıcı adı, şifre, rol ve özel izinleri içerir.
+    (LDAP entegrasyonu için güncellendi)
     """
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(64), unique=True, nullable=False)
-    password_hash = db.Column(db.String(128), nullable=False)
+
+    # --- DEĞİŞİKLİK 1 ---
+    # Şifre alanı artık NULL olabilir (LDAP kullanıcıları için).
+    password_hash = db.Column(db.String(256), nullable=True)
+    # Yeni: Bu kullanıcı LDAP ile yönetiliyorsa True olur. Lokal şifre değişikliklerini engellemek için kullanılır.
+    is_ldap = db.Column(db.Boolean, default=False, nullable=False)
+
     role = db.Column(db.String(20), default='user')  # 'admin' ya da 'user'
-    
-    # Kullanıcıya özel izinler
+
     can_add_product = db.Column(db.Boolean, default=False)
     can_delete_product = db.Column(db.Boolean, default=False)
 
-    def __init__(self, username, password, role='user', can_add_product=False, can_delete_product=False):
+    # --- DEĞİŞİKLİK 2 ---
+    # Kurucu fonksiyon (init) artık 'password' parametresini zorunlu tutmuyor.
+    # password=None varsayılan değeri eklendi.
+    def __init__(self, username, password=None, role='user', can_add_product=False, can_delete_product=False, is_ldap=False):
         self.username = username
-        self.set_password(password)
+
+        # Sadece bir şifre verilirse hash'le (yerel admin oluştururken vb.)
+        if password:
+            self.set_password(password)
+
+        # Eğer kullanıcı LDAP ile yönetiliyorsa, local password alanı None kalır ve is_ldap True yapılır.
+        if is_ldap:
+            self.is_ldap = True
+
         self.role = role
         self.can_add_product = can_add_product
         self.can_delete_product = can_delete_product
@@ -65,16 +81,24 @@ class User(db.Model, UserMixin):
     def has_delete_permission(self):
         """Kullanıcının ürün silme izni olup olmadığını kontrol eder."""
         return self.is_admin() or self.can_delete_product
-    
+
     def set_password(self, password):
         """Verilen şifreyi hash'leyerek kaydeder."""
         self.password_hash = generate_password_hash(password)
 
+    # --- DEĞİŞİKLİK 3 ---
+    # Şifre kontrolü, hash'in 'None' olma ihtimaline karşı güvenli hale getirildi.
     def check_password(self, password):
         """Verilen şifrenin hash'lenmiş şifre ile eşleşip eşleşmediğini kontrol eder."""
-        return check_password_hash(self.password_hash, password)
 
-    
+        # Eğer kullanıcının yerel bir şifre hash'i yoksa (LDAP kullanıcısıysa),
+        # şifre kontrolü her zaman False dönmelidir.
+        if not self.password_hash:
+            return False
+
+        # Yerel şifresi varsa, kontrol et.
+        return check_password_hash(self.password_hash, password)   
+
 class Tag(db.Model):
     """
     Bileşenleri (Component) gruplamak için kullanılan etiketleri temsil eder.
@@ -105,6 +129,7 @@ class Component(db.Model):
     image_url = db.Column(db.String(300), nullable=True, default=None)
     part_number = db.Column(db.String(100), nullable=True)
     code = db.Column(db.String(150), unique=True)
+    is_deleted = db.Column(db.Boolean, default=False, nullable=False)
 
     # Bir bileşenin hangi etiketlere sahip olduğunu gösteren ilişki.
     tags = db.relationship(
@@ -121,6 +146,7 @@ class InventoryItem(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     component_id = db.Column(db.Integer, db.ForeignKey('component.id'), nullable=False, index=True)
     serial_number = db.Column(db.String(100), unique=True, nullable=False)
+    is_defective = db.Column(db.Boolean, default=False, nullable=False) # Arızalı olup olmadığını belirten alan
     assigned_to = db.Column(db.String(100), nullable=True)  # Ürünün zimmetlendiği kullanıcının adı.
 
     # Bu envanter öğesinin hangi bileşene ait olduğunu belirten ilişki.
@@ -148,7 +174,8 @@ class BorrowLog(db.Model):
     kullanıcı-bileşen etkileşimlerini kaydeden model.
     """
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='SET NULL'), nullable=True, index=True)
+    username = db.Column(db.String(64), nullable=True)  # Kullanıcı silinse bile adı korunur
     comp_id = db.Column(db.Integer, db.ForeignKey('component.id'), nullable=False, index=True)
     action = db.Column(db.String(10), nullable=False)  # "borrow", "return", veya "consume"
     amount = db.Column(db.Integer, nullable=False)
@@ -173,7 +200,8 @@ class Project(db.Model):
     location = db.Column(db.String(100), nullable=True)
     status = db.Column(db.String(20), default="Bekliyor")  # "Bekliyor", "Onaylandı", "Tamamlandı"
     approved = db.Column(db.Boolean, default=False)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='SET NULL'), nullable=True)
+    username = db.Column(db.String(64), nullable=True)  # Kullanıcı silinse bile adı korunur
     timestamp = db.Column(db.DateTime, default=lambda: datetime.now(turkey_tz))
 
     # Projeyi oluşturan kullanıcı ve projeye ait malzemeler ile ilişkiler.
@@ -201,9 +229,90 @@ class Request(db.Model):
     """
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(120), nullable=False)
-    description = db.Column(db.Text)
+    # İstek türü: 'satin_alma', 'ariza', 'bakim'
+    req_type = db.Column(db.String(30), nullable=False, default='satin_alma')
+    # İstek durumu: 'beklemede', 'reddedildi', 'kabul', 'tamamlandi'
+    req_status = db.Column(db.String(30), nullable=False, default='beklemede')
+    description = db.Column(db.Text)  # İstek açıklaması
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    created_by = db.Column(db.Integer, db.ForeignKey('user.id'))
+    created_by = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='SET NULL'), nullable=True)
+    username = db.Column(db.String(64), nullable=True)  # Kullanıcı silinse bile adı korunur
+    
+    # Mevcut ürün seçildiyse component_id
+    component_id = db.Column(db.Integer, db.ForeignKey('component.id'), nullable=True)
+    # Arıza/bakım istekleri için seri numarası
+    serial_number = db.Column(db.String(100), nullable=True)
+
+    # Satın alma istekleri için ek alanlar
+    product_category = db.Column(db.String(50), nullable=True)  # Ürün kategorisi (demirbas, gerec, sarf)
+    product_type = db.Column(db.String(100), nullable=True)  # Ürün türü
+    product_description = db.Column(db.Text, nullable=True)  # Ürün açıklaması
+    tags = db.Column(db.String(255), nullable=True)  # Etiketler (virgülle ayrılmış)
+    quantity = db.Column(db.Integer, nullable=True, default=1)  # Adet
+    purchase_link = db.Column(db.String(500), nullable=True)  # Satın alma linki
+    unit_price = db.Column(db.Float, nullable=True)  # Birim fiyatı (KDV'siz)
+    total_price = db.Column(db.Float, nullable=True)  # Toplam fiyat (KDV'siz) = Adet * Birim Fiyatı
+    budget = db.Column(db.String(50), nullable=True)  # Bütçe: 'TTO', 'Merkez', 'Emin degilim'
+
+    # Admin notu (kabul/red sırasında eklenen not)
+    admin_note = db.Column(db.Text, nullable=True)
+    
+    # Tek ürünlü istekler için envantere eklenme durumu
+    added_to_inventory = db.Column(db.Boolean, default=False, nullable=True)
+    added_component_id = db.Column(db.Integer, db.ForeignKey('component.id'), nullable=True)
 
     # İsteği oluşturan kullanıcı ile ilişki.
     user = db.relationship('User', backref='requests')
+    # Seçilen bileşen ile ilişki (eski tek ürün için - geriye uyumluluk)
+    component = db.relationship('Component', foreign_keys=[component_id], backref='requests')
+    # Eklenen bileşen ile ilişki
+    added_component = db.relationship('Component', foreign_keys=[added_component_id])
+    # Birden fazla ürün için ilişki
+    items = db.relationship('RequestItem', backref='request', cascade='all, delete-orphan', lazy='dynamic')
+    
+    @property
+    def total_items_price(self):
+        """Tüm ürün kalemlerinin toplam fiyatını hesaplar."""
+        total = 0
+        for item in self.items:
+            if item.total_price:
+                total += item.total_price
+        return total if total > 0 else self.total_price
+    
+    @property
+    def items_count(self):
+        """İstekteki ürün kalemi sayısını döndürür."""
+        return self.items.count()
+
+
+class RequestItem(db.Model):
+    """
+    Bir satın alma isteğindeki her bir ürün kalemini temsil eder.
+    Bir Request birden fazla RequestItem'a sahip olabilir.
+    """
+    id = db.Column(db.Integer, primary_key=True)
+    request_id = db.Column(db.Integer, db.ForeignKey('request.id'), nullable=False, index=True)
+    
+    # Ürün bilgileri - mevcut ürün seçildiyse
+    component_id = db.Column(db.Integer, db.ForeignKey('component.id'), nullable=True)
+    
+    # Yeni ürün için bilgiler
+    name = db.Column(db.String(120), nullable=False)
+    product_category = db.Column(db.String(50), nullable=True)  # demirbas, gerec, sarf
+    product_type = db.Column(db.String(100), nullable=True)
+    product_description = db.Column(db.Text, nullable=True)
+    tags = db.Column(db.String(255), nullable=True)
+    
+    # Satın alma detayları
+    quantity = db.Column(db.Integer, nullable=False, default=1)
+    purchase_link = db.Column(db.String(500), nullable=True)
+    unit_price = db.Column(db.Float, nullable=True)
+    total_price = db.Column(db.Float, nullable=True)
+    
+    # Envantere eklenme durumu
+    added_to_inventory = db.Column(db.Boolean, default=False, nullable=False)
+    added_component_id = db.Column(db.Integer, db.ForeignKey('component.id'), nullable=True)  # Eklenen bileşenin ID'si
+    
+    # İlişkiler
+    component = db.relationship('Component', foreign_keys=[component_id], backref='request_items')
+    added_component = db.relationship('Component', foreign_keys=[added_component_id])

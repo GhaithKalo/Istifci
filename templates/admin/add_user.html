@@ -2,70 +2,116 @@
 {% block title %}Yeni Kullanıcı Ekle{% endblock %}
 
 {% block content %}
-<div class="container mt-5">
-    <h2>Yeni Kullanıcı Ekle</h2>
+<style>
+  .page-header {
+    background: linear-gradient(135deg, #1a237e 0%, #3949ab 100%);
+    border-radius: 16px;
+    padding: 1.5rem 2rem;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 4px 20px rgba(26, 35, 126, 0.3);
+  }
+  .page-header h2 {
+    color: #e3f2fd !important;
+    margin: 0;
+    font-weight: 700;
+  }
+  .page-header .btn-back {
+    background: rgba(255,255,255,0.15);
+    border: 2px solid rgba(255,255,255,0.4);
+    color: #fff;
+    border-radius: 25px;
+    padding: 0.5rem 1rem;
+    font-weight: 500;
+  }
+  .form-card {
+    background: #fff;
+    border: 1px solid #e3e8ef;
+    border-radius: 16px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+    padding: 2rem;
+    max-width: 500px;
+    margin: 0 auto;
+  }
+  .form-label {
+    font-weight: 500;
+    color: #1a237e;
+    margin-bottom: 0.5rem;
+  }
+  .form-control, .form-select {
+    border-radius: 8px;
+    border: 1px solid #c5cae9;
+  }
+  .form-control:focus, .form-select:focus {
+    border-color: #3949ab;
+    box-shadow: 0 0 0 3px rgba(57,73,171,0.15);
+  }
+  .role-group { display: flex; gap: 0.5rem; }
+  .role-group .btn-check:checked + .btn-outline-primary { background: #1a237e; border-color: #1a237e; color: #fff; }
+  .role-group .btn-check:checked + .btn-outline-danger { background: #c62828; border-color: #c62828; color: #fff; }
+  .role-group .btn { border-radius: 20px; padding: 0.4rem 1rem; font-weight: 500; }
+  .form-check-input:checked { background-color: #3949ab; border-color: #3949ab; }
+  .btn-submit { background: linear-gradient(135deg, #2e7d32 0%, #43a047 100%); color: #fff; border: none; border-radius: 25px; padding: 0.6rem 1.5rem; font-weight: 600; }
+  .btn-cancel { background: #e8eaf6; color: #1a237e; border: none; border-radius: 25px; padding: 0.6rem 1.5rem; font-weight: 500; }
+</style>
 
+<div class="container my-4">
+  <div class="page-header d-flex justify-content-between align-items-center">
+    <h2><i class="bi bi-person-plus-fill me-2"></i>Yeni Kullanıcı Ekle</h2>
+    <a href="{{ url_for('manage_users') }}" class="btn btn-back"><i class="bi bi-arrow-left me-1"></i>Kullanıcılar</a>
+  </div>
+  <div class="form-card">
     <form method="POST">
-        <div class="mb-3">
-            <label for="username" class="form-label">Kullanıcı Adı</label>
-            <input type="text" class="form-control" id="username" name="username" required>
+      <div class="mb-3">
+        <label for="username" class="form-label">Kullanıcı Adı</label>
+        <input type="text" class="form-control" id="username" name="username" required placeholder="Kullanıcı adı girin">
+      </div>
+      <div class="mb-3">
+        <label for="password" class="form-label">Şifre</label>
+        <input type="password" class="form-control" id="password" name="password" required placeholder="Şifre girin">
+      </div>
+      <div class="mb-3">
+        <label class="form-label d-block">Rol</label>
+        <div class="role-group">
+          <input type="radio" class="btn-check" name="role" id="role_user" value="user" autocomplete="off" checked>
+          <label class="btn btn-outline-primary" for="role_user"><i class="bi bi-person me-1"></i>Kullanıcı</label>
+          <input type="radio" class="btn-check" name="role" id="role_admin" value="admin" autocomplete="off">
+          <label class="btn btn-outline-danger" for="role_admin"><i class="bi bi-shield-lock me-1"></i>Admin</label>
         </div>
-
-        <div class="mb-3">
-            <label for="password" class="form-label">Şifre</label>
-            <input type="password" class="form-control" id="password" name="password" required>
-        </div>
-
-        <div class="mb-3">
-            <label class="form-label d-block">Rol</label>
-            <div class="btn-group" role="group" aria-label="Rol Seçimi">
-                <input type="radio" class="btn-check" name="role" id="role_user" value="user" autocomplete="off" checked>
-                <label class="btn btn-outline-primary" for="role_user">Kullanıcı</label>
-
-                <input type="radio" class="btn-check" name="role" id="role_admin" value="admin" autocomplete="off">
-                <label class="btn btn-outline-danger" for="role_admin">Admin</label>
-            </div>
-        </div>
-
+      </div>
+      <div class="mb-3 p-3 rounded" style="background: #f8f9fa;">
+        <label class="form-label d-block mb-2">Yetkiler</label>
         <div class="form-check mb-2">
-            <input type="checkbox" class="form-check-input" id="can_add_product" name="can_add_product">
-            <label class="form-check-label" for="can_add_product">Ürün ekleme yetkisi</label>
+          <input type="checkbox" class="form-check-input" id="can_add_product" name="can_add_product">
+          <label class="form-check-label" for="can_add_product">Ürün ekleme yetkisi</label>
         </div>
-
-        <div class="form-check mb-3">
-            <input type="checkbox" class="form-check-input" id="can_delete_product" name="can_delete_product">
-            <label class="form-check-label" for="can_delete_product">Ürün silme yetkisi</label>
+        <div class="form-check">
+          <input type="checkbox" class="form-check-input" id="can_delete_product" name="can_delete_product">
+          <label class="form-check-label" for="can_delete_product">Ürün silme yetkisi</label>
         </div>
-
-        <button type="submit" class="btn btn-primary">Ekle</button>
-        <a href="{{ url_for('manage_users') }}" class="btn btn-secondary">İptal</a>
+      </div>
+      <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-submit flex-grow-1"><i class="bi bi-check-lg me-1"></i>Kullanıcı Ekle</button>
+        <a href="{{ url_for('manage_users') }}" class="btn btn-cancel">İptal</a>
+      </div>
     </form>
+  </div>
 </div>
-
-<!-- JavaScript: Admin seçilince yetkileri otomatik ayarla -->
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     const roleUser = document.getElementById('role_user');
     const roleAdmin = document.getElementById('role_admin');
     const addCheckbox = document.getElementById('can_add_product');
     const deleteCheckbox = document.getElementById('can_delete_product');
-
     function updatePermissionFields() {
         if (roleAdmin.checked) {
-            addCheckbox.checked = true;
-            addCheckbox.disabled = true;
-            deleteCheckbox.checked = true;
-            deleteCheckbox.disabled = true;
+            addCheckbox.checked = true; addCheckbox.disabled = true;
+            deleteCheckbox.checked = true; deleteCheckbox.disabled = true;
         } else {
-            addCheckbox.disabled = false;
-            deleteCheckbox.disabled = false;
+            addCheckbox.disabled = false; deleteCheckbox.disabled = false;
         }
     }
-
     roleUser.addEventListener('change', updatePermissionFields);
     roleAdmin.addEventListener('change', updatePermissionFields);
-
-    // Sayfa ilk yüklendiğinde kontrol et
     updatePermissionFields();
 });
 </script>

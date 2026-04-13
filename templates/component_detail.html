@@ -17,13 +17,12 @@
     <div class="card shadow-sm p-4 border-0 rounded-3" style="background-color: #f9f9f9;">
         <div class="row g-4">
             <div class="col-md-4 text-center">
-       {% if component.image_url %}
-       <img src="{{ component.image_url }}"
-         class="img-fluid rounded shadow-sm" alt="{{ component.name }}">
-       {% else %}
-       <img src="{{ url_for('static', filename='uploads/Photoroom_20250531_173915-Photoroom.png') }}"
-         class="img-fluid rounded shadow-sm" alt="{{ component.name }}">
-       {% endif %}
+                {% if component.image_url %}
+                <img src="{{ component.image_url }}" class="img-fluid rounded shadow-sm" alt="{{ component.name }}">
+                {% else %}
+                <img src="{{ url_for('static', filename='uploads/Photoroom_20250531_173915-Photoroom.png') }}"
+                    class="img-fluid rounded shadow-sm" alt="{{ component.name }}">
+                {% endif %}
             </div>
             <div class="col-md-8">
                 <h2 class="fw-bold text-primary">{{ component.name }}</h2>
@@ -32,26 +31,26 @@
 
                 <p><strong>Ürün Tipi:</strong>
                     {% if component.category %}
-                        {% if component.category in ['demirbas', 'gerec'] %}
-                        <span class="badge bg-primary">{{ component.category.capitalize() }}</span>
-                        {% elif component.category == 'sarf' %}
-                        <span class="badge bg-secondary">{{ component.category.capitalize() }}</span>
-                        {% else %}
-                        <span class="badge bg-info">{{ component.category.capitalize() }}</span>
-                        {% endif %}
+                    {% if component.category in ['demirbas', 'gerec'] %}
+                    <span class="badge bg-primary">{{ component.category.capitalize() }}</span>
+                    {% elif component.category == 'sarf' %}
+                    <span class="badge bg-secondary">{{ component.category.capitalize() }}</span>
                     {% else %}
-                        <span class="badge bg-light text-dark">Belirtilmemiş</span>
+                    <span class="badge bg-info">{{ component.category.capitalize() }}</span>
+                    {% endif %}
+                    {% else %}
+                    <span class="badge bg-light text-dark">Belirtilmemiş</span>
                     {% endif %}
                 </p>
 
                 <p><strong>Tür:</strong> {{ component.type }}</p>
 
                 {% if component.tags %}
-                  <p><strong>Etiketler:</strong> 
+                <p><strong>Etiketler:</strong>
                     {% for tag in component.tags %}
-                      <span class="badge bg-info text-dark me-1">{{ tag.name }}</span>
+                    <span class="badge bg-info text-dark me-1">{{ tag.name }}</span>
                     {% endfor %}
-                  </p>
+                </p>
                 {% endif %}
 
                 <p><strong>Varsayilan Yer:</strong> {{ component.location }}</p>
@@ -61,19 +60,24 @@
 
                 {% if current_user.is_authenticated and current_user.role == 'admin' %}
                 <div class="mb-3">
-                 <a href="{{ url_for('edit_component', comp_id=component.id) }}" class="btn btn-outline-primary">
-                 <i class="bi bi-pencil-square"></i> Düzenle
-                 </a>
+                    <a href="{{ url_for('edit_component', comp_id=component.id) }}" class="btn btn-outline-primary">
+                        <i class="bi bi-pencil-square"></i> Düzenle
+                    </a>
                 </div>
                 {% endif %}
 
                 {% if current_user.role == 'admin' %}
                 <form method="POST" action="{{ url_for('update_stock', comp_id=component.id) }}"
-                      class="d-inline-flex align-items-center gap-2 mt-3 flex-wrap">
+                    class="d-inline-flex align-items-center gap-2 mt-3 flex-wrap">
                     <input type="hidden" id="action-input" name="action" value="">
-                    <input type="number" name="amount" id="amount-input" value="1" {% if is_fixed_asset(component.category) %}max="1" min="1"{% else %}min="1"{% endif %}
-                           class="form-control form-control-sm" style="width: 80px;" required>
-                    <input type="text" name="serial_number" class="form-control form-control-sm" placeholder="Seri No (demirbaş)" style="width: 160px;" {% if not is_fixed_asset(component.category) %}disabled{% endif %}>
+                    <input type="hidden" name="request_item_id" value="{{ request.args.get('request_item_id', '') }}">
+                    <input type="hidden" name="from_request" value="{{ request.args.get('from_request', '') }}">
+                    <input type="number" name="amount" id="amount-input" value="1" {% if
+                        is_fixed_asset(component.category) %}max="1" min="1" {% else %}min="1" {% endif %}
+                        class="form-control form-control-sm" style="width: 80px;" required>
+                    <input type="text" name="serial_number" class="form-control form-control-sm"
+                        placeholder="Seri No (demirbaş)" style="width: 160px;" {% if not
+                        is_fixed_asset(component.category) %}disabled{% endif %}>
 
                     <div class="btn-group" role="group" aria-label="Stok Güncelle">
                         <button type="submit" onclick="setAction('decrease')" class="btn btn-outline-danger">
@@ -92,35 +96,41 @@
                 {% if is_fixed_asset(component.category) %}
                 <h4 class="text-secondary fw-semibold">Seri Numaraları</h4>
                 <table class="table table-sm table-bordered">
-                  <thead class="table-light">
-                    <tr>
-                      <th>Seri No</th>
-                      <th>Zimmetli</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {% for item in component.inventory_items %}
-                      <tr>
-                        <td>{{ item.serial_number }}</td>
-                        <td>
-                          {% if item.assigned_to %}
-                            {% set user = item.assigned_to | get_user_by_username %}
-                            {% if user and current_user.is_admin() %}
-                              <a href="{{ url_for('edit_user', user_id=user.id) }}" class="text-decoration-none">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Seri No</th>
+                            <th>Zimmetli</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in component.inventory_items %}
+                        <tr>
+                            <td>{{ item.serial_number }}</td>
+                            <td>
+                                {% if item.assigned_to %}
+                                {% set user = item.assigned_to | get_user_by_username %}
+                                {% if user and current_user.is_admin() %}
+                                <a href="{{ url_for('edit_user', user_id=user.id) }}" class="text-decoration-none">
+                                    <i class="bi bi-person-fill me-1"></i>{{ item.assigned_to }}
+                                </a>
+                                {% else %}
                                 <i class="bi bi-person-fill me-1"></i>{{ item.assigned_to }}
-                              </a>
-                            {% else %}
-                              <i class="bi bi-person-fill me-1"></i>{{ item.assigned_to }}
-                            {% endif %}
-                          {% else %}
-                            <span class="text-success fst-italic">Boşta</span>
-                          {% endif %}
-                        </td>
-                      </tr>
-                    {% else %}
-                      <tr><td colspan="2" class="text-center">Kayıtlı seri numarası yok.</td></tr>
-                    {% endfor %}
-                  </tbody>
+                                {% endif %}
+                                {% else %}
+                                {% if item.is_defective %}
+                                <span class="badge bg-danger">ARIZALI</span>
+                                {% else %}
+                                <span class="text-success fst-italic">Boşta</span>
+                                {% endif %}
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="2" class="text-center">Kayıtlı seri numarası yok.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
                 </table>
 
                 <h4 class="text-secondary fw-semibold mt-4">Ödünç Alma Geçmişi</h4>
@@ -143,30 +153,27 @@
                                 <td>
                                     {% set user = record.user_name | get_user_by_username %}
                                     {% if user and current_user.is_admin() %}
-                                        <a href="{{ url_for('edit_user', user_id=user.id) }}" class="text-decoration-none">
-                                            <i class="bi bi-person-fill me-1"></i>{{ record.user_name }}
-                                        </a>
-                                    {% else %}
+                                    <a href="{{ url_for('edit_user', user_id=user.id) }}" class="text-decoration-none">
                                         <i class="bi bi-person-fill me-1"></i>{{ record.user_name }}
+                                    </a>
+                                    {% else %}
+                                    <i class="bi bi-person-fill me-1"></i>{{ record.user_name }}
                                     {% endif %}
                                 </td>
                                 <td><span class="font-monospace">{{ record.serial_number }}</span></td>
                                 <td>{{ record.borrow_date.strftime('%d-%m-%Y') }}</td>
                                 <td>
                                     {% if record.return_date %}
-                                        <span class="text-muted">{{ record.return_date.strftime('%d-%m-%Y') }}</span>
+                                    <span class="text-muted">{{ record.return_date.strftime('%d-%m-%Y') }}</span>
                                     {% else %}
-                                        <span class="badge bg-danger">İade Edilmedi</span>
+                                    <span class="badge bg-danger">İade Edilmedi</span>
                                     {% endif %}
                                 </td>
                                 <td>{{ record.location or '-' }}</td>
                                 <td>
                                     {% if record.notes %}
-                                    <i class="bi bi-chat-left-text"
-                                       data-bs-toggle="popover"
-                                       data-bs-trigger="focus"
-                                       tabindex="0"
-                                       data-bs-content="{{ record.notes }}"></i>
+                                    <i class="bi bi-chat-left-text" data-bs-toggle="popover" data-bs-trigger="focus"
+                                        tabindex="0" data-bs-content="{{ record.notes }}"></i>
                                     {% endif %}
                                 </td>
                             </tr>
@@ -198,22 +205,19 @@
                                 <td>
                                     {% set user = record.user_name | get_user_by_username %}
                                     {% if user and current_user.is_admin() %}
-                                        <a href="{{ url_for('edit_user', user_id=user.id) }}" class="text-decoration-none">
-                                            <i class="bi bi-person-fill me-1"></i>{{ record.user_name }}
-                                        </a>
-                                    {% else %}
+                                    <a href="{{ url_for('edit_user', user_id=user.id) }}" class="text-decoration-none">
                                         <i class="bi bi-person-fill me-1"></i>{{ record.user_name }}
+                                    </a>
+                                    {% else %}
+                                    <i class="bi bi-person-fill me-1"></i>{{ record.user_name }}
                                     {% endif %}
                                 </td>
                                 <td>{{ record.timestamp.strftime('%d-%m-%Y %H:%M') }}</td>
                                 <td><span class="badge bg-secondary">{{ record.amount }}</span></td>
                                 <td>
                                     {% if record.notes %}
-                                    <i class="bi bi-chat-left-text"
-                                       data-bs-toggle="popover"
-                                       data-bs-trigger="focus"
-                                       tabindex="0"
-                                       data-bs-content="{{ record.notes }}"></i>
+                                    <i class="bi bi-chat-left-text" data-bs-toggle="popover" data-bs-trigger="focus"
+                                        tabindex="0" data-bs-content="{{ record.notes }}"></i>
                                     {% endif %}
                                 </td>
                             </tr>
@@ -246,6 +250,25 @@
         var popoverList = popoverTriggerList.map(function (popoverTriggerEl) {
             return new bootstrap.Popover(popoverTriggerEl);
         });
+
+        // URL'den add_stock parametresini al ve stok arttırma alanına yaz
+        const urlParams = new URLSearchParams(window.location.search);
+        const addStock = urlParams.get('add_stock');
+        if (addStock) {
+            const amountInput = document.getElementById('amount-input');
+            if (amountInput) {
+                amountInput.value = addStock;
+                // Stok arttırma alanına scroll yap ve highlight et
+                amountInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                amountInput.classList.add('border-success', 'border-2');
+                amountInput.focus();
+                // Kullanıcıya bilgi ver
+                const alertDiv = document.createElement('div');
+                alertDiv.className = 'alert alert-success alert-dismissible fade show mt-3';
+                alertDiv.innerHTML = '<i class="bi bi-info-circle me-2"></i>Satın alma isteğinden <strong>' + addStock + ' adet</strong> stok eklenmek üzere hazırlandı. "Arttır" butonuna basarak stoğu güncelleyebilirsiniz.<button type="button" class="btn-close" data-bs-dismiss="alert"></button>';
+                amountInput.closest('form').parentNode.insertBefore(alertDiv, amountInput.closest('form'));
+            }
+        }
     });
 </script>
 {% endblock %}

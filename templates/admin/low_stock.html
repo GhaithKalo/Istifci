@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block title %}Azalan Stoklar{% endblock %}
+
+{% block content %}
+<style>
+  .page-header {
+    background: linear-gradient(135deg, #1a237e 0%, #3949ab 100%);
+    border-radius: 16px;
+    padding: 1.5rem 2rem;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 4px 20px rgba(26, 35, 126, 0.3);
+  }
+  .page-header h2 {
+    color: #e3f2fd !important;
+    margin: 0;
+    font-weight: 700;
+  }
+  .page-header .btn-back {
+    background: rgba(255,255,255,0.15);
+    border: 2px solid rgba(255,255,255,0.4);
+    color: #fff;
+    border-radius: 25px;
+    padding: 0.5rem 1rem;
+    font-weight: 500;
+  }
+  .filter-container {
+    background: #fff;
+    border: 1px solid #e3e8ef;
+    border-radius: 16px;
+    padding: 1rem 1.5rem;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+  }
+  .btn-filter {
+    border-radius: 20px;
+    padding: 0.4rem 1rem;
+    font-weight: 500;
+    border: 1px solid #c5cae9;
+    background: #fff;
+    color: #3949ab;
+  }
+  .btn-filter.active {
+    background: linear-gradient(135deg, #1a237e 0%, #3949ab 100%);
+    color: #fff;
+    border-color: transparent;
+  }
+  .stock-card {
+    background: #fff;
+    border: 1px solid #e3e8ef;
+    border-radius: 12px;
+    padding: 1rem 1.5rem;
+    margin-bottom: 0.75rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .stock-card .product-info h5 {
+    margin: 0;
+    color: #1a237e;
+    font-weight: 600;
+  }
+  .stock-card .product-info small {
+    color: #7986cb;
+  }
+  .badge-warning {
+    background: linear-gradient(135deg, #ff8f00 0%, #ffa726 100%);
+    color: #fff;
+    font-size: 1rem;
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+    font-weight: 600;
+  }
+  .stock-alert {
+    color: #c62828;
+    font-weight: 600;
+    font-size: 0.9rem;
+  }
+  .alert-success-custom {
+    background: #e8f5e9;
+    border: 1px solid #a5d6a7;
+    color: #2e7d32;
+    border-radius: 12px;
+    padding: 1.5rem;
+  }
+</style>
+
+<div class="container my-4">
+  <div class="page-header d-flex justify-content-between align-items-center">
+    <h2><i class="bi bi-exclamation-triangle me-2"></i>Azalan Stoklar</h2>
+    <a href="{{ url_for('admin_dashboard') }}" class="btn btn-back"><i class="bi bi-arrow-left me-1"></i>Admin Panel</a>
+  </div>
+
+  <div class="filter-container">
+    <div class="d-flex flex-wrap justify-content-center gap-2">
+      <a href="{{ url_for('low_stock') }}" class="btn btn-filter {% if not selected_category %}active{% endif %}">Tümü</a>
+      {% for category in all_categories %}
+        <a href="{{ url_for('low_stock', category=category) }}" class="btn btn-filter {% if selected_category == category %}active{% endif %}">{{ category }}</a>
+      {% endfor %}
+    </div>
+  </div>
+
+  {% if components %}
+    {% for comp in components %}
+    <div class="stock-card">
+      <div class="product-info">
+        <h5>{{ comp.name }}</h5>
+        <small>{{ comp.category }}</small>
+      </div>
+      <div class="d-flex align-items-center gap-3">
+        <span class="badge-warning">{{ comp.quantity }}</span>
+        <span class="stock-alert"><i class="bi bi-cart-plus me-1"></i>Stok tükeniyor / Satın alınmalı!</span>
+      </div>
+    </div>
+    {% endfor %}
+  {% else %}
+    <div class="alert-success-custom text-center">
+      <i class="bi bi-check-circle me-2"></i>
+      Tüm ürünlerin stoğu yeterli veya seçilen kategoriye ait azalan stoklu ürün yok.
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

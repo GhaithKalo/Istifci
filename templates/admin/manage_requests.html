@@ -1,0 +1,1551 @@
+{% extends "base.html" %}
+{% block title %}İstek Yönetimi - Admin{% endblock %}
+{% block content %}
+<style>
+  /* ============================================
+     İSTEK YÖNETİMİ - Site Tasarım Uyumu
+     Primary: #1a237e, #3949ab (navbar gradient)
+     Background: #f4f6f8
+     ============================================ */
+  
+  /* Page Header */
+  .page-header {
+    background: linear-gradient(135deg, #1a237e 0%, #3949ab 100%);
+    border-radius: 16px;
+    padding: 1.5rem 2rem;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 4px 20px rgba(26, 35, 126, 0.3);
+  }
+  .page-header h2 {
+    color: #e3f2fd !important;
+    margin: 0;
+    font-weight: 700;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.2);
+  }
+  .page-header .btn-back {
+    background: rgba(255,255,255,0.15);
+    border: 2px solid rgba(255,255,255,0.4);
+    color: #fff;
+    border-radius: 25px;
+    padding: 0.5rem 1.25rem;
+    font-weight: 500;
+    backdrop-filter: blur(4px);
+    transition: all 0.2s;
+  }
+  .page-header .btn-back:hover {
+    background: rgba(255,255,255,0.25);
+    transform: translateX(-3px);
+  }
+  
+  /* Filter Buttons - Bootstrap style (same as requests.html) */
+  .filter-btn-group .btn {
+    border-radius: 20px;
+    padding: 0.35rem 0.85rem;
+    font-size: 0.85rem;
+    margin-right: 0.25rem;
+    margin-bottom: 0.25rem;
+  }
+  .filter-btn-group .btn i {
+    margin-right: 0.3rem;
+  }
+  
+  /* Active Filters */
+  .active-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding: 0.5rem;
+    background: #e9ecef;
+    border-radius: 6px;
+    align-items: center;
+  }
+  .filter-tag {
+    display: inline-flex;
+    align-items: center;
+    background: #fff;
+    padding: 0.2rem 0.5rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    color: #495057;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+  }
+  .filter-tag i {
+    margin-right: 0.25rem;
+    color: #6c757d;
+  }
+  
+  /* Stats Row */
+  .stats-row {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+  }
+  .stat-card {
+    flex: 1;
+    min-width: 110px;
+    background: #fff;
+    border-radius: 12px;
+    padding: 1rem;
+    text-align: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    border-left: 4px solid;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-decoration: none;
+    display: block;
+  }
+  .stat-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.12);
+  }
+  .stat-card.active {
+    box-shadow: 0 6px 20px rgba(26,35,126,0.25);
+    transform: translateY(-3px);
+  }
+  .stat-card.excluded {
+    opacity: 0.4;
+    background: #f5f5f5;
+  }
+  .stat-card.excluded .stat-number,
+  .stat-card.excluded .stat-label { text-decoration: line-through; }
+  .stat-card.stat-total { border-left-color: #1a237e; }
+  .stat-card.stat-beklemede { border-left-color: #ff9800; }
+  .stat-card.stat-kabul { border-left-color: #2e7d32; }
+  .stat-card.stat-reddedildi { border-left-color: #c62828; }
+  .stat-card.stat-tamamlandi { border-left-color: #546e7a; }
+  .stat-card .stat-number {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: #1a237e;
+    line-height: 1;
+  }
+  .stat-card .stat-label {
+    font-size: 0.7rem;
+    color: #7986cb;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 600;
+    margin-top: 0.25rem;
+  }
+  
+  /* Table Styles */
+  .table-container {
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+    border: 1px solid #e8eaf6;
+    overflow: hidden;
+  }
+  .table { margin-bottom: 0; }
+  .table thead th {
+    background: linear-gradient(135deg, #e8eaf6 0%, #c5cae9 100%);
+    color: #1a237e;
+    font-weight: 600;
+    border-bottom: 2px solid #9fa8da;
+    padding: 1rem;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .table tbody td {
+    padding: 0.875rem 1rem;
+    vertical-align: middle;
+    border-bottom: 1px solid #e8eaf6;
+  }
+  .table tbody tr:hover {
+    background-color: #fafbfc;
+  }
+  
+  /* Request Row & Details */
+  .request-row { cursor: pointer; transition: all 0.15s; }
+  .request-details { display: none; background-color: #f8f9fc; }
+  .request-details.show { display: table-row; }
+  .expand-icon { 
+    color: #3949ab; 
+    transition: transform 0.2s;
+    font-size: 1rem;
+  }
+  .expand-icon.rotated { transform: rotate(90deg); }
+  
+  /* Detail Card */
+  .detail-card { 
+    background: white; 
+    border-radius: 12px; 
+    padding: 1.25rem; 
+    margin: 0.5rem; 
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06); 
+    border: 1px solid #e8eaf6; 
+  }
+  .detail-card h6 {
+    color: #1a237e;
+    font-weight: 600;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid #e8eaf6;
+  }
+  .detail-card h6 i { color: #5c6bc0; }
+  
+  /* Custom Badges */
+  .badge-type {
+    padding: 0.4rem 0.8rem;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+  }
+  .badge-type i { margin-right: 0.3rem; }
+  .badge-type.satin-alma { background: #e3f2fd; color: #1565c0; }
+  .badge-type.ariza { background: #ffebee; color: #c62828; }
+  .badge-type.bakim { background: #e8f5e9; color: #2e7d32; }
+  
+  .badge-status {
+    padding: 0.4rem 0.8rem;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+  }
+  .badge-status i { margin-right: 0.3rem; }
+  .badge-status.beklemede { background: #fff8e1; color: #f57f17; }
+  .badge-status.reddedildi { background: #ffebee; color: #c62828; }
+  .badge-status.kabul { background: #e8f5e9; color: #2e7d32; }
+  .badge-status.tamamlandi { background: #eceff1; color: #546e7a; }
+  
+  /* Action Buttons */
+  .btn-action {
+    border-radius: 25px;
+    padding: 0.5rem 1rem;
+    font-weight: 500;
+    font-size: 0.85rem;
+    border: none;
+    transition: all 0.2s;
+  }
+  .btn-action:hover { transform: translateY(-1px); }
+  .btn-action.accept { 
+    background: linear-gradient(135deg, #2e7d32 0%, #43a047 100%); 
+    color: #fff; 
+  }
+  .btn-action.reject { 
+    background: linear-gradient(135deg, #c62828 0%, #e53935 100%); 
+    color: #fff; 
+  }
+  .btn-action.complete { 
+    background: linear-gradient(135deg, #455a64 0%, #607d8b 100%); 
+    color: #fff; 
+  }
+  .btn-action.pdf { 
+    background: linear-gradient(135deg, #1a237e 0%, #3949ab 100%); 
+    color: #fff; 
+  }
+  .btn-action.inventory { 
+    background: #fff;
+    border: 2px solid #2e7d32;
+    color: #2e7d32;
+  }
+  .btn-action.inventory:hover {
+    background: #2e7d32;
+    color: #fff;
+  }
+  
+  /* Copyable */
+  .copyable { 
+    cursor: pointer; 
+    padding: 2px 6px; 
+    border-radius: 6px;
+    transition: background 0.2s;
+  }
+  .copyable:hover { background: #e8eaf6; }
+  .copyable.copied { background: #e8f5e9; }
+  .copyable .bi-clipboard { opacity: 0.4; }
+  .copyable:hover .bi-clipboard { opacity: 1; }
+  
+  /* Copy Toast */
+  .copy-toast { 
+    position: fixed; 
+    bottom: 20px; 
+    right: 20px; 
+    background: linear-gradient(135deg, #1a237e, #3949ab); 
+    color: white; 
+    padding: 12px 24px; 
+    border-radius: 25px; 
+    z-index: 9999; 
+    display: none; 
+    box-shadow: 0 4px 15px rgba(26,35,126,0.4);
+    font-weight: 500;
+  }
+  
+  /* Bulk Selection */
+  .bulk-checkbox {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    accent-color: #3949ab;
+  }
+  .request-row.selected {
+    background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%) !important;
+    box-shadow: inset 0 0 0 2px #3949ab;
+  }
+  .request-row.selected td { background: transparent !important; }
+  
+  /* Bulk Action Bar */
+  .bulk-action-bar {
+    position: fixed;
+    bottom: -100px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: linear-gradient(135deg, #1a237e 0%, #3949ab 100%);
+    padding: 1rem 2rem;
+    border-radius: 50px;
+    box-shadow: 0 8px 32px rgba(26, 35, 126, 0.4);
+    z-index: 1050;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    transition: bottom 0.3s ease-in-out;
+  }
+  .bulk-action-bar.show {
+    bottom: 30px;
+  }
+  .bulk-action-bar .selected-count {
+    color: #fff;
+    font-weight: 600;
+    font-size: 0.95rem;
+    padding-right: 1rem;
+    border-right: 2px solid rgba(255,255,255,0.3);
+  }
+  .bulk-action-bar .btn {
+    border-radius: 25px;
+    padding: 0.5rem 1.25rem;
+    font-weight: 500;
+    border: 2px solid transparent;
+  }
+  .bulk-action-bar .btn-bulk-accept {
+    background: #2e7d32;
+    color: #fff;
+    border-color: #2e7d32;
+  }
+  .bulk-action-bar .btn-bulk-accept:hover {
+    background: #1b5e20;
+    border-color: #1b5e20;
+  }
+  .bulk-action-bar .btn-bulk-reject {
+    background: #c62828;
+    color: #fff;
+    border-color: #c62828;
+  }
+  .bulk-action-bar .btn-bulk-reject:hover {
+    background: #b71c1c;
+    border-color: #b71c1c;
+  }
+  .bulk-action-bar .btn-bulk-complete {
+    background: #455a64;
+    color: #fff;
+    border-color: #455a64;
+  }
+  .bulk-action-bar .btn-bulk-complete:hover {
+    background: #37474f;
+    border-color: #37474f;
+  }
+  .bulk-action-bar .btn-bulk-complete:disabled {
+    background: #90a4ae;
+    border-color: #90a4ae;
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+  .bulk-action-bar .btn-bulk-cancel {
+    background: rgba(255,255,255,0.15);
+    color: #fff;
+    border-color: rgba(255,255,255,0.4);
+  }
+  .bulk-action-bar .btn-bulk-cancel:hover {
+    background: rgba(255,255,255,0.25);
+  }
+  
+  /* Select All Checkbox Cell */
+  .select-all-cell {
+    width: 40px;
+    text-align: center;
+  }
+  
+  /* Modal Styles */
+  .modal-content {
+    border: none;
+    border-radius: 16px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+  }
+  .modal-header {
+    border-radius: 16px 16px 0 0;
+    padding: 1.25rem 1.5rem;
+    border-bottom: none;
+  }
+  .modal-header.bg-success {
+    background: linear-gradient(135deg, #2e7d32 0%, #43a047 100%) !important;
+  }
+  .modal-header.bg-danger {
+    background: linear-gradient(135deg, #c62828 0%, #e53935 100%) !important;
+  }
+  .modal-header.bg-secondary {
+    background: linear-gradient(135deg, #455a64 0%, #607d8b 100%) !important;
+  }
+  .modal-header .modal-title {
+    font-weight: 600;
+  }
+  .modal-body {
+    padding: 1.5rem;
+  }
+  .modal-footer {
+    border-top: 1px solid #e8eaf6;
+    padding: 1rem 1.5rem;
+    border-radius: 0 0 16px 16px;
+  }
+  .modal-footer .btn {
+    border-radius: 25px;
+    padding: 0.5rem 1.25rem;
+    font-weight: 500;
+  }
+  
+  /* Admin Note Alert */
+  .admin-note-alert {
+    background: #e3f2fd;
+    border: 1px solid #90caf9;
+    border-radius: 10px;
+    padding: 0.75rem 1rem;
+    color: #1565c0;
+  }
+  .admin-note-alert i { color: #1976d2; }
+  
+  /* User Badge */
+  .user-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    color: #5c6bc0;
+  }
+  .user-badge i { font-size: 0.9rem; }
+  
+  /* ID Badge */
+  .id-badge {
+    background: #e8eaf6;
+    color: #3949ab;
+    padding: 0.25rem 0.6rem;
+    border-radius: 15px;
+    font-size: 0.8rem;
+    font-weight: 600;
+  }
+</style>
+
+<div class="container my-4">
+  <!-- Page Header -->
+  <div class="page-header d-flex justify-content-between align-items-center">
+    <h2><i class="bi bi-clipboard-check me-2"></i>İstek Yönetimi</h2>
+    <a href="{{ url_for('admin_dashboard') }}" class="btn btn-back">
+      <i class="bi bi-arrow-left me-1"></i>Admin Paneli
+    </a>
+  </div>
+
+  <!-- Stats Row -->
+  <div class="stats-row">
+    <a href="?status=all&type={{ current_type }}&user={{ current_user_filter or 'all' }}&q={{ current_search or '' }}&sort={{ current_sort }}" 
+       class="stat-card stat-total {% if current_status == 'all' and not current_exclude %}active{% endif %}"
+       data-status="all">
+      <div class="stat-number">{{ stats.total }}</div>
+      <div class="stat-label">Toplam</div>
+    </a>
+    <a href="?status=beklemede&type={{ current_type }}&user={{ current_user_filter or 'all' }}&q={{ current_search or '' }}&sort={{ current_sort }}" 
+       class="stat-card stat-beklemede {% if current_status == 'beklemede' %}active{% endif %}{% if current_exclude == 'beklemede' %} excluded{% endif %}"
+       data-status="beklemede"
+       oncontextmenu="return excludeStatus(event, 'beklemede');">
+      <div class="stat-number">{{ stats.beklemede }}</div>
+      <div class="stat-label">Beklemede</div>
+    </a>
+    <a href="?status=kabul&type={{ current_type }}&user={{ current_user_filter or 'all' }}&q={{ current_search or '' }}&sort={{ current_sort }}" 
+       class="stat-card stat-kabul {% if current_status == 'kabul' %}active{% endif %}{% if current_exclude == 'kabul' %} excluded{% endif %}"
+       data-status="kabul"
+       oncontextmenu="return excludeStatus(event, 'kabul');">
+      <div class="stat-number">{{ stats.kabul }}</div>
+      <div class="stat-label">Kabul</div>
+    </a>
+    <a href="?status=reddedildi&type={{ current_type }}&user={{ current_user_filter or 'all' }}&q={{ current_search or '' }}&sort={{ current_sort }}" 
+       class="stat-card stat-reddedildi {% if current_status == 'reddedildi' %}active{% endif %}{% if current_exclude == 'reddedildi' %} excluded{% endif %}"
+       data-status="reddedildi"
+       oncontextmenu="return excludeStatus(event, 'reddedildi');">
+      <div class="stat-number">{{ stats.reddedildi }}</div>
+      <div class="stat-label">Reddedildi</div>
+    </a>
+    <a href="?status=tamamlandi&type={{ current_type }}&user={{ current_user_filter or 'all' }}&q={{ current_search or '' }}&sort={{ current_sort }}" 
+       class="stat-card stat-tamamlandi {% if current_status == 'tamamlandi' %}active{% endif %}{% if current_exclude == 'tamamlandi' %} excluded{% endif %}"
+       data-status="tamamlandi"
+       oncontextmenu="return excludeStatus(event, 'tamamlandi');">
+      <div class="stat-number">{{ stats.tamamlandi }}</div>
+      <div class="stat-label">Tamamlandı</div>
+    </a>
+  </div>
+
+  <!-- Search and Filter - Bootstrap style like requests.html -->
+  <form method="get" action="{{ url_for('admin_requests') }}" class="mb-3" id="filterForm">
+    <div class="input-group mb-2">
+      <input type="search" name="q" class="form-control" placeholder="İstek ara (isim, açıklama, kullanıcı, seri no)..." 
+             value="{{ current_search or '' }}" id="searchInput" autocomplete="off">
+      <button class="btn btn-outline-primary" type="submit">
+        <i class="bi bi-search"></i> Ara
+      </button>
+    </div>
+    
+    <!-- Type Filter Buttons -->
+    <div class="filter-btn-group mb-2">
+      <span class="text-muted small me-2">Tür:</span>
+      <a href="?status={{ current_status }}&type=all&user={{ current_user_filter or 'all' }}&q={{ current_search or '' }}&sort={{ current_sort }}" 
+         class="btn btn-sm {% if current_type == 'all' %}btn-primary{% else %}btn-outline-secondary{% endif %}">
+        <i class="bi bi-collection"></i>Tümü
+      </a>
+      <a href="?status={{ current_status }}&type=satin_alma&user={{ current_user_filter or 'all' }}&q={{ current_search or '' }}&sort={{ current_sort }}" 
+         class="btn btn-sm {% if current_type == 'satin_alma' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+        <i class="bi bi-cart-fill"></i>Satın Alma
+      </a>
+      <a href="?status={{ current_status }}&type=ariza&user={{ current_user_filter or 'all' }}&q={{ current_search or '' }}&sort={{ current_sort }}" 
+         class="btn btn-sm {% if current_type == 'ariza' %}btn-danger{% else %}btn-outline-danger{% endif %}">
+        <i class="bi bi-tools"></i>Arıza
+      </a>
+      <a href="?status={{ current_status }}&type=bakim&user={{ current_user_filter or 'all' }}&q={{ current_search or '' }}&sort={{ current_sort }}" 
+         class="btn btn-sm {% if current_type == 'bakim' %}btn-success{% else %}btn-outline-success{% endif %}">
+        <i class="bi bi-gear-fill"></i>Bakım
+      </a>
+      
+      <span class="ms-3 text-muted small">Sırala:</span>
+      <select name="sort" class="form-select form-select-sm d-inline-block" style="width: auto;" onchange="this.form.submit()">
+        <option value="newest" {% if current_sort == 'newest' %}selected{% endif %}>En yeni</option>
+        <option value="oldest" {% if current_sort == 'oldest' %}selected{% endif %}>En eski</option>
+        <option value="name" {% if current_sort == 'name' %}selected{% endif %}>İsim (A-Z)</option>
+      </select>
+      
+      <span class="ms-3 text-muted small">Kullanıcı:</span>
+      <select name="user" class="form-select form-select-sm d-inline-block" style="width: auto;" onchange="this.form.submit()">
+        <option value="all" {% if current_user_filter == 'all' %}selected{% endif %}>Tümü</option>
+        {% for user in users_with_requests %}
+        <option value="{{ user.id }}" {% if current_user_filter == user.id|string %}selected{% endif %}>{{ user.username }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <!-- Hidden inputs to preserve filter state -->
+    <input type="hidden" name="status" value="{{ current_status }}">
+    <input type="hidden" name="type" value="{{ current_type }}">
+  </form>
+
+  <!-- Active Filters -->
+  {% if current_status != 'all' or current_type != 'all' or current_user_filter != 'all' or current_search %}
+  <div class="active-filters mb-3">
+    <span class="text-muted small me-2">Filtreler:</span>
+    {% if current_status != 'all' %}
+    <span class="filter-tag">
+      <i class="bi bi-funnel-fill"></i>
+      {% if current_status == 'beklemede' %}Beklemede{% elif current_status == 'reddedildi' %}Reddedildi{% elif current_status == 'kabul' %}Kabul{% elif current_status == 'tamamlandi' %}Tamamlandı{% endif %}
+    </span>
+    {% endif %}
+    {% if current_type != 'all' %}
+    <span class="filter-tag">
+      <i class="bi bi-tag-fill"></i>
+      {% if current_type == 'satin_alma' %}Satın Alma{% elif current_type == 'ariza' %}Arıza{% elif current_type == 'bakim' %}Bakım{% endif %}
+    </span>
+    {% endif %}
+    {% if current_user_filter != 'all' %}
+    <span class="filter-tag">
+      <i class="bi bi-person-fill"></i>
+      {% for user in users_with_requests %}{% if user.id|string == current_user_filter %}{{ user.username }}{% endif %}{% endfor %}
+    </span>
+    {% endif %}
+    {% if current_search %}
+    <span class="filter-tag">
+      <i class="bi bi-search"></i>"{{ current_search }}"
+    </span>
+    {% endif %}
+    <a href="{{ url_for('admin_requests') }}" class="btn btn-sm btn-outline-secondary ms-auto">
+      <i class="bi bi-x-lg me-1"></i>Temizle
+    </a>
+  </div>
+  {% endif %}
+
+  <!-- Results Count -->
+  <p class="text-muted small mb-2"><strong>{{ requests|length }}</strong> istek bulundu</p>
+
+  <!-- İstek Listesi -->
+  <div class="table-container">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0" id="requestsTable">
+        <thead>
+            <tr>
+              <th class="select-all-cell">
+                <input type="checkbox" class="bulk-checkbox" id="selectAllCheckbox" title="Tümünü Seç" onclick="toggleSelectAll(this)">
+              </th>
+              <th style="width: 40px;"></th>
+              <th style="width: 50px;">ID</th>
+              <th>Ürün/İstek</th>
+              <th>Tür</th>
+              <th>Oluşturan</th>
+              <th>Tarih</th>
+              <th>Durum</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for req in requests %}
+            <!-- Ana Satır -->
+            <tr class="request-row" data-target="details-{{ req.id }}" data-request-id="{{ req.id }}" data-status="{{ req.req_status }}" onclick="toggleDetails({{ req.id }})">
+              <td class="text-center" onclick="event.stopPropagation();">
+                <input type="checkbox" class="bulk-checkbox row-checkbox" data-id="{{ req.id }}" data-status="{{ req.req_status }}" onclick="handleRowCheckbox(this, event)">
+              </td>
+              <td class="text-center">
+                <i class="bi bi-chevron-right expand-icon" id="icon-{{ req.id }}"></i>
+              </td>
+              <td><span class="id-badge">#{{ req.id }}</span></td>
+              <td>
+                <strong class="text-dark">{{ req.name }}</strong>
+                {% if req.description %}
+                  <br><small class="text-muted">{{ req.description[:40] }}{% if req.description|length > 40 %}...{% endif %}</small>
+                {% endif %}
+              </td>
+              <td>
+                {% if req.req_type == 'satin_alma' %}
+                  <span class="badge-type satin-alma"><i class="bi bi-cart-fill"></i>Satın Alma</span>
+                {% elif req.req_type == 'ariza' %}
+                  <span class="badge-type ariza"><i class="bi bi-tools"></i>Arıza</span>
+                {% elif req.req_type == 'bakim' %}
+                  <span class="badge-type bakim"><i class="bi bi-wrench"></i>Bakım</span>
+                {% else %}
+                  <span class="badge-type">{{ req.req_type }}</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if req.user %}
+                  <span class="user-badge"><i class="bi bi-person-fill"></i>{{ req.user.username }}</span>
+                {% elif req.username %}
+                  <span class="user-badge"><i class="bi bi-person"></i>{{ req.username }}</span> <small class="text-muted">(silinmiş)</small>
+                {% else %}
+                  <span class="text-muted">Bilinmiyor</span>
+                {% endif %}
+              </td>
+              <td>
+                <small>{{ req.created_at.strftime('%d.%m.%Y %H:%M') }}</small>
+              </td>
+              <td>
+                {% if req.req_status == 'beklemede' %}
+                  <span class="badge-status beklemede"><i class="bi bi-clock-fill"></i>Beklemede</span>
+                {% elif req.req_status == 'reddedildi' %}
+                  <span class="badge-status reddedildi"><i class="bi bi-x-circle-fill"></i>Reddedildi</span>
+                {% elif req.req_status == 'kabul' %}
+                  <span class="badge-status kabul"><i class="bi bi-check-circle-fill"></i>Kabul Edildi</span>
+                {% elif req.req_status == 'tamamlandi' %}
+                  <span class="badge-status tamamlandi"><i class="bi bi-check-all"></i>Tamamlandı</span>
+                {% else %}
+                  <span class="badge bg-light text-dark">{{ req.req_status }}</span>
+                {% endif %}
+              </td>
+            </tr>
+            
+            <!-- Detay Satırı (Gizli) -->
+            <tr class="request-details" id="details-{{ req.id }}" onclick="event.stopPropagation();">
+              <td colspan="8">
+                <div class="row p-3">
+                  <!-- Sol: Detaylar -->
+                  <div class="col-md-8">
+                    <div class="detail-card">
+                      <h6><i class="bi bi-info-circle me-2"></i>İstek Detayları</h6>
+                      
+                      {% if req.description %}
+                        <p class="mb-2"><strong>Açıklama:</strong> <span class="copyable" onclick="copyText(this, {{ req.description|tojson }}, event)">{{ req.description }} <i class="bi bi-clipboard ms-1 small text-muted"></i></span></p>
+                      {% endif %}
+                      
+                      {% if req.req_type == 'satin_alma' and req.items.count() > 0 %}
+                        <!-- Birden fazla ürün varsa -->
+                        <div class="mb-3">
+                          <h6 class="mt-3" style="font-size: 0.9rem;"><i class="bi bi-list-check me-2"></i>Ürün Kalemleri ({{ req.items.count() }} adet)</h6>
+                          <div class="table-responsive">
+                            <table class="table table-sm table-bordered mb-0">
+                              <thead class="table-light">
+                                <tr>
+                                  <th>#</th>
+                                  <th>Ürün</th>
+                                  <th>Kategori</th>
+                                  <th>Ürün Türü</th>
+                                  <th>Ürün Açıklaması</th>
+                                  <th>Etiketler</th>
+                                  <th>Adet</th>
+                                  <th>Birim Fiyat</th>
+                                  <th>Toplam</th>
+                                  <th>Link</th>
+                                  {% if req.req_status in ['kabul', 'tamamlandi'] %}
+                                  <th>İşlem</th>
+                                  {% endif %}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {% for item in req.items %}
+                                <tr>
+                                  <td>{{ loop.index }}</td>
+                                  <td>
+                                    <span class="copyable" onclick="copyText(this, '{{ item.name }}', event)">
+                                      <strong>{{ item.name }}</strong>
+                                      <i class="bi bi-clipboard ms-1 small text-muted"></i>
+                                    </span>
+                                    {% if item.component %}
+                                      <a href="{{ url_for('component_detail', comp_id=item.component.id) }}" class="btn btn-sm btn-outline-info ms-2" onclick="event.stopPropagation();" title="Ürün detayına git">
+                                        <i class="bi bi-box-arrow-up-right"></i>
+                                      </a>
+                                    {% endif %}
+                                    {% if item.component %}
+                                      <br><small class="text-muted">{{ item.component.code }}</small>
+                                    {% endif %}
+                                  </td>
+                                  <td>{{ item.product_category or '-' }}</td>
+                                  <td>{{ item.product_type or '-' }}</td>
+                                  <td>
+                                    {% if item.product_description %}
+                                      <span class="copyable" onclick="copyText(this, {{ item.product_description|tojson }}, event)">
+                                        {{ item.product_description }}
+                                        <i class="bi bi-clipboard ms-1 small text-muted"></i>
+                                      </span>
+                                    {% else %}-{% endif %}
+                                  </td>
+                                  <td>
+                                    {% if item.tags %}
+                                      <span class="copyable" onclick="copyText(this, {{ item.tags|tojson }}, event)">
+                                        {{ item.tags }}
+                                        <i class="bi bi-clipboard ms-1 small text-muted"></i>
+                                      </span>
+                                    {% else %}-{% endif %}
+                                  </td>
+                                  <td>{{ item.quantity }}</td>
+                                  <td>
+                                    {% if item.unit_price %}
+                                      <span class="copyable" onclick="copyText(this, '{{ "%.2f"|format(item.unit_price) }}', event)">
+                                        {{ "%.2f"|format(item.unit_price) }} ₺
+                                        <i class="bi bi-clipboard ms-1 small text-muted"></i>
+                                      </span>
+                                    {% else %}-{% endif %}
+                                  </td>
+                                  <td class="fw-bold text-success">
+                                    {% if item.total_price %}
+                                      <span class="copyable" onclick="copyText(this, '{{ "%.2f"|format(item.total_price) }}', event)">
+                                        {{ "%.2f"|format(item.total_price) }} ₺
+                                        <i class="bi bi-clipboard ms-1 small text-muted"></i>
+                                      </span>
+                                    {% else %}-{% endif %}
+                                  </td>
+                                  <td>
+                                    {% if item.purchase_link %}
+                                      <a href="{{ item.purchase_link }}" target="_blank" class="btn btn-sm btn-outline-primary me-1" title="Linke Git"><i class="bi bi-box-arrow-up-right"></i></a>
+                                      <button type="button" class="btn btn-sm btn-outline-secondary" onclick="copyText(this, '{{ item.purchase_link }}', event)" title="Linki Kopyala"><i class="bi bi-clipboard"></i></button>
+                                    {% else %}-{% endif %}
+                                  </td>
+                                  {% if req.req_status in ['kabul', 'tamamlandi'] %}
+                                  <td>
+                                    {% if item.added_to_inventory %}
+                                      <!-- Envantere zaten eklendi -->
+                                      {% if item.added_component %}
+                                        <a href="{{ url_for('component_detail', comp_id=item.added_component_id) }}" class="btn btn-sm btn-success" onclick="event.stopPropagation();" title="Eklenen Ürünü Görüntüle">
+                                          <i class="bi bi-check-lg"></i>
+                                        </a>
+                                      {% else %}
+                                        <span class="badge bg-success" title="Envantere Eklendi"><i class="bi bi-check-lg"></i></span>
+                                      {% endif %}
+                                    {% elif item.component_id %}
+                                      <!-- Mevcut bileşen - stok arttır -->
+                                      <a href="{{ url_for('component_detail', comp_id=item.component_id) }}?add_stock={{ item.quantity }}&request_item_id={{ item.id }}" class="btn btn-sm btn-outline-success" onclick="event.stopPropagation();" title="Stok Arttır">
+                                        <i class="bi bi-plus-circle"></i>
+                                      </a>
+                                    {% else %}
+                                      <!-- Yeni ürün - envantere ekle -->
+                                      <a href="{{ url_for('add_component') }}?request_item_id={{ item.id }}&name={{ item.name|urlencode }}&category={{ item.product_category or '' }}&type={{ item.product_type or '' }}&description={{ item.product_description or '' }}&tags={{ item.tags or '' }}&quantity={{ item.quantity }}" class="btn btn-sm btn-outline-success" onclick="event.stopPropagation();" title="Envantere Ekle">
+                                        <i class="bi bi-plus-lg"></i>
+                                      </a>
+                                    {% endif %}
+                                  </td>
+                                  {% endif %}
+                                </tr>
+                                {% endfor %}
+                              </tbody>
+                              <tfoot class="table-light">
+                                <tr>
+                                  <td colspan="{% if req.req_status in ['kabul', 'tamamlandi'] %}9{% else %}8{% endif %}" class="text-end fw-bold">Genel Toplam:</td>
+                                  <td class="fw-bold text-primary">
+                                    <span class="copyable" onclick="copyText(this, '{{ "%.2f"|format(req.total_items_price or 0) }}', event)">
+                                      {{ "%.2f"|format(req.total_items_price or 0) }} ₺
+                                      <i class="bi bi-clipboard ms-1 small text-muted"></i>
+                                    </span>
+                                  </td>
+                                  <td></td>
+                                  {% if req.req_status in ['kabul', 'tamamlandi'] %}
+                                  <td></td>
+                                  {% endif %}
+                                </tr>
+                              </tfoot>
+                            </table>
+                          </div>
+                        </div>
+                        {% if req.budget %}
+                          <p class="mb-2"><strong>Bütçe:</strong> 
+                            {% if req.budget == 'TTO' %}
+                            <span class="badge bg-primary">TTO</span>
+                            {% elif req.budget == 'Merkez' %}
+                            <span class="badge bg-success">Merkez</span>
+                            {% else %}
+                            <span class="badge bg-warning text-dark">{{ req.budget }}</span>
+                            {% endif %}
+                          </p>
+                        {% endif %}
+                      {% else %}
+                        <!-- Tek ürün (eski format) veya arıza/bakım isteği -->
+                        <div class="row">
+                          <div class="col-md-6">
+                            <p class="mb-2"><strong>Ürün Adı:</strong> <span class="copyable" onclick="copyText(this, '{{ req.name }}', event)">{{ req.name }} <i class="bi bi-clipboard ms-1 small text-muted"></i></span></p>
+                            {% if req.component %}
+                              <p class="mb-2"><a href="{{ url_for('component_detail', comp_id=req.component.id) }}" target="_blank" class="btn btn-sm btn-outline-info" onclick="event.stopPropagation();"><i class="bi bi-box-seam me-1"></i>Bileşen Detayına Git</a></p>
+                            {% endif %}
+                          </div>
+                          <div class="col-md-6">
+                            {% if req.req_type == 'satin_alma' %}
+                              {% if req.product_category %}
+                                <p class="mb-2"><strong>Kategori:</strong> <span class="copyable" onclick="copyText(this, '{{ req.product_category }}', event)">{{ req.product_category }} <i class="bi bi-clipboard ms-1 small text-muted"></i></span></p>
+                              {% endif %}
+                              {% if req.product_type %}
+                                <p class="mb-2"><strong>Ürün Türü:</strong> <span class="copyable" onclick="copyText(this, '{{ req.product_type }}', event)">{{ req.product_type }} <i class="bi bi-clipboard ms-1 small text-muted"></i></span></p>
+                              {% endif %}
+                              {% if req.quantity %}
+                                <p class="mb-2"><strong>Adet:</strong> <span class="copyable" onclick="copyText(this, '{{ req.quantity }}', event)">{{ req.quantity }} <i class="bi bi-clipboard ms-1 small text-muted"></i></span></p>
+                              {% endif %}
+                              {% if req.unit_price %}
+                                <p class="mb-2"><strong>Birim Fiyat:</strong> <span class="copyable" onclick="copyText(this, '{{ "%.2f"|format(req.unit_price) }}', event)">{{ "%.2f"|format(req.unit_price) }} ₺ <i class="bi bi-clipboard ms-1 small text-muted"></i></span></p>
+                              {% endif %}
+                              {% if req.total_price %}
+                                <p class="mb-2"><strong>Toplam Fiyat:</strong> <span class="copyable text-success fw-bold" onclick="copyText(this, '{{ "%.2f"|format(req.total_price) }}', event)">{{ "%.2f"|format(req.total_price) }} ₺ <i class="bi bi-clipboard ms-1 small text-muted"></i></span></p>
+                              {% endif %}
+                              {% if req.budget %}
+                                <p class="mb-2"><strong>Bütçe:</strong> 
+                                  {% if req.budget == 'TTO' %}
+                                  <span class="badge bg-primary">TTO</span>
+                                  {% elif req.budget == 'Merkez' %}
+                                  <span class="badge bg-success">Merkez</span>
+                                  {% else %}
+                                  <span class="badge bg-warning text-dark">{{ req.budget }}</span>
+                                  {% endif %}
+                                </p>
+                              {% endif %}
+                              {% if req.purchase_link %}
+                                <p class="mb-2"><strong>Satın Alma Linki:</strong> <a href="{{ req.purchase_link }}" target="_blank" class="btn btn-sm btn-outline-primary"><i class="bi bi-box-arrow-up-right me-1"></i>Linke Git</a> <button type="button" class="btn btn-sm btn-outline-secondary" onclick="copyText(this, '{{ req.purchase_link }}', event)"><i class="bi bi-clipboard"></i></button></p>
+                              {% endif %}
+                              {% if req.tags %}
+                                <p class="mb-2"><strong>Etiketler:</strong> <span class="copyable" onclick="copyText(this, '{{ req.tags }}', event)">{{ req.tags }} <i class="bi bi-clipboard ms-1 small text-muted"></i></span></p>
+                              {% endif %}
+                              {% if req.product_description %}
+                                <p class="mb-2"><strong>Ürün Açıklaması:</strong> <span class="copyable" onclick="copyText(this, {{ req.product_description|tojson }}, event)">{{ req.product_description }} <i class="bi bi-clipboard ms-1 small text-muted"></i></span></p>
+                              {% endif %}
+                            {% elif req.req_type in ['ariza', 'bakim'] %}
+                              {% if req.serial_number %}
+                                <p class="mb-2"><strong>Seri Numarası:</strong> <span class="copyable" onclick="copyText(this, '{{ req.serial_number }}', event)"><span class="badge bg-dark">{{ req.serial_number }}</span> <i class="bi bi-clipboard ms-1 small text-muted"></i></span></p>
+                              {% endif %}
+                            {% endif %}
+                          </div>
+                        </div>
+                      {% endif %}
+                    </div>
+                  </div>
+                  
+                  <!-- Sağ: İşlem Butonları -->
+                  <div class="col-md-4">
+                    <div class="detail-card">
+                      <h6><i class="bi bi-gear me-2"></i>İşlemler</h6>
+                      
+                      {% if req.admin_note %}
+                      <div class="admin-note-alert mb-3">
+                        <small><strong><i class="bi bi-sticky-fill me-1"></i>Admin Notu:</strong><br>{{ req.admin_note }}</small>
+                      </div>
+                      {% endif %}
+                      
+                      <div class="d-grid gap-2">
+                        {% if req.req_status not in ['kabul', 'reddedildi', 'tamamlandi'] %}
+                        <button type="button" class="btn btn-action accept w-100" onclick="event.stopPropagation(); openStatusModal({{ req.id }}, 'kabul', 'Kabul Et');">
+                          <i class="bi bi-check-lg me-2"></i>Kabul Et
+                        </button>
+                        {% endif %}
+
+                        {% if req.req_status not in ['reddedildi', 'kabul', 'tamamlandi'] %}
+                        <button type="button" class="btn btn-action reject w-100" onclick="event.stopPropagation(); openStatusModal({{ req.id }}, 'reddedildi', 'Reddet');">
+                          <i class="bi bi-x-lg me-2"></i>Reddet
+                        </button>
+                        {% endif %}
+
+                        {% if req.req_status == 'kabul' %}
+                        {% if req.req_type == 'satin_alma' %}
+                        <button type="button" class="btn btn-action complete w-100" onclick="event.stopPropagation(); openStatusModal({{ req.id }}, 'tamamlandi', 'Tamamlandı Olarak İşaretle');">
+                          <i class="bi bi-check-all me-2"></i>Tamamlandı Olarak İşaretle
+                        </button>
+                        {% else %}
+                        <button type="button" class="btn btn-action complete w-100" onclick="event.stopPropagation(); openStatusModal({{ req.id }}, 'tamamlandi', 'Tamamlandı Olarak İşaretle');">
+                          <i class="bi bi-check-all me-2"></i>Tamamlandı Olarak İşaretle
+                        </button>
+                        {% endif %}
+                        {% endif %}
+                        
+                        {# Tek ürünlü istekler için Envantere Ekle butonu (items.count() == 0) #}
+                        {% if req.req_type == 'satin_alma' and req.req_status in ['kabul', 'tamamlandi'] and req.items.count() == 0 %}
+                        <hr class="my-2">
+                        {% if req.added_to_inventory %}
+                          <!-- Envantere zaten eklendi -->
+                          {% if req.added_component %}
+                            <a href="{{ url_for('component_detail', comp_id=req.added_component_id) }}" class="btn btn-action accept w-100" onclick="event.stopPropagation();">
+                              <i class="bi bi-box-seam me-2"></i>Eklenen Ürünü Görüntüle
+                            </a>
+                          {% else %}
+                            <span class="btn btn-action accept w-100 disabled"><i class="bi bi-check-lg me-2"></i>Envantere Eklendi</span>
+                          {% endif %}
+                        {% elif req.component_id %}
+                          <!-- Mevcut bileşen - stok arttır -->
+                          <a href="{{ url_for('component_detail', comp_id=req.component_id) }}?add_stock={{ req.quantity }}&from_request={{ req.id }}" class="btn btn-action inventory w-100" onclick="event.stopPropagation();">
+                            <i class="bi bi-plus-circle me-2"></i>Stok Arttır
+                          </a>
+                        {% else %}
+                          <!-- Yeni ürün - envantere ekle -->
+                          <a href="{{ url_for('add_component') }}?from_request={{ req.id }}&name={{ req.name|urlencode }}&category={{ req.product_category or '' }}&type={{ req.product_type or '' }}&description={{ req.product_description or '' }}&tags={{ req.tags or '' }}&quantity={{ req.quantity or 1 }}" class="btn btn-action inventory w-100" onclick="event.stopPropagation();">
+                            <i class="bi bi-plus-lg me-2"></i>Envantere Ekle
+                          </a>
+                        {% endif %}
+                        {% endif %}
+                        
+                        {% if req.req_type == 'satin_alma' and req.req_status in ['kabul', 'tamamlandi'] %}
+                        <hr class="my-2">
+                        <a href="{{ url_for('generate_request_pdf', req_id=req.id) }}" class="btn btn-action pdf w-100" onclick="event.stopPropagation();">
+                          <i class="bi bi-file-earmark-pdf me-2"></i>PDF Form Oluştur
+                        </a>
+                        {% endif %}
+
+                        {% if req.req_status == 'beklemede' %}
+                        <hr class="my-2">
+                        <form method="post" action="{{ url_for('delete_request', req_id=req.id) }}" onclick="event.stopPropagation();">
+                          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                          <button type="submit" class="btn btn-action inventory w-100" style="border-color: #c62828; color: #c62828;" onclick="return confirm('İsteği kalıcı olarak silmek istiyor musunuz?')">
+                            <i class="bi bi-trash me-2"></i>Sil
+                          </button>
+                        </form>
+                        {% endif %}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </td>
+            </tr>
+            {% else %}
+            <tr>
+              <td colspan="8" class="text-center text-muted py-4">
+                <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                Herhangi bir istek bulunamadı.
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+</div>
+
+<!-- Status Modal -->
+<div class="modal fade" id="statusModal" tabindex="-1" aria-labelledby="statusModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="statusModalLabel">İstek Durumu Güncelle</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Kapat"></button>
+      </div>
+      <form id="statusForm" method="post" action="">
+        <div class="modal-body">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="status" id="statusInput" value="">
+          <div class="mb-3">
+            <label for="adminNoteInput" class="form-label"><i class="bi bi-sticky me-1"></i>Not (İsteğe Bağlı)</label>
+            <textarea class="form-control" id="adminNoteInput" name="admin_note" rows="3" placeholder="Kullanıcıya gösterilecek not yazın..."></textarea>
+            <div class="form-text">Bu not, istek sahibi kullanıcıya gösterilecektir.</div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">İptal</button>
+          <button type="submit" class="btn btn-primary" id="statusSubmitBtn">Onayla</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Complete Purchase Request Modal -->
+<div class="modal fade" id="completeModal" tabindex="-1" aria-labelledby="completeModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header bg-success text-white">
+        <h5 class="modal-title" id="completeModalLabel"><i class="bi bi-check-all me-2"></i>İsteği Tamamla</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Kapat"></button>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-info">
+          <i class="bi bi-info-circle me-2"></i>
+          <strong id="completeProductName"></strong> ürünü satın alındı olarak işaretlenecek.
+        </div>
+        <p class="mb-3">Bu ürünü envantere (İstifci'ye) eklemek ister misiniz?</p>
+        
+        <form id="completeForm" method="post" action="">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="status" value="tamamlandi">
+          
+          <div class="mb-3">
+            <label for="completeAdminNote" class="form-label"><i class="bi bi-sticky me-1"></i>Not (İsteğe Bağlı)</label>
+            <textarea class="form-control" id="completeAdminNote" name="admin_note" rows="2" placeholder="Kullanıcıya gösterilecek not yazın..."></textarea>
+          </div>
+        </form>
+        
+        <!-- Hidden form for redirect to add product -->
+        <form id="addProductForm" method="get" action="{{ url_for('add_component') }}" style="display: none;">
+          <input type="hidden" name="from_request" id="fromRequestId" value="">
+          <input type="hidden" name="name" id="addProductName" value="">
+          <input type="hidden" name="category" id="addProductCategory" value="">
+          <input type="hidden" name="type" id="addProductType" value="">
+          <input type="hidden" name="description" id="addProductDescription" value="">
+          <input type="hidden" name="tags" id="addProductTags" value="">
+          <input type="hidden" name="quantity" id="addProductQuantity" value="">
+        </form>
+        <!-- Hidden value for component_id (existing product) -->
+        <input type="hidden" id="existingComponentId" value="">
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">İptal</button>
+        <button type="button" class="btn btn-secondary" id="completeOnlyBtn">
+          <i class="bi bi-check me-1"></i>Sadece Tamamla
+        </button>
+        <button type="button" class="btn btn-success" id="completeAndAddBtn">
+          <i class="bi bi-plus-lg me-1"></i><span id="addBtnText">Tamamla ve Envantere Ekle</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Copy Toast -->
+<div class="copy-toast" id="copyToast">
+  <i class="bi bi-check-circle me-2"></i>Kopyalandı!
+</div>
+
+<!-- Bulk Action Bar -->
+<div class="bulk-action-bar" id="bulkActionBar">
+  <span class="selected-count"><span id="selectedCount">0</span> istek seçildi</span>
+  <button type="button" class="btn btn-bulk-accept" onclick="openBulkModal('kabul')" title="Seçili istekleri kabul et">
+    <i class="bi bi-check-lg me-1"></i>Kabul Et
+  </button>
+  <button type="button" class="btn btn-bulk-reject" onclick="openBulkModal('reddedildi')" title="Seçili istekleri reddet">
+    <i class="bi bi-x-lg me-1"></i>Reddet
+  </button>
+  <button type="button" class="btn btn-bulk-complete" id="bulkCompleteBtn" onclick="openBulkModal('tamamlandi')" title="Seçili istekleri tamamla (sadece kabul edilenler)" disabled>
+    <i class="bi bi-check-all me-1"></i>Tamamla
+  </button>
+  <button type="button" class="btn btn-bulk-cancel" onclick="clearAllSelections()" title="Seçimi temizle">
+    <i class="bi bi-x-circle me-1"></i>İptal
+  </button>
+</div>
+
+<!-- Bulk Action Modal -->
+<div class="modal fade" id="bulkActionModal" tabindex="-1" aria-labelledby="bulkActionModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header" id="bulkModalHeader">
+        <h5 class="modal-title" id="bulkActionModalLabel">Toplu İşlem</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Kapat"></button>
+      </div>
+      <form id="bulkActionForm" method="post" action="{{ url_for('admin_bulk_request_status') }}">
+        <div class="modal-body">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="status" id="bulkStatusInput" value="">
+          <input type="hidden" name="request_ids" id="bulkRequestIds" value="">
+          
+          <div class="alert alert-info mb-3" id="bulkInfoAlert">
+            <i class="bi bi-info-circle me-2"></i>
+            <span id="bulkActionInfo"></span>
+          </div>
+          
+          <div class="alert alert-warning mb-3" id="bulkWarningAlert" style="display: none;">
+            <i class="bi bi-exclamation-triangle me-2"></i>
+            <span id="bulkWarningInfo"></span>
+          </div>
+          
+          <div class="mb-3">
+            <label for="bulkAdminNote" class="form-label"><i class="bi bi-sticky me-1"></i>Not (İsteğe Bağlı)</label>
+            <textarea class="form-control" id="bulkAdminNote" name="admin_note" rows="3" placeholder="Tüm seçili isteklere eklenecek not..."></textarea>
+            <div class="form-text">Bu not, seçili tüm isteklerin sahiplerine gösterilecektir.</div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">İptal</button>
+          <button type="submit" class="btn" id="bulkSubmitBtn">Onayla</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+function toggleDetails(id) {
+  const detailsRow = document.getElementById('details-' + id);
+  const icon = document.getElementById('icon-' + id);
+  
+  if (detailsRow.classList.contains('show')) {
+    detailsRow.classList.remove('show');
+    icon.classList.remove('rotated');
+  } else {
+    // Diğer açık detayları kapat
+    document.querySelectorAll('.request-details.show').forEach(el => {
+      el.classList.remove('show');
+    });
+    document.querySelectorAll('.expand-icon.rotated').forEach(el => {
+      el.classList.remove('rotated');
+    });
+    
+    // Bu satırı aç
+    detailsRow.classList.add('show');
+    icon.classList.add('rotated');
+  }
+}
+
+function copyText(element, text, e) {
+  // Event'i durdur
+  if (e) {
+    e.stopPropagation();
+    e.preventDefault();
+  } else if (window.event) {
+    window.event.stopPropagation();
+    window.event.preventDefault();
+  }
+  
+  // Text'i string'e çevir
+  var textToCopy = String(text);
+  
+  // Kopyalama fonksiyonu
+  function showSuccess() {
+    element.classList.add('copied');
+    var toast = document.getElementById('copyToast');
+    if (toast) {
+      toast.style.display = 'block';
+      setTimeout(function() {
+        element.classList.remove('copied');
+        toast.style.display = 'none';
+      }, 1500);
+    } else {
+      setTimeout(function() {
+        element.classList.remove('copied');
+      }, 1500);
+    }
+  }
+  
+  // Modern API dene (sadece HTTPS'de çalışır)
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(textToCopy).then(showSuccess).catch(function(err) {
+      console.log('Clipboard API failed, using fallback');
+      fallbackCopy();
+    });
+  } else {
+    fallbackCopy();
+  }
+  
+  function fallbackCopy() {
+    // Fallback: textarea yöntemi
+    var textArea = document.createElement('textarea');
+    textArea.value = textToCopy;
+    textArea.style.position = 'fixed';
+    textArea.style.top = '0';
+    textArea.style.left = '0';
+    textArea.style.width = '2em';
+    textArea.style.height = '2em';
+    textArea.style.padding = '0';
+    textArea.style.border = 'none';
+    textArea.style.outline = 'none';
+    textArea.style.boxShadow = 'none';
+    textArea.style.background = 'transparent';
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    
+    try {
+      var successful = document.execCommand('copy');
+      if (successful) {
+        showSuccess();
+      } else {
+        alert('Kopyalama başarısız. Metni manuel olarak kopyalayın: ' + textToCopy);
+      }
+    } catch (err) {
+      alert('Kopyalama başarısız. Metni manuel olarak kopyalayın: ' + textToCopy);
+    }
+    
+    document.body.removeChild(textArea);
+  }
+}
+
+function openStatusModal(reqId, status, actionText) {
+  const form = document.getElementById('statusForm');
+  const statusInput = document.getElementById('statusInput');
+  const submitBtn = document.getElementById('statusSubmitBtn');
+  const noteInput = document.getElementById('adminNoteInput');
+  const modalTitle = document.getElementById('statusModalLabel');
+  
+  // Form action URL'ini ayarla
+  form.action = '/admin/request/' + reqId + '/set_status';
+  statusInput.value = status;
+  submitBtn.textContent = actionText;
+  noteInput.value = '';
+  
+  // Buton rengini ayarla
+  submitBtn.className = 'btn ';
+  if (status === 'kabul') {
+    submitBtn.className += 'btn-success';
+    modalTitle.textContent = 'İsteği Kabul Et';
+  } else if (status === 'reddedildi') {
+    submitBtn.className += 'btn-danger';
+    modalTitle.textContent = 'İsteği Reddet';
+  } else {
+    submitBtn.className += 'btn-secondary';
+    modalTitle.textContent = 'İsteği Tamamla';
+  }
+  
+  // Modal'ı aç
+  const modal = new bootstrap.Modal(document.getElementById('statusModal'));
+  modal.show();
+}
+
+// Satın alma istekleri için tamamlama modalı
+function openCompleteModal(reqId, name, category, type, description, tags, quantity, componentId) {
+  const completeForm = document.getElementById('completeForm');
+  const productNameEl = document.getElementById('completeProductName');
+  const addProductForm = document.getElementById('addProductForm');
+  const addBtnText = document.getElementById('addBtnText');
+  
+  // Form action URL'ini ayarla
+  completeForm.action = '/admin/request/' + reqId + '/set_status';
+  productNameEl.textContent = name;
+  
+  // Mevcut ürün mü yeni ürün mü kontrol et
+  document.getElementById('existingComponentId').value = componentId || '';
+  
+  if (componentId) {
+    // Mevcut ürün - stok arttırma sayfasına yönlendir
+    addBtnText.textContent = 'Tamamla ve Stok Arttır';
+  } else {
+    // Yeni ürün - ürün ekleme sayfasına yönlendir
+    addBtnText.textContent = 'Tamamla ve Envantere Ekle';
+  }
+  
+  // Ürün ekleme formu için hidden inputları doldur
+  document.getElementById('fromRequestId').value = reqId;
+  document.getElementById('addProductName').value = name;
+  document.getElementById('addProductCategory').value = category;
+  document.getElementById('addProductType').value = type;
+  document.getElementById('addProductDescription').value = description;
+  document.getElementById('addProductTags').value = tags;
+  document.getElementById('addProductQuantity').value = quantity;
+  
+  // Admin notunu temizle
+  document.getElementById('completeAdminNote').value = '';
+  
+  // Modal'ı aç
+  const modal = new bootstrap.Modal(document.getElementById('completeModal'));
+  modal.show();
+}
+
+// Sadece tamamla butonu
+document.getElementById('completeOnlyBtn').addEventListener('click', function() {
+  document.getElementById('completeForm').submit();
+});
+
+// Tamamla ve envantere ekle butonu
+document.getElementById('completeAndAddBtn').addEventListener('click', function() {
+  // Önce isteği tamamla (AJAX ile)
+  const completeForm = document.getElementById('completeForm');
+  const formData = new FormData(completeForm);
+  const componentId = document.getElementById('existingComponentId').value;
+  const quantity = document.getElementById('addProductQuantity').value;
+  
+  fetch(completeForm.action, {
+    method: 'POST',
+    body: formData
+  }).then(response => {
+    if (componentId) {
+      // Mevcut ürün - stok arttırma sayfasına yönlendir
+      window.location.href = '/component/' + componentId + '?add_stock=' + quantity;
+    } else {
+      // Yeni ürün - ürün ekleme sayfasına yönlendir
+      document.getElementById('addProductForm').submit();
+    }
+  }).catch(error => {
+    console.error('Error:', error);
+    if (componentId) {
+      window.location.href = '/component/' + componentId + '?add_stock=' + quantity;
+    } else {
+      document.getElementById('addProductForm').submit();
+    }
+  });
+});
+
+function clearSearch() {
+  document.getElementById('searchInput').value = '';
+  document.getElementById('filterForm').submit();
+}
+
+// Sağ tık ile durumu hariç tut
+function excludeStatus(event, status) {
+  event.preventDefault();
+  const currentUrl = new URL(window.location.href);
+  const currentExclude = currentUrl.searchParams.get('exclude');
+  
+  // Aynı duruma tekrar sağ tık yapılırsa exclude'u kaldır
+  if (currentExclude === status) {
+    currentUrl.searchParams.delete('exclude');
+  } else {
+    currentUrl.searchParams.set('exclude', status);
+    currentUrl.searchParams.set('status', 'all'); // Exclude kullanırken status'u all yap
+  }
+  
+  window.location.href = currentUrl.toString();
+  return false;
+}
+
+// Enter tuşu ile arama
+document.getElementById('searchInput').addEventListener('keypress', function(e) {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    document.getElementById('filterForm').submit();
+  }
+});
+
+// =============================================
+// BULK SELECTION & ACTIONS
+// =============================================
+
+// Track selected request IDs
+let selectedRequests = new Set();
+
+// Handle individual row checkbox
+function handleRowCheckbox(checkbox, event) {
+  event.stopPropagation();
+  const requestId = checkbox.dataset.id;
+  const row = checkbox.closest('tr');
+  
+  if (checkbox.checked) {
+    selectedRequests.add(requestId);
+    row.classList.add('selected');
+  } else {
+    selectedRequests.delete(requestId);
+    row.classList.remove('selected');
+  }
+  
+  updateBulkActionBar();
+  updateSelectAllCheckbox();
+}
+
+// Toggle select all
+function toggleSelectAll(checkbox) {
+  const rowCheckboxes = document.querySelectorAll('.row-checkbox');
+  
+  rowCheckboxes.forEach(cb => {
+    const row = cb.closest('tr');
+    if (checkbox.checked) {
+      cb.checked = true;
+      selectedRequests.add(cb.dataset.id);
+      row.classList.add('selected');
+    } else {
+      cb.checked = false;
+      selectedRequests.delete(cb.dataset.id);
+      row.classList.remove('selected');
+    }
+  });
+  
+  updateBulkActionBar();
+}
+
+// Update select all checkbox state
+function updateSelectAllCheckbox() {
+  const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+  const rowCheckboxes = document.querySelectorAll('.row-checkbox');
+  const checkedCount = document.querySelectorAll('.row-checkbox:checked').length;
+  
+  if (checkedCount === 0) {
+    selectAllCheckbox.checked = false;
+    selectAllCheckbox.indeterminate = false;
+  } else if (checkedCount === rowCheckboxes.length) {
+    selectAllCheckbox.checked = true;
+    selectAllCheckbox.indeterminate = false;
+  } else {
+    selectAllCheckbox.checked = false;
+    selectAllCheckbox.indeterminate = true;
+  }
+}
+
+// Update bulk action bar visibility and button states
+function updateBulkActionBar() {
+  const bulkActionBar = document.getElementById('bulkActionBar');
+  const selectedCountEl = document.getElementById('selectedCount');
+  const bulkCompleteBtn = document.getElementById('bulkCompleteBtn');
+  
+  selectedCountEl.textContent = selectedRequests.size;
+  
+  if (selectedRequests.size > 0) {
+    bulkActionBar.classList.add('show');
+    
+    // Check if complete button should be enabled
+    // Complete is only available for requests that are already 'kabul' (accepted)
+    let canComplete = false;
+    let acceptedCount = 0;
+    
+    selectedRequests.forEach(id => {
+      const checkbox = document.querySelector(`.row-checkbox[data-id="${id}"]`);
+      if (checkbox && checkbox.dataset.status === 'kabul') {
+        acceptedCount++;
+      }
+    });
+    
+    // Enable complete button only if ALL selected requests are 'kabul'
+    if (acceptedCount === selectedRequests.size && acceptedCount > 0) {
+      bulkCompleteBtn.disabled = false;
+      bulkCompleteBtn.title = `${acceptedCount} kabul edilmiş isteği tamamla`;
+    } else if (acceptedCount > 0) {
+      bulkCompleteBtn.disabled = false;
+      bulkCompleteBtn.title = `Sadece ${acceptedCount} kabul edilmiş istek tamamlanacak (diğerleri atlanacak)`;
+    } else {
+      bulkCompleteBtn.disabled = true;
+      bulkCompleteBtn.title = 'Tamamlamak için önce kabul edilmiş istekler seçin';
+    }
+  } else {
+    bulkActionBar.classList.remove('show');
+  }
+}
+
+// Clear all selections
+function clearAllSelections() {
+  selectedRequests.clear();
+  
+  document.querySelectorAll('.row-checkbox').forEach(cb => {
+    cb.checked = false;
+    cb.closest('tr').classList.remove('selected');
+  });
+  
+  document.getElementById('selectAllCheckbox').checked = false;
+  document.getElementById('selectAllCheckbox').indeterminate = false;
+  
+  updateBulkActionBar();
+}
+
+// Open bulk action modal
+function openBulkModal(status) {
+  const modal = new bootstrap.Modal(document.getElementById('bulkActionModal'));
+  const modalHeader = document.getElementById('bulkModalHeader');
+  const modalTitle = document.getElementById('bulkActionModalLabel');
+  const statusInput = document.getElementById('bulkStatusInput');
+  const requestIdsInput = document.getElementById('bulkRequestIds');
+  const infoAlert = document.getElementById('bulkInfoAlert');
+  const warningAlert = document.getElementById('bulkWarningAlert');
+  const actionInfo = document.getElementById('bulkActionInfo');
+  const warningInfo = document.getElementById('bulkWarningInfo');
+  const submitBtn = document.getElementById('bulkSubmitBtn');
+  const noteInput = document.getElementById('bulkAdminNote');
+  
+  statusInput.value = status;
+  noteInput.value = '';
+  
+  // Get selected request IDs and their statuses
+  let validIds = [];
+  let skippedCount = 0;
+  let skippedReasons = [];
+  
+  selectedRequests.forEach(id => {
+    const checkbox = document.querySelector(`.row-checkbox[data-id="${id}"]`);
+    if (!checkbox) return;
+    
+    const currentStatus = checkbox.dataset.status;
+    
+    // Apply business rules
+    if (status === 'kabul') {
+      // Can't accept rejected or already accepted/completed requests
+      if (currentStatus === 'reddedildi') {
+        skippedCount++;
+        skippedReasons.push('Reddedilmiş istekler kabul edilemez');
+      } else if (currentStatus === 'kabul' || currentStatus === 'tamamlandi') {
+        skippedCount++;
+        skippedReasons.push('Zaten kabul edilmiş/tamamlanmış');
+      } else {
+        validIds.push(id);
+      }
+    } else if (status === 'reddedildi') {
+      // Can't reject accepted or completed requests
+      if (currentStatus === 'kabul' || currentStatus === 'tamamlandi') {
+        skippedCount++;
+        skippedReasons.push('Kabul edilmiş/tamamlanmış istekler reddedilemez');
+      } else if (currentStatus === 'reddedildi') {
+        skippedCount++;
+        skippedReasons.push('Zaten reddedilmiş');
+      } else {
+        validIds.push(id);
+      }
+    } else if (status === 'tamamlandi') {
+      // Can only complete accepted requests
+      if (currentStatus === 'kabul') {
+        validIds.push(id);
+      } else {
+        skippedCount++;
+        skippedReasons.push('Sadece kabul edilmiş istekler tamamlanabilir');
+      }
+    }
+  });
+  
+  requestIdsInput.value = validIds.join(',');
+  
+  // Update modal appearance based on action
+  modalHeader.className = 'modal-header';
+  submitBtn.className = 'btn';
+  
+  if (status === 'kabul') {
+    modalHeader.classList.add('bg-success', 'text-white');
+    modalTitle.innerHTML = '<i class="bi bi-check-lg me-2"></i>Toplu Kabul';
+    submitBtn.classList.add('btn-success');
+    submitBtn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Kabul Et';
+    infoAlert.className = 'alert alert-success mb-3';
+    actionInfo.textContent = `${validIds.length} istek kabul edilecek.`;
+  } else if (status === 'reddedildi') {
+    modalHeader.classList.add('bg-danger', 'text-white');
+    modalTitle.innerHTML = '<i class="bi bi-x-lg me-2"></i>Toplu Reddet';
+    submitBtn.classList.add('btn-danger');
+    submitBtn.innerHTML = '<i class="bi bi-x-lg me-1"></i>Reddet';
+    infoAlert.className = 'alert alert-danger mb-3';
+    actionInfo.textContent = `${validIds.length} istek reddedilecek.`;
+  } else if (status === 'tamamlandi') {
+    modalHeader.classList.add('bg-secondary', 'text-white');
+    modalTitle.innerHTML = '<i class="bi bi-check-all me-2"></i>Toplu Tamamla';
+    submitBtn.classList.add('btn-secondary');
+    submitBtn.innerHTML = '<i class="bi bi-check-all me-1"></i>Tamamla';
+    infoAlert.className = 'alert alert-secondary mb-3';
+    actionInfo.textContent = `${validIds.length} istek tamamlandı olarak işaretlenecek.`;
+  }
+  
+  // Show warning if some requests will be skipped
+  if (skippedCount > 0) {
+    warningAlert.style.display = 'block';
+    const uniqueReasons = [...new Set(skippedReasons)];
+    warningInfo.textContent = `${skippedCount} istek atlanacak: ${uniqueReasons.join(', ')}`;
+  } else {
+    warningAlert.style.display = 'none';
+  }
+  
+  // Disable submit if no valid requests
+  if (validIds.length === 0) {
+    submitBtn.disabled = true;
+    infoAlert.className = 'alert alert-warning mb-3';
+    actionInfo.textContent = 'İşlem yapılacak uygun istek bulunamadı.';
+  } else {
+    submitBtn.disabled = false;
+  }
+  
+  modal.show();
+}
+</script>
+{% endblock %}

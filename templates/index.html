@@ -2,10 +2,9 @@
 {% block title %}Izu Nar Lab Malzemeleri{% endblock %}
 
 {% block content %}
-<h3 class="mb-4">IzuNar Lab Malzemeleri</h3>
 
 <div class="mb-4 d-flex align-items-center gap-2 flex-wrap">
-  {% if current_user.has_add_permission() %}
+  {% if current_user.is_authenticated and current_user.has_add_permission() %}
     <a href="{{ url_for('add_component') }}" class="btn btn-primary btn-sm rounded">
       <i class="bi bi-plus-circle me-1"></i> Ürün Ekle
     </a>

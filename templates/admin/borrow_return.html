@@ -1,16 +1,142 @@
-{% extends "admin/dashboard.html" %}
+{% extends "base.html" %}
+{% block title %}Ödünç Al/Ver - Admin{% endblock %}
+
 {% block content %}
-<div class="container mt-4">
-  <div class="card shadow rounded-4 p-4 bg-white border-0 mx-auto" style="max-width: 700px;">
-    <div class="text-center mb-4">
-      <i class="bi bi-handbag-fill fs-1 text-info"></i>
-      <h2 class="fw-bold text-info mb-2">Admin: Ödünç Al / İade Et / Sarf</h2>
-      <p class="text-muted">İşlem türünü, kullanıcıyı ve ürünü seçerek işlemi tamamlayabilirsiniz.</p>
-    </div>
-    <!-- İşlem Türü Seçimi -->
-    <form method="post" class="row g-3 mb-4">
+<style>
+  /* ============================================
+     CONSISTENT THEME STYLES - Matches Site Design
+     Primary: #1a237e, #3949ab (navbar gradient)
+     ============================================ */
+  
+  /* Page Header */
+  .page-header {
+    background: linear-gradient(135deg, #1a237e 0%, #3949ab 100%);
+    border-radius: 16px;
+    padding: 1.5rem 2rem;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 4px 20px rgba(26, 35, 126, 0.3);
+  }
+  .page-header h2 {
+    color: #e3f2fd !important;
+    margin: 0;
+    font-weight: 700;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.2);
+  }
+  .page-header .btn-back {
+    background: rgba(255,255,255,0.15);
+    border: 2px solid rgba(255,255,255,0.4);
+    color: #fff;
+    border-radius: 25px;
+    padding: 0.5rem 1rem;
+    font-weight: 500;
+    backdrop-filter: blur(4px);
+  }
+  
+  /* Form Card */
+  .form-card {
+    background: #fff;
+    border: 1px solid #e3e8ef;
+    border-radius: 16px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+  .form-card .card-title {
+    font-weight: 600;
+    color: #1a237e;
+    margin-bottom: 1rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 2px solid #e3f2fd;
+  }
+  
+  /* Table Container */
+  .table-container {
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+    border: 1px solid #e8eaf6;
+    overflow: hidden;
+  }
+  .table { margin-bottom: 0; }
+  .table thead th {
+    background: linear-gradient(135deg, #e8eaf6 0%, #c5cae9 100%);
+    color: #1a237e;
+    font-weight: 600;
+    border-bottom: 2px solid #9fa8da;
+    padding: 1rem;
+  }
+  .table tbody td {
+    padding: 0.875rem 1rem;
+    vertical-align: middle;
+  }
+  
+  /* Buttons */
+  .btn-continue {
+    background: linear-gradient(135deg, #1a237e 0%, #3949ab 100%);
+    color: #fff;
+    border: none;
+    border-radius: 25px;
+    padding: 0.5rem 1.5rem;
+    font-weight: 500;
+  }
+  .btn-return {
+    background: #c62828;
+    color: #fff;
+    border: none;
+    border-radius: 20px;
+    padding: 0.4rem 0.8rem;
+    font-size: 0.85rem;
+    font-weight: 500;
+  }
+  .btn-submit {
+    background: linear-gradient(135deg, #2e7d32 0%, #43a047 100%);
+    color: #fff;
+    border: none;
+    border-radius: 25px;
+    padding: 0.6rem 1.5rem;
+    font-weight: 600;
+  }
+  
+  /* Form Controls */
+  .form-label {
+    font-weight: 500;
+    color: #1a237e;
+    margin-bottom: 0.5rem;
+  }
+  .form-select, .form-control {
+    border-radius: 8px;
+    border: 1px solid #c5cae9;
+  }
+  .form-select:focus, .form-control:focus {
+    border-color: #3949ab;
+    box-shadow: 0 0 0 3px rgba(57,73,171,0.15);
+  }
+  
+  /* Info Alert */
+  .info-alert {
+    background: #e3f2fd;
+    border: 1px solid #90caf9;
+    border-radius: 12px;
+    padding: 1rem;
+    color: #1565c0;
+  }
+</style>
+
+<div class="container my-4">
+  <!-- Page Header -->
+  <div class="page-header d-flex justify-content-between align-items-center">
+    <h2><i class="bi bi-arrow-left-right me-2"></i>Ödünç Al / İade Et / Sarf</h2>
+    <a href="{{ url_for('admin_dashboard') }}" class="btn btn-back">
+      <i class="bi bi-arrow-left me-1"></i>Admin Paneli
+    </a>
+  </div>
+
+  <!-- İşlem Seçim Formu -->
+  <div class="form-card">
+    <h5 class="card-title"><i class="bi bi-gear me-2"></i>İşlem Seçimi</h5>
+    <form method="post" class="row g-3">
       <div class="col-md-4">
-        <label class="form-label fw-semibold">İşlem Türü:</label>
+        <label class="form-label">İşlem Türü</label>
         <select name="action" class="form-select" required onchange="this.form.submit()">
           <option value="">Seçiniz</option>
           <option value="odunc" {% if action == 'odunc' %}selected{% endif %}>Ödünç</option>
@@ -19,7 +145,7 @@
         </select>
       </div>
       <div class="col-md-4">
-        <label class="form-label fw-semibold">Kullanıcı Seç:</label>
+        <label class="form-label">Kullanıcı</label>
         <select name="user_id" class="form-select" required onchange="this.form.submit()">
           <option value="">Seçiniz</option>
           {% for user in users %}
@@ -29,46 +155,50 @@
       </div>
       {% if action in ['odunc', 'sarf'] %}
       <div class="col-md-4">
-        <label class="form-label fw-semibold">Bileşen Seç:</label>
+        <label class="form-label">Bileşen</label>
         <input type="text" class="form-control mb-2" id="componentSearch" placeholder="Ürün ara...">
         <select name="comp_id" class="form-select" required id="componentSelect">
           <option value="">Seçiniz</option>
           {% for comp in components %}
             {% if (action == 'odunc' and is_fixed_asset(comp.category)) or
                    (action == 'sarf' and comp.category.lower() == 'sarf') %}
-              <option value="{{ comp.id }}">
-                {{ comp.name }} ({{ comp.type }})
-              </option>
+              <option value="{{ comp.id }}">{{ comp.name }} ({{ comp.type }})</option>
             {% endif %}
           {% endfor %}
         </select>
       </div>
       <script>
-document.addEventListener('DOMContentLoaded', function() {
-  const searchInput = document.getElementById('componentSearch');
-  const select = document.getElementById('componentSelect');
-  searchInput.addEventListener('input', function() {
-    const filter = searchInput.value.toLowerCase();
-    for (const option of select.options) {
-      if (option.value === "") continue;
-      const text = option.text.toLowerCase();
-      option.style.display = text.includes(filter) ? "" : "none";
-    }
-  });
-});
-</script>
+        document.addEventListener('DOMContentLoaded', function() {
+          const searchInput = document.getElementById('componentSearch');
+          const select = document.getElementById('componentSelect');
+          if (searchInput && select) {
+            searchInput.addEventListener('input', function() {
+              const filter = searchInput.value.toLowerCase();
+              for (const option of select.options) {
+                if (option.value === "") continue;
+                const text = option.text.toLowerCase();
+                option.style.display = text.includes(filter) ? "" : "none";
+              }
+            });
+          }
+        });
+      </script>
       {% endif %}
       <div class="col-12 text-end">
-        <button type="submit" class="btn btn-info px-4 fw-bold">Devam</button>
+        <button type="submit" class="btn btn-continue">
+          <i class="bi bi-arrow-right me-1"></i>Devam
+        </button>
       </div>
     </form>
+  </div>
 
-    <!-- İADE İŞLEMİ: Kullanıcının iade etmediği ürünler listelensin -->
-    {% if action == 'iade' and selected_user_id %}
-  <div class="mb-4">
-    <h5 class="fw-bold text-secondary mb-2"><i class="bi bi-box-seam"></i> Kullanıcının İade Etmediği Ürünler</h5>
+  <!-- İADE İŞLEMİ: Kullanıcının iade etmediği ürünler -->
+  {% if action == 'iade' and selected_user_id %}
+  <div class="form-card">
+    <h5 class="card-title"><i class="bi bi-box-seam me-2"></i>Kullanıcının İade Etmediği Ürünler</h5>
     {% if borrowed_items %}
-      <table class="table table-bordered table-striped align-middle">
+    <div class="table-container">
+      <table class="table">
         <thead>
           <tr>
             <th>Ürün Adı</th>
@@ -76,13 +206,13 @@ document.addEventListener('DOMContentLoaded', function() {
             <th>Kategori</th>
             <th>Seri No</th>
             <th>Adet</th>
-            <th>İade</th>
+            <th>İşlem</th>
           </tr>
         </thead>
         <tbody>
           {% for item in borrowed_items %}
           <tr>
-            <td>{{ item.name }}</td>
+            <td><strong>{{ item.name }}</strong></td>
             <td>{{ item.type }}</td>
             <td>{{ item.category }}</td>
             <td>{{ item.serial_number or '-' }}</td>
@@ -93,100 +223,97 @@ document.addEventListener('DOMContentLoaded', function() {
                 <input type="hidden" name="user_id" value="{{ selected_user_id }}">
                 <input type="hidden" name="serial_number" value="{{ item.serial_number }}">
                 <input type="hidden" name="amount" value="1">
-                <button type="submit" class="btn btn-danger btn-sm ms-2">İade Et</button>
+                <button type="submit" class="btn btn-return">
+                  <i class="bi bi-arrow-return-left me-1"></i>İade Et
+                </button>
               </form>
             </td>
           </tr>
           {% endfor %}
         </tbody>
       </table>
+    </div>
     {% else %}
-      <div class="alert alert-info mt-3">
-        Seçilen kullanıcının iade etmediği ödünç ürünü bulunmamaktadır.
-      </div>
-    {% endif %}
-  </div>
-{% endif %}
-
-    <!-- ÖDÜNÇ/SARF İŞLEMİ: Form gösterilsin -->
-    {% if action in ['odunc', 'sarf'] and selected_component and selected_user_id %}
-    <div class="row g-4">
-      <div class="col-md-12">
-        <div class="card border-0 shadow-sm h-100">
-          <div class="card-body">
-            <h5 class="card-title text-success fw-bold mb-3">
-              <i class="bi bi-plus-circle-fill"></i>
-              {% if action == 'odunc' %}Ödünç Al{% else %}Sarf Et{% endif %}
-            </h5>
-            <form method="post" action="{{ url_for('process_item', comp_id=selected_component.id) }}">
-              <input type="hidden" name="user_id" value="{{ selected_user_id }}">
-              <input type="hidden" name="action" value="{{ 'borrow' if action == 'odunc' else 'consume' }}">
-                {% if action == 'odunc' %}
-                <!-- For admin borrow (ödünç), amount must be exactly 1 -->
-                <input type="hidden" name="amount" value="1">
-                <div class="mb-3">
-                  <label for="location-select" class="form-label">Lokasyon:</label>
-                  <select id="location-select" name="location" class="form-select" placeholder="Konum girin veya seçin...">
-                    {% for loc in locations %}
-                      <option value="{{ loc }}">{{ loc }}</option>
-                    {% endfor %}
-                  </select>
-                </div>
-                {% else %}
-                <div class="mb-3">
-                  <label class="form-label">Miktar:</label>
-                  <input type="number" name="amount" min="1" max="{{ selected_component.quantity or 1 }}" value="1" class="form-control" required>
-                </div>
-                {% endif %}
-              {% if selected_component.category.lower() == "demirbas" %}
-              <div class="mb-3">
-                <label class="form-label">Seri Numarası:</label>
-                <select name="serial_number" class="form-select" required>
-                  {% for item in selected_component.inventory_items %}
-                    {% if not item.assigned_to %}
-                      <option value="{{ item.serial_number }}">{{ item.serial_number }}</option>
-                    {% endif %}
-                  {% endfor %}
-                </select>
-              </div>
-              {% endif %}
-              <div class="mb-3">
-                <label class="form-label">Not (Opsiyonel):</label>
-                <input type="text" name="notes" class="form-control">
-              </div>
-              <button type="submit" class="btn btn-success w-100 fw-bold">
-                {% if action == 'odunc' %}Ödünç Al{% else %}Sarf Et{% endif %}
-              </button>
-            </form>
-          </div>
-        </div>
-      </div>
+    <div class="info-alert">
+      <i class="bi bi-info-circle me-2"></i>Seçilen kullanıcının iade etmediği ödünç ürünü bulunmamaktadır.
     </div>
     {% endif %}
   </div>
+  {% endif %}
+
+  <!-- ÖDÜNÇ/SARF İŞLEMİ: Form -->
+  {% if action in ['odunc', 'sarf'] and selected_component and selected_user_id %}
+  <div class="form-card">
+    <h5 class="card-title">
+      <i class="bi bi-{% if action == 'odunc' %}hand-index{% else %}box-arrow-up{% endif %} me-2"></i>
+      {% if action == 'odunc' %}Ödünç İşlemi{% else %}Sarf İşlemi{% endif %}
+    </h5>
+    <form method="post" action="{{ url_for('process_item', comp_id=selected_component.id) }}">
+      <input type="hidden" name="user_id" value="{{ selected_user_id }}">
+      <input type="hidden" name="action" value="{{ 'borrow' if action == 'odunc' else 'consume' }}">
+      
+      {% if action == 'odunc' %}
+      <input type="hidden" name="amount" value="1">
+      <div class="mb-3">
+        <label for="location-select" class="form-label">Lokasyon</label>
+        <select id="location-select" name="location" class="form-select" placeholder="Konum girin veya seçin...">
+          {% for loc in locations %}
+            <option value="{{ loc }}">{{ loc }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      {% else %}
+      <div class="mb-3">
+        <label class="form-label">Miktar</label>
+        <input type="number" name="amount" min="1" max="{{ selected_component.quantity or 1 }}" value="1" class="form-control" required>
+      </div>
+      {% endif %}
+      
+      {% if selected_component.category.lower() == "demirbas" %}
+      <div class="mb-3">
+        <label class="form-label">Seri Numarası</label>
+        <select name="serial_number" class="form-select" required>
+          {% for item in selected_component.inventory_items %}
+            {% if not item.assigned_to %}
+              <option value="{{ item.serial_number }}">{{ item.serial_number }}</option>
+            {% endif %}
+          {% endfor %}
+        </select>
+      </div>
+      {% endif %}
+      
+      <div class="mb-3">
+        <label class="form-label">Not (Opsiyonel)</label>
+        <input type="text" name="notes" class="form-control" placeholder="İşlem notu ekleyin...">
+      </div>
+      
+      <button type="submit" class="btn btn-submit w-100">
+        <i class="bi bi-check-lg me-1"></i>
+        {% if action == 'odunc' %}Ödünç Al{% else %}Sarf Et{% endif %}
+      </button>
+    </form>
+  </div>
+  {% endif %}
 </div>
 
-{% block scripts %}
-  {{ super() }}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/selectize.default.css') }}">
-  <script src="{{ url_for('static', filename='js/jquery-3.7.1.min.js') }}"></script>
-  <script src="{{ url_for('static', filename='js/selectize.min.js') }}"></script>
-  <script>
-    $(document).ready(function() {
-      $('#location-select').selectize({
-        create: true,
-        persist: false,
-        maxItems: 1,
-        createFilter: function(input) {
-          var forbiddenChars = /[(){}[\]'"]/;
-          if (forbiddenChars.test(input)) {
-            alert('Konum adında parantez, tırnak işareti gibi özel karakterler kullanılamaz.');
-            return false;
-          }
-          return true;
+<link rel="stylesheet" href="{{ url_for('static', filename='css/selectize.default.css') }}">
+<script src="{{ url_for('static', filename='js/jquery-3.7.1.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/selectize.min.js') }}"></script>
+<script>
+  $(document).ready(function() {
+    $('#location-select').selectize({
+      create: true,
+      persist: false,
+      maxItems: 1,
+      createFilter: function(input) {
+        var forbiddenChars = /[(){}[\]'"]/;
+        if (forbiddenChars.test(input)) {
+          alert('Konum adında parantez, tırnak işareti gibi özel karakterler kullanılamaz.');
+          return false;
         }
-      });
+        return true;
+      }
     });
-  </script>
-{% endblock %}
+  });
+</script>
 {% endblock %}

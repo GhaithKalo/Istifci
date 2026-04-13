@@ -162,8 +162,25 @@
 <!-- Navbar -->
 <nav class="navbar navbar-expand-lg">
   <div class="container">
+    {# Normalize logo URL: allow full URLs, leading-slash paths, or 'static/...' relative paths from .env #}
+    {% set logo_src = None %}
+    {% if LOGO_URL %}
+      {% if LOGO_URL.startswith('http://') or LOGO_URL.startswith('https://') %}
+        {% set logo_src = LOGO_URL %}
+      {% elif LOGO_URL.startswith('/') %}
+        {% set logo_src = LOGO_URL %}
+      {% elif LOGO_URL.startswith('static/') %}
+        {% set logo_src = url_for('static', filename=LOGO_URL.split('static/',1)[1]) %}
+      {% else %}
+        {# Fallback: treat as a static filename or raw string #}
+        {% set logo_src = url_for('static', filename=LOGO_URL) if LOGO_URL else url_for('static', filename='uploads/nar_logo_lowres.png') %}
+      {% endif %}
+    {% else %}
+      {% set logo_src = url_for('static', filename='uploads/nar_logo_lowres.png') %}
+    {% endif %}
+
     <a class="navbar-brand" href="https://nar.izu.edu.tr" target="_blank" rel="noopener noreferrer">
-      <img src="{{ LOGO_URL or url_for('static', filename='uploads/nar_logo_lowres.png') }}" alt="Site Logo" />
+      <img src="{{ logo_src }}" alt="Site Logo" />
     </a>
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarContent"
       aria-controls="navbarContent" aria-expanded="false" aria-label="Toggle navigation">
@@ -180,7 +197,7 @@
           <a class="nav-link" href="{{ url_for('my_borrowed') }}">Ödünç Aldıklarım</a>
         </li>
         <li class="nav-item">
-          <a class="nav-link" href="{{ url_for('requests') }}">İstekler</a>
+          <a class="nav-link" href="{{ url_for('requests') }}">İsteklerim</a>
         </li>
         {% if current_user.is_admin() %}
         <li class="nav-item">
@@ -191,10 +208,15 @@
       </ul>
 
       <div class="d-flex align-items-center gap-2">
-        {% if current_user.is_authenticated %}
+  {% if current_user.is_authenticated %}
+  {# Hide change-password link for LDAP-managed users #}
+  {% if not current_user.is_ldap %}
         <a class="btn btn-outline-light btn-sm me-2" href="{{ url_for('change_password') }}">
           Merhaba, {{ current_user.username }}
         </a>
+        {% else %}
+        <span class="btn btn-outline-light btn-sm me-2">Merhaba, {{ current_user.username }}</span>
+        {% endif %}
         <a class="btn btn-outline-light btn-sm" href="{{ url_for('logout') }}">Çıkış</a>
         {% else %}
         <a class="btn btn-outline-light btn-sm" href="{{ url_for('login') }}">Giriş</a>

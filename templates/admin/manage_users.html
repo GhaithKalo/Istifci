@@ -2,39 +2,150 @@
 {% block title %}Kullanıcı Yönetimi{% endblock %}
 
 {% block content %}
-    <div class="d-flex justify-content-center mt-4 mb-4"></div>
-        <a href="{{ url_for('add_user') }}" class="btn btn-success btn-lg">
-            <i class="bi bi-person-plus-fill me-2"></i> Yeni Kullanıcı Ekle
-        </a>
-    </div>
-<div class="container mt-5">
-    <h2>Kullanıcı Yönetimi</h2>
+<style>
+  /* ============================================
+     CONSISTENT THEME STYLES - Matches Site Design
+     Primary: #1a237e, #3949ab (navbar gradient)
+     ============================================ */
+  
+  /* Page Header */
+  .page-header {
+    background: linear-gradient(135deg, #1a237e 0%, #3949ab 100%);
+    border-radius: 16px;
+    padding: 1.5rem 2rem;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 4px 20px rgba(26, 35, 126, 0.3);
+  }
+  .page-header h2 {
+    color: #e3f2fd !important;
+    margin: 0;
+    font-weight: 700;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.2);
+  }
+  .page-header .btn-back {
+    background: rgba(255,255,255,0.15);
+    border: 2px solid rgba(255,255,255,0.4);
+    color: #fff;
+    border-radius: 25px;
+    padding: 0.5rem 1rem;
+    font-weight: 500;
+    backdrop-filter: blur(4px);
+  }
+  .page-header .btn-add {
+    background: rgba(46, 125, 50, 0.9);
+    border: 2px solid rgba(255,255,255,0.4);
+    color: #fff;
+    border-radius: 25px;
+    padding: 0.5rem 1rem;
+    font-weight: 500;
+  }
+  
+  /* Table Container */
+  .table-container {
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+    border: 1px solid #e8eaf6;
+    overflow: hidden;
+  }
+  .table { margin-bottom: 0; }
+  .table thead th {
+    background: linear-gradient(135deg, #e8eaf6 0%, #c5cae9 100%);
+    color: #1a237e;
+    font-weight: 600;
+    border-bottom: 2px solid #9fa8da;
+    padding: 1rem;
+  }
+  .table tbody td {
+    padding: 0.875rem 1rem;
+    vertical-align: middle;
+  }
+  .table tbody tr {
+    border-bottom: 1px solid #e8eaf6;
+  }
+  
+  /* Role Badge */
+  .role-badge {
+    padding: 0.25rem 0.6rem;
+    border-radius: 15px;
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+  .role-badge.admin { background: #e8eaf6; color: #1a237e; }
+  .role-badge.user { background: #e8f5e9; color: #2e7d32; }
+  
+  /* Permission Badge */
+  .perm-badge {
+    padding: 0.25rem 0.6rem;
+    border-radius: 15px;
+    font-size: 0.75rem;
+    font-weight: 500;
+  }
+  .perm-badge.yes { background: #e8f5e9; color: #2e7d32; }
+  .perm-badge.no { background: #ffebee; color: #c62828; }
+  
+  /* Action Button */
+  .btn-action {
+    background: #e8eaf6;
+    color: #1a237e;
+    border: none;
+    border-radius: 20px;
+    padding: 0.4rem 0.8rem;
+    font-size: 0.85rem;
+    font-weight: 500;
+  }
+</style>
 
-    <table class="table table-hover">
-        <thead class="table-dark">
-            <tr>
-                <th>ID</th>
-                <th>Kullanıcı Adı</th>
-                <th>Rol</th>
-                <th>Yetki (Ürün Ekleme)</th>
-                <th>İşlemler</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for user in users %}
-            <tr>
-                <td>{{ user.id }}</td>
-                <td>{{ user.username }}</td>
-                <td>{{ user.role }}</td>
-                <td>{{ "Var" if user.can_add_product else "Yok" }}</td>
-                <td>
-                    <a href="{{ url_for('edit_user', user_id=user.id) }}" class="btn btn-sm btn-info" style="display:inline-block;">
-                        <i class="bi bi-pencil"></i> Düzenle
-                    </a>
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
+<div class="container my-4">
+  <!-- Page Header -->
+  <div class="page-header d-flex justify-content-between align-items-center">
+    <h2><i class="bi bi-people-fill me-2"></i>Kullanıcı Yönetimi</h2>
+    <div class="d-flex gap-2">
+      <a href="{{ url_for('add_user') }}" class="btn btn-add">
+        <i class="bi bi-person-plus-fill me-1"></i>Yeni Kullanıcı
+      </a>
+      <a href="{{ url_for('admin_dashboard') }}" class="btn btn-back">
+        <i class="bi bi-arrow-left me-1"></i>Admin Paneli
+      </a>
+    </div>
+  </div>
+
+  <!-- Users Table -->
+  <div class="table-container">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Kullanıcı Adı</th>
+          <th>Rol</th>
+          <th>Ürün Ekleme Yetkisi</th>
+          <th>İşlemler</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for user in users %}
+        <tr>
+          <td><strong>#{{ user.id }}</strong></td>
+          <td>{{ user.username }}</td>
+          <td>
+            <span class="role-badge {{ 'admin' if user.role == 'admin' else 'user' }}">
+              {{ user.role|capitalize }}
+            </span>
+          </td>
+          <td>
+            <span class="perm-badge {{ 'yes' if user.can_add_product else 'no' }}">
+              {{ "Var" if user.can_add_product else "Yok" }}
+            </span>
+          </td>
+          <td>
+            <a href="{{ url_for('edit_user', user_id=user.id) }}" class="btn btn-action">
+              <i class="bi bi-pencil me-1"></i>Düzenle
+            </a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
     </table>
+  </div>
 </div>
 {% endblock %}

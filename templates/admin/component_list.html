@@ -1,0 +1,268 @@
+{% extends "base.html" %}
+{% block title %}Bileşenler Listesi{% endblock %}
+
+{% block content %}
+<style>
+  .page-header {
+    background: linear-gradient(135deg, #1a237e 0%, #3949ab 100%);
+    border-radius: 16px;
+    padding: 1.5rem 2rem;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 4px 20px rgba(26, 35, 126, 0.3);
+  }
+  .page-header h2 {
+    color: #e3f2fd !important;
+    margin: 0;
+    font-weight: 700;
+  }
+  .page-header .btn-back {
+    background: rgba(255,255,255,0.15);
+    border: 2px solid rgba(255,255,255,0.4);
+    color: #fff;
+    border-radius: 25px;
+    padding: 0.5rem 1rem;
+    font-weight: 500;
+  }
+  .btn-add {
+    background: linear-gradient(135deg, #2e7d32 0%, #43a047 100%);
+    color: #fff;
+    border: none;
+    border-radius: 25px;
+    padding: 0.5rem 1.2rem;
+    font-weight: 600;
+  }
+  .table-container {
+    background: #fff;
+    border: 1px solid #e3e8ef;
+    border-radius: 16px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+    overflow: hidden;
+  }
+  .table-container table {
+    margin-bottom: 0;
+  }
+  .table-container thead {
+    background: linear-gradient(135deg, #283593 0%, #3949ab 100%);
+  }
+  .table-container thead th {
+    color: #e3f2fd !important;
+    font-weight: 600;
+    border: none;
+    padding: 1rem;
+  }
+  .table-container thead th a {
+    color: #e3f2fd !important;
+    text-decoration: none;
+  }
+  .table-container thead th a i {
+    color: #c5cae9;
+  }
+  .table-container tbody tr {
+    border-bottom: 1px solid #e8eaf6;
+  }
+  .table-container tbody tr:last-child {
+    border-bottom: none;
+  }
+  .table-container tbody td {
+    padding: 1rem;
+    vertical-align: middle;
+  }
+  .table-container tbody td a.product-link {
+    color: #1a237e;
+    font-weight: 500;
+    text-decoration: none;
+  }
+  .btn-edit {
+    background: #e8eaf6;
+    color: #3949ab;
+    border: none;
+    border-radius: 20px;
+    padding: 0.4rem 1rem;
+    font-weight: 500;
+    font-size: 0.85rem;
+  }
+  .btn-delete-sm {
+    background: #ffebee;
+    color: #c62828;
+    border: none;
+    border-radius: 20px;
+    padding: 0.4rem 1rem;
+    font-weight: 500;
+    font-size: 0.85rem;
+  }
+  .empty-state {
+    padding: 3rem;
+    text-align: center;
+    color: #7986cb;
+  }
+  .modal-content {
+    border-radius: 16px;
+  }
+  .modal-header {
+    background: linear-gradient(135deg, #c62828 0%, #b71c1c 100%);
+    color: #fff;
+    border-radius: 16px 16px 0 0;
+  }
+  .modal-header .btn-close {
+    filter: brightness(0) invert(1);
+  }
+  .alert-warning-custom {
+    background: #fff3e0;
+    border: 1px solid #ffe0b2;
+    color: #e65100;
+    border-radius: 8px;
+  }
+</style>
+
+<div class="container my-4">
+  <div class="page-header d-flex justify-content-between align-items-center">
+    <h2><i class="bi bi-list-ul me-2"></i>Bileşenler Listesi</h2>
+    <div class="d-flex gap-2">
+      <a href="{{ url_for('add_component') }}" class="btn btn-add"><i class="bi bi-plus-lg me-1"></i>Yeni Bileşen Ekle</a>
+      <a href="{{ url_for('admin_dashboard') }}" class="btn btn-back"><i class="bi bi-arrow-left me-1"></i>Admin Panel</a>
+    </div>
+  </div>
+
+  <div class="table-container">
+    <table class="table align-middle">
+      <thead>
+        <tr>
+          <th>
+            <a href="{{ url_for('component_list', sort='name', 
+                               direction='desc' if sort_by == 'name' and sort_direction == 'asc' else 'asc') }}" 
+               class="d-flex align-items-center">
+              Bileşen Adı
+              {% if sort_by == 'name' %}
+                <i class="bi bi-arrow-{{ 'down' if sort_direction == 'asc' else 'up' }} ms-1"></i>
+              {% endif %}
+            </a>
+          </th>
+          <th>
+            <a href="{{ url_for('component_list', sort='type',
+                               direction='desc' if sort_by == 'type' and sort_direction == 'asc' else 'asc') }}"
+               class="d-flex align-items-center">
+              Tür
+              {% if sort_by == 'type' %}
+                <i class="bi bi-arrow-{{ 'down' if sort_direction == 'asc' else 'up' }} ms-1"></i>
+              {% endif %}
+            </a>
+          </th>
+          <th>Konum</th>
+          <th>
+            <a href="{{ url_for('component_list', sort='quantity',
+                               direction='desc' if sort_by == 'quantity' and sort_direction == 'asc' else 'asc') }}"
+               class="d-flex align-items-center">
+              Stok
+              {% if sort_by == 'quantity' %}
+                <i class="bi bi-arrow-{{ 'down' if sort_direction == 'asc' else 'up' }} ms-1"></i>
+              {% endif %}
+            </a>
+          </th>
+          <th class="text-end">İşlemler</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for component in components %}
+          <tr class="{% if component.is_deleted %}table-danger{% endif %}">
+            <td>
+              <a href="{{ url_for('component_detail', comp_id=component.id) }}" class="product-link">
+                {{ component.name }}
+              </a>
+              {% if component.is_deleted %}
+              <span class="badge bg-danger ms-2">Silindi</span>
+              {% endif %}
+            </td>
+            <td>{{ component.type }}</td>
+            <td>{{ component.location or "-" }}</td>
+            <td>{{ component.quantity }}</td>
+            <td class="text-end">
+              <a href="{{ url_for('edit_component', comp_id=component.id) }}" class="btn btn-edit me-1">
+                <i class="bi bi-pencil me-1"></i>Düzenle
+              </a>
+              {% if component.is_deleted %}
+              <form action="{{ url_for('restore_component', comp_id=component.id) }}" method="POST" class="d-inline">
+                <button type="submit" class="btn btn-success btn-sm" style="border-radius: 20px; padding: 0.4rem 1rem; font-weight: 500; font-size: 0.85rem;">
+                  <i class="bi bi-arrow-counterclockwise me-1"></i>Geri Getir
+                </button>
+              </form>
+              {% else %}
+              <button type="button" class="btn btn-delete-sm" 
+                      onclick="confirmDelete({{ component.id }}, '{{ component.name }}')">
+                <i class="bi bi-trash me-1"></i>Sil
+              </button>
+              {% endif %}
+            </td>
+          </tr>
+        {% else %}
+          <tr>
+            <td colspan="5" class="empty-state">
+              <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+              Hiç bileşen bulunamadı.
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Silme Onay Modalı -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-trash me-2"></i>Bileşeni Sil</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p id="deleteConfirmText" class="mb-3"></p>
+        <div class="alert alert-warning-custom">
+          <i class="bi bi-exclamation-triangle me-2"></i>
+          <strong>Uyarı:</strong> Bu işlem geri alınamaz. Bileşenle ilişkili tüm ödünç alma kayıtları ve envanter bilgileri de kalıcı olarak silinecektir.
+        </div>
+        <div class="form-check mt-3">
+          <input class="form-check-input" type="checkbox" id="deleteConfirmCheckbox">
+          <label class="form-check-label" for="deleteConfirmCheckbox">
+            Evet, bu bileşeni silmek istediğimi onaylıyorum.
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" style="border-radius: 20px;">İptal</button>
+        <button type="submit" form="deleteForm" class="btn btn-danger" id="deleteConfirmButton" disabled style="border-radius: 20px;">Sil</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% block scripts %}
+<script>
+const deleteModalEl = document.getElementById('deleteModal');
+const deleteForm = document.createElement('form');
+deleteForm.id = 'deleteForm';
+deleteForm.method = 'POST';
+document.body.appendChild(deleteForm);
+
+const deleteConfirmCheckbox = document.getElementById('deleteConfirmCheckbox');
+const deleteConfirmButton = document.getElementById('deleteConfirmButton');
+
+deleteConfirmCheckbox.addEventListener('change', function() {
+  deleteConfirmButton.disabled = !this.checked;
+});
+
+deleteModalEl.addEventListener('hidden.bs.modal', function () {
+  deleteConfirmCheckbox.checked = false;
+  deleteConfirmButton.disabled = true;
+});
+
+function confirmDelete(componentId, componentName) {
+  const modal = new bootstrap.Modal(deleteModalEl);
+  const confirmText = document.getElementById('deleteConfirmText');
+  deleteForm.action = `/delete/${componentId}`;
+  confirmText.textContent = `"${componentName}" bileşenini silmek istediğinize emin misiniz?`;
+  modal.show();
+}
+</script>
+{% endblock %}
+
+{% endblock %}

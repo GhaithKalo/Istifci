@@ -1,0 +1,1155 @@
+{% extends "base.html" %}
+{% block title %}Yeni İstek Oluştur{% endblock %}
+
+{% block styles %}
+<link href="{{ url_for('static', filename='css/selectize.default.css') }}" rel="stylesheet" />
+<style>
+  /* ============================================
+     CREATE REQUEST - Bootstrap-consistent styling
+     Matches requests.html and index.html
+     ============================================ */
+
+  /* Section Headers */
+  .section-header {
+    font-weight: 600;
+    color: #212529;
+    font-size: 1rem;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #dee2e6;
+  }
+  .section-header i { color: #6c757d; margin-right: 0.4rem; }
+
+  /* Request Type Buttons */
+  .type-pills { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+  .type-pill {
+    flex: 1;
+    min-width: 120px;
+    padding: 0.6rem 1rem;
+    border-radius: 6px;
+    border: 1px solid #dee2e6;
+    background: #fff;
+    cursor: pointer;
+    text-align: center;
+    font-weight: 500;
+    font-size: 0.9rem;
+    color: #495057;
+  }
+  .type-pill:hover { background: #f8f9fa; }
+  .type-pill.active { background: #0d6efd; color: #fff; border-color: #0d6efd; }
+  .type-pill.type-ariza.active { background: #dc3545; border-color: #dc3545; }
+  .type-pill.type-bakim.active { background: #198754; border-color: #198754; }
+  .type-pill i { display: block; font-size: 1.2rem; margin-bottom: 0.25rem; }
+
+  /* Component picker */
+  .component-picker {
+    max-height: 300px;
+    overflow-y: auto;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    padding: 0.5rem;
+    background: #f8f9fa;
+  }
+  .component-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 0.4rem;
+  }
+  .component-card {
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    padding: 0.4rem;
+    cursor: pointer;
+    background: #fff;
+    text-align: center;
+  }
+  .component-card:hover { border-color: #0d6efd; background: #f8f9fa; }
+  .component-card.selected { border-color: #0d6efd; background: #e7f1ff; box-shadow: 0 0 0 2px rgba(13,110,253,0.25); }
+  .component-card img {
+    width: 100%;
+    height: 55px;
+    object-fit: cover;
+    border-radius: 4px;
+    background: #e9ecef;
+    margin-bottom: 0.3rem;
+  }
+  .component-card .placeholder-img {
+    width: 100%;
+    height: 55px;
+    background: #e9ecef;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #adb5bd;
+    font-size: 1.1rem;
+    margin-bottom: 0.3rem;
+  }
+  .component-card .comp-name {
+    font-size: 0.72rem;
+    font-weight: 500;
+    color: #212529;
+    line-height: 1.2;
+    max-height: 2.4em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Product Items List */
+  .product-items-container {
+    border: 1px dashed #dee2e6;
+    border-radius: 6px;
+    padding: 0.75rem;
+    background: #f8f9fa;
+    min-height: 100px;
+  }
+  .product-item {
+    background: #fff;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    padding: 0.75rem;
+    margin-bottom: 0.5rem;
+    border-left: 3px solid #0d6efd;
+  }
+  .product-item .item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+  }
+  .product-item .item-number {
+    background: #0d6efd;
+    color: #fff;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 0.8rem;
+  }
+  .product-item .item-name {
+    font-weight: 600;
+    color: #212529;
+    flex: 1;
+    margin-left: 0.5rem;
+    font-size: 0.9rem;
+  }
+  .product-item .remove-item {
+    background: none;
+    border: none;
+    color: #dc3545;
+    font-size: 1.1rem;
+    cursor: pointer;
+    padding: 0.15rem;
+    line-height: 1;
+  }
+  .product-item .item-details {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 0.4rem;
+    font-size: 0.82rem;
+    color: #495057;
+  }
+  .product-item .detail-label {
+    color: #6c757d;
+    font-size: 0.72rem;
+  }
+  .product-item .item-total {
+    background: #e9ecef;
+    color: #212529;
+    padding: 0.4rem 0.6rem;
+    border-radius: 4px;
+    font-weight: 600;
+    text-align: right;
+    margin-top: 0.4rem;
+    font-size: 0.85rem;
+  }
+  .empty-items {
+    text-align: center;
+    padding: 1.5rem;
+    color: #6c757d;
+  }
+  .empty-items i { font-size: 2rem; color: #adb5bd; margin-bottom: 0.5rem; }
+
+  /* Add Product Section */
+  .add-product-section {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    padding: 1.25rem;
+    margin-bottom: 1rem;
+  }
+
+  /* Summary Section */
+  .summary-section {
+    background: #e9ecef;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    padding: 1rem;
+  }
+  .summary-section .total-amount { font-size: 1.25rem; font-weight: 700; color: #212529; }
+  .summary-section .item-count { font-size: 0.9rem; color: #495057; }
+
+  /* New product form */
+  .new-product-form {
+    display: none;
+    background: #fff;
+    border-radius: 6px;
+    padding: 0.75rem;
+    margin-top: 0.5rem;
+    border: 1px solid #dee2e6;
+  }
+  .new-product-form.active { display: block; }
+
+  /* Filter dropdowns */
+  .filter-container { display: flex; gap: 0.5rem; margin-bottom: 0.5rem; flex-wrap: wrap; }
+
+  /* Category buttons */
+  .category-btn-group { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+  .category-btn-group .btn { flex: 1; min-width: 90px; font-weight: 500; }
+
+  /* Serial number section */
+  .serial-section {
+    background: #fff3cd;
+    border: 1px solid #ffc107;
+    border-radius: 6px;
+    padding: 0.75rem;
+    margin-top: 0.75rem;
+  }
+  .serial-section .form-label { color: #856404; font-weight: 600; }
+
+  /* Hide number input spin arrows */
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none !important; margin: 0; }
+  input[type="number"] { -moz-appearance: textbox !important; appearance: textfield !important; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container my-4">
+  <!-- Page Header - matches requests.html -->
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h3 class="mb-0"><i class="bi bi-plus-circle-fill me-2"></i>Yeni İstek Oluştur</h3>
+    <a href="{{ url_for('requests', status=current_status) }}" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-arrow-left me-1"></i>Geri Dön
+    </a>
+  </div>
+
+  <div class="bg-white rounded p-3 border" style="box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+    <form method="post" action="{{ url_for('create_request', status=current_status) }}" id="requestForm">
+      
+      <!-- Request Type -->
+      <div class="mb-3">
+        <div class="section-header">
+          <i class="bi bi-tag-fill"></i>İstek Türü
+        </div>
+        <div class="type-pills">
+          <label class="type-pill active" data-type="satin_alma">
+            <input type="radio" name="req_type" value="satin_alma" checked style="display:none;">
+            <i class="bi bi-cart-fill"></i>
+            Satın Alma
+          </label>
+          <label class="type-pill type-ariza" data-type="ariza">
+            <input type="radio" name="req_type" value="ariza" style="display:none;">
+            <i class="bi bi-tools"></i>
+            Arıza
+          </label>
+          <label class="type-pill type-bakim" data-type="bakim">
+            <input type="radio" name="req_type" value="bakim" style="display:none;">
+            <i class="bi bi-gear-fill"></i>
+            Bakım
+          </label>
+        </div>
+      </div>
+
+      <!-- ============================================================= -->
+      <!-- SATIN ALMA İSTEĞİ - Birden Fazla Ürün -->
+      <!-- ============================================================= -->
+      <div id="satinAlmaSection">
+        
+        <!-- Add Product Section -->
+        <div class="add-product-section">
+          <div class="section-header">
+            <i class="bi bi-box-seam-fill"></i>Ürün Ekle
+          </div>
+          
+          <!-- Product Source Toggle -->
+          <div class="mb-3">
+            <div class="btn-group w-100" role="group">
+              <input type="radio" class="btn-check" name="productSource" id="existingProduct">
+              <label class="btn btn-outline-secondary" for="existingProduct">
+                <i class="bi bi-box-seam me-1"></i>Mevcut Ürün
+              </label>
+              <input type="radio" class="btn-check" name="productSource" id="newProduct" checked>
+              <label class="btn btn-outline-secondary" for="newProduct">
+                <i class="bi bi-plus-circle me-1"></i>Yeni Ürün
+              </label>
+            </div>
+          </div>
+          
+          <!-- Existing Product Selection -->
+          <div id="existingProductForm" style="display:none;">
+            <div class="filter-container">
+              <input type="text" id="componentSearch" class="form-control search-input" placeholder="Ürün ara..." style="flex:2;">
+              <select id="categoryFilter" class="form-select" style="flex:1;">
+                <option value="">Tüm Kategoriler</option>
+                {% for cat in component_categories %}
+                <option value="{{ cat }}">{{ cat }}</option>
+                {% endfor %}
+              </select>
+              <select id="typeFilter" class="form-select" style="flex:1;">
+                <option value="">Tüm Türler</option>
+                {% for t in component_types %}
+                <option value="{{ t }}">{{ t }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            
+            <div class="component-picker" id="componentPicker">
+              <div class="component-grid" id="componentGrid">
+                {% for comp in components %}
+                <div class="component-card" 
+                     data-id="{{ comp.id }}" 
+                     data-name="{{ comp.name }}"
+                     data-category="{{ comp.category or 'Diğer' }}"
+                     data-type="{{ comp.type or 'Diğer' }}"
+                     data-image="{{ comp.image_url or '' }}">
+                  {% if comp.image_url %}
+                  <img src="{{ comp.image_url }}" alt="{{ comp.name }}" loading="lazy">
+                  {% else %}
+                  <div class="placeholder-img"><i class="bi bi-image"></i></div>
+                  {% endif %}
+                  <div class="comp-name">{{ comp.name }}</div>
+                </div>
+                {% endfor %}
+              </div>
+              <div class="no-results" id="noResults" style="display:none;text-align:center;padding:2rem;color:#6c757d;">
+                <i class="bi bi-search"></i> Sonuç bulunamadı
+              </div>
+            </div>
+            
+            <!-- Selected product preview -->
+            <div id="selectedProductPreview" class="alert alert-info mt-2" style="display:none;">
+              <strong id="selectedProductName"></strong>
+              <button type="button" class="btn-close float-end" id="clearSelectedProduct"></button>
+            </div>
+          </div>
+          
+          <!-- New Product Form -->
+          <div id="newProductForm" class="new-product-form active">
+            <div class="row">
+              <div class="col-md-6 mb-3">
+                <label class="form-label fw-bold">Ürün Kategorisi <span class="text-danger">*</span></label>
+                <div class="category-btn-group">
+                  <button type="button" class="btn btn-outline-primary category-btn" data-category="demirbas">Demirbaş</button>
+                  <button type="button" class="btn btn-outline-primary category-btn" data-category="gerec">Gereçler</button>
+                  <button type="button" class="btn btn-outline-secondary category-btn" data-category="sarf">Sarf</button>
+                </div>
+                <input type="hidden" id="newProductCategory" value="">
+              </div>
+              <div class="col-md-6 mb-3">
+                <label class="form-label fw-bold">Ürün Türü <span class="text-danger">*</span></label>
+                <select id="newProductType" class="form-control" placeholder="Tür seçin veya yazın...">
+                  <option value=""></option>
+                  {% for t in component_types %}
+                  <option value="{{ t }}">{{ t }}</option>
+                  {% endfor %}
+                </select>
+                <small class="text-muted">Listede yoksa yeni tür adı yazabilirsiniz</small>
+              </div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label fw-bold">Ürün Adı <span class="text-danger">*</span></label>
+              <input type="text" id="newProductName" class="form-control" maxlength="120" placeholder="Ürün adını yazın">
+            </div>
+            <div class="mb-3">
+              <label class="form-label fw-bold">Ürün Açıklaması <span class="text-danger">*</span></label>
+              <textarea id="newProductDesc" class="form-control" rows="2" placeholder="Ürün hakkında detay..."></textarea>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Etiketler</label>
+              <select id="newProductTags" multiple class="form-control">
+                {% for tag in existing_tags %}
+                <option value="{{ tag.name }}">{{ tag.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+          
+          <!-- Purchase Details (common for both existing and new) -->
+          <div class="row mt-3">
+            <div class="col-md-3 mb-3">
+              <label class="form-label fw-bold">Adet <span class="text-danger">*</span></label>
+              <input type="number" id="itemQuantity" class="form-control no-spin" min="1" value="1">
+            </div>
+            <div class="col-md-5 mb-3">
+              <label class="form-label fw-bold">Satın Alma Linki <span class="text-danger">*</span></label>
+              <input type="url" id="itemLink" class="form-control" placeholder="https://...">
+            </div>
+            <div class="col-md-4 mb-3">
+              <label class="form-label fw-bold">Birim Fiyatı (KDV'siz) <span class="text-danger">*</span></label>
+              <div class="input-group">
+                <input type="number" id="itemPrice" class="form-control no-spin" step="0.01" min="0" placeholder="Fiyat girin">
+                <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="currencyBtn" data-bs-toggle="dropdown" aria-expanded="false" style="font-weight: 600; min-width: 55px;">
+                  ₺
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end" id="currencyMenu">
+                  <li><a class="dropdown-item active" href="#" data-currency="TRY" data-symbol="₺">₺ Türk Lirası</a></li>
+                  <li><a class="dropdown-item" href="#" data-currency="USD" data-symbol="$">$ Amerikan Doları</a></li>
+                  <li><a class="dropdown-item" href="#" data-currency="EUR" data-symbol="€">€ Euro</a></li>
+                </ul>
+              </div>
+              <div id="currencyConversionInfo" style="display:none;">
+                <small class="text-success fw-bold"><i class="bi bi-arrow-repeat me-1"></i><span id="conversionText"></span></small>
+              </div>
+              <small class="text-muted"><i class="bi bi-info-circle me-1"></i>Gümrük ve kargo bedelleri dahil birim fiyatı giriniz.</small>
+            </div>
+          </div>
+          
+          <button type="button" id="addItemBtn" class="btn btn-success w-100">
+            <i class="bi bi-plus-lg me-1"></i>Ürünü Listeye Ekle
+          </button>
+        </div>
+        
+        <!-- Added Products List -->
+        <div class="mb-3">
+          <div class="section-header">
+            <i class="bi bi-list-check"></i>Eklenen Ürünler
+          </div>
+          <div class="product-items-container" id="productItemsContainer">
+            <div class="empty-items" id="emptyItemsMsg">
+              <i class="bi bi-cart3 d-block"></i>
+              <p class="mb-0">Henüz ürün eklenmedi.<br>Yukarıdan ürün seçip ekleyin.</p>
+            </div>
+            <div id="productItemsList"></div>
+          </div>
+        </div>
+        
+        <!-- Budget Selection -->
+        <div class="mb-3">
+          <div class="section-header">
+            <i class="bi bi-wallet2"></i>Bütçe Seçimi <span class="text-danger">*</span>
+          </div>
+          <select name="budget" id="budgetSelect" class="form-select" required>
+            <option value="" disabled selected>Bütçe seçin...</option>
+            <option value="Merkez">Merkez</option>
+            <option value="TTO">TTO</option>
+            <option value="SSB">SSB</option>
+            <option value="Emin degilim">Emin değilim</option>
+          </select>
+        </div>
+        
+        <!-- Summary Section -->
+        <div class="summary-section mb-3" id="summarySection" style="display:none;">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <div class="item-count"><span id="totalItemCount">0</span> ürün</div>
+              <div class="text-muted small">Toplam <span id="totalQuantity">0</span> adet</div>
+            </div>
+            <div class="text-end">
+              <div class="text-muted small">Toplam Tutar</div>
+              <div class="total-amount"><span id="totalAmount">0.00</span> ₺</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============================================================= -->
+      <!-- ARIZA / BAKIM İSTEĞİ -->
+      <!-- ============================================================= -->
+      <div id="arizaBakimSection" style="display:none;">
+        
+        <!-- Product Source Toggle -->
+        <div class="mb-3">
+          <div class="btn-group w-100" role="group">
+            <input type="radio" class="btn-check" name="arizaProductSource" id="arizaExistingProduct" checked>
+            <label class="btn btn-outline-secondary" for="arizaExistingProduct">
+              <i class="bi bi-box-seam me-1"></i>Envanterdeki Ürün
+            </label>
+            <input type="radio" class="btn-check" name="arizaProductSource" id="arizaExternalProduct">
+            <label class="btn btn-outline-secondary" for="arizaExternalProduct">
+              <i class="bi bi-box me-1"></i>Envanter Dışı Ürün
+            </label>
+          </div>
+        </div>
+        
+        <!-- Existing Product Selection for Ariza/Bakim -->
+        <div id="arizaExistingForm">
+          <div class="filter-container">
+            <input type="text" id="arizaComponentSearch" class="form-control" placeholder="Ürün ara..." style="flex:2;">
+            <select id="arizaCategoryFilter" class="form-select" style="flex:1;">
+              <option value="">Tüm Kategoriler</option>
+              {% for cat in component_categories %}
+              <option value="{{ cat }}">{{ cat }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          
+          <div class="component-picker" id="arizaComponentPicker">
+            <div class="component-grid" id="arizaComponentGrid">
+              {% for comp in components %}
+              <div class="component-card ariza-component-card" 
+                   data-id="{{ comp.id }}" 
+                   data-name="{{ comp.name }}"
+                   data-category="{{ comp.category or 'Diğer' }}"
+                   data-type="{{ comp.type or 'Diğer' }}"
+                   data-image="{{ comp.image_url or '' }}"
+                   data-serials='{{ comp.inventory_items | map(attribute="serial_number") | list | tojson }}'>
+                {% if comp.image_url %}
+                <img src="{{ comp.image_url }}" alt="{{ comp.name }}" loading="lazy">
+                {% else %}
+                <div class="placeholder-img"><i class="bi bi-image"></i></div>
+                {% endif %}
+                <div class="comp-name">{{ comp.name }}</div>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+          
+          <!-- Hidden input for selected component -->
+          <input type="hidden" name="component_id" id="arizaComponentIdInput" value="">
+          
+          <!-- Serial Number Section -->
+          <div class="serial-section" id="serialSection" style="display:none;">
+            <label class="form-label fw-bold"><i class="bi bi-upc-scan me-1"></i>Seri Numarası <span class="text-danger">*</span></label>
+            <select name="serial_number" id="serialNumberSelect" class="form-select">
+              <option value="">-- Seri numarası seçin --</option>
+            </select>
+          </div>
+        </div>
+        
+        <!-- External Product Form for Ariza/Bakim -->
+        <div id="arizaExternalForm" style="display:none;">
+          <div class="mb-3">
+            <label class="form-label fw-bold">Ürün Adı <span class="text-danger">*</span></label>
+            <input type="text" name="external_product_name" id="externalProductName" class="form-control" maxlength="120" placeholder="Envanter dışı ürün adı">
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-bold" id="externalDescLabel">Arıza/Bakım Açıklaması <span class="text-danger">*</span></label>
+            <textarea name="external_description" id="externalDescription" class="form-control" rows="3" placeholder="Arıza veya bakım detaylarını yazın..."></textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- Request Description (for all types) -->
+      <div class="mb-3" id="descriptionSection">
+        <div class="section-header">
+          <i class="bi bi-chat-left-text-fill"></i><span id="descriptionLabel">İstek Açıklaması <span class="text-danger">*</span></span>
+        </div>
+        <textarea name="description" id="descriptionInput" class="form-control" rows="3" maxlength="500" placeholder="Ürünlerin ne amaçla kullanılacağını detaylı yazınız." required></textarea>
+      </div>
+
+      <!-- Hidden inputs container for product items -->
+      <div id="hiddenItemsContainer"></div>
+
+      <!-- Actions -->
+      <div class="d-flex gap-2 mt-3 pt-3" style="border-top: 1px solid #dee2e6;">
+        <button type="submit" class="btn btn-primary" id="submitBtn">
+          <i class="bi bi-check-circle-fill me-1"></i>İstek Oluştur
+        </button>
+        <a href="{{ url_for('requests', status=current_status) }}" class="btn btn-outline-secondary">
+          <i class="bi bi-x-circle me-1"></i>İptal
+        </a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/jquery-3.7.1.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/selectize.min.js') }}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Elements
+  const typePills = document.querySelectorAll('.type-pill');
+  const satinAlmaSection = document.getElementById('satinAlmaSection');
+  const arizaBakimSection = document.getElementById('arizaBakimSection');
+  const descriptionSection = document.getElementById('descriptionSection');
+  const descriptionLabel = document.getElementById('descriptionLabel');
+  const descriptionInput = document.getElementById('descriptionInput');
+  let currentReqType = 'satin_alma';
+  
+  // Satin alma elements
+  const existingProductRadio = document.getElementById('existingProduct');
+  const newProductRadio = document.getElementById('newProduct');
+  const existingProductForm = document.getElementById('existingProductForm');
+  const newProductForm = document.getElementById('newProductForm');
+  const componentSearch = document.getElementById('componentSearch');
+  const categoryFilter = document.getElementById('categoryFilter');
+  const typeFilter = document.getElementById('typeFilter');
+  const componentGrid = document.getElementById('componentGrid');
+  const noResults = document.getElementById('noResults');
+  const selectedProductPreview = document.getElementById('selectedProductPreview');
+  const selectedProductName = document.getElementById('selectedProductName');
+  const clearSelectedProduct = document.getElementById('clearSelectedProduct');
+  const productItemsContainer = document.getElementById('productItemsContainer');
+  const productItemsList = document.getElementById('productItemsList');
+  const emptyItemsMsg = document.getElementById('emptyItemsMsg');
+  const summarySection = document.getElementById('summarySection');
+  const hiddenItemsContainer = document.getElementById('hiddenItemsContainer');
+  const addItemBtn = document.getElementById('addItemBtn');
+  
+  // New product form elements
+  const categoryButtons = document.querySelectorAll('.category-btn');
+  const newProductCategory = document.getElementById('newProductCategory');
+  const newProductType = document.getElementById('newProductType');
+  const newProductName = document.getElementById('newProductName');
+  const newProductDesc = document.getElementById('newProductDesc');
+  
+  // Item inputs
+  const itemQuantity = document.getElementById('itemQuantity');
+  const itemLink = document.getElementById('itemLink');
+  const itemPrice = document.getElementById('itemPrice');
+  
+  // Ariza/bakim elements
+  const arizaExistingRadio = document.getElementById('arizaExistingProduct');
+  const arizaExternalRadio = document.getElementById('arizaExternalProduct');
+  const arizaExistingForm = document.getElementById('arizaExistingForm');
+  const arizaExternalForm = document.getElementById('arizaExternalForm');
+  const arizaComponentSearch = document.getElementById('arizaComponentSearch');
+  const arizaCategoryFilter = document.getElementById('arizaCategoryFilter');
+  const arizaComponentGrid = document.getElementById('arizaComponentGrid');
+  const arizaComponentIdInput = document.getElementById('arizaComponentIdInput');
+  const serialSection = document.getElementById('serialSection');
+  const serialNumberSelect = document.getElementById('serialNumberSelect');
+  const externalDescLabel = document.getElementById('externalDescLabel');
+  
+  // State
+  let items = [];
+  let selectedComponent = null;
+  let isNewProduct = true;
+  
+  // Initialize Selectize for tags
+  var tagsSelectize = $('#newProductTags').selectize({
+    plugins: ['remove_button'],
+    create: true,
+    persist: false,
+    placeholder: 'Etiket seçin veya yazın...'
+  })[0].selectize;
+  
+  // Initialize Selectize for product type (with create option)
+  var typeSelectize = $('#newProductType').selectize({
+    create: true,
+    sortField: 'text',
+    placeholder: 'Tür seçin veya yazın...',
+    createOnBlur: true,
+    persist: false
+  })[0].selectize;
+  
+  // Category button click
+  categoryButtons.forEach(btn => {
+    btn.addEventListener('click', function() {
+      categoryButtons.forEach(b => {
+        b.classList.remove('active', 'btn-primary', 'btn-secondary');
+        b.classList.add(b.dataset.category === 'sarf' ? 'btn-outline-secondary' : 'btn-outline-primary');
+      });
+      this.classList.remove('btn-outline-primary', 'btn-outline-secondary');
+      this.classList.add('active', this.dataset.category === 'sarf' ? 'btn-secondary' : 'btn-primary');
+      newProductCategory.value = this.dataset.category;
+    });
+  });
+  
+  // Product source toggle (satin alma)
+  existingProductRadio.addEventListener('change', function() {
+    if (this.checked) {
+      existingProductForm.style.display = 'block';
+      newProductForm.classList.remove('active');
+      isNewProduct = false;
+    }
+  });
+  
+  newProductRadio.addEventListener('change', function() {
+    if (this.checked) {
+      existingProductForm.style.display = 'none';
+      newProductForm.classList.add('active');
+      isNewProduct = true;
+      selectedComponent = null;
+      selectedProductPreview.style.display = 'none';
+    }
+  });
+  
+  // Filter components
+  function filterComponents(searchEl, catFilterEl, typeFilterEl, gridEl, noResultsEl) {
+    const search = searchEl.value.toLowerCase().trim();
+    const category = catFilterEl ? catFilterEl.value : '';
+    const type = typeFilterEl ? typeFilterEl.value : '';
+    const cards = gridEl.querySelectorAll('.component-card');
+    let visible = 0;
+    
+    cards.forEach(card => {
+      const name = card.dataset.name.toLowerCase();
+      const cardCat = card.dataset.category;
+      const cardType = card.dataset.type;
+      
+      const matchSearch = !search || name.includes(search);
+      const matchCat = !category || cardCat === category;
+      const matchType = !type || cardType === type;
+      
+      if (matchSearch && matchCat && matchType) {
+        card.style.display = '';
+        visible++;
+      } else {
+        card.style.display = 'none';
+      }
+    });
+    
+    noResultsEl.style.display = visible === 0 ? 'block' : 'none';
+  }
+  
+  // Satin alma component filter
+  componentSearch.addEventListener('input', () => filterComponents(componentSearch, categoryFilter, typeFilter, componentGrid, noResults));
+  categoryFilter.addEventListener('change', () => filterComponents(componentSearch, categoryFilter, typeFilter, componentGrid, noResults));
+  typeFilter.addEventListener('change', () => filterComponents(componentSearch, categoryFilter, typeFilter, componentGrid, noResults));
+  
+  // Satin alma component selection
+  componentGrid.querySelectorAll('.component-card').forEach(card => {
+    card.addEventListener('click', function() {
+      componentGrid.querySelectorAll('.component-card').forEach(c => c.classList.remove('selected'));
+      this.classList.add('selected');
+      selectedComponent = {
+        id: this.dataset.id,
+        name: this.dataset.name,
+        category: this.dataset.category,
+        type: this.dataset.type
+      };
+      selectedProductName.textContent = this.dataset.name;
+      selectedProductPreview.style.display = 'block';
+    });
+  });
+  
+  // Clear selection
+  clearSelectedProduct.addEventListener('click', function() {
+    componentGrid.querySelectorAll('.component-card').forEach(c => c.classList.remove('selected'));
+    selectedComponent = null;
+    selectedProductPreview.style.display = 'none';
+  });
+  
+  // Add item to list
+  addItemBtn.addEventListener('click', function() {
+    let itemData = {};
+    
+    if (isNewProduct) {
+      // New product validation
+      const name = newProductName.value.trim();
+      const category = newProductCategory.value;
+      
+      if (!name) {
+        alert('Ürün adı zorunludur.');
+        newProductName.focus();
+        return;
+      }
+      if (!category) {
+        alert('Ürün kategorisi seçiniz.');
+        return;
+      }
+      
+      const type = typeSelectize.getValue();
+      if (!type) {
+        alert('Ürün türü zorunludur.');
+        return;
+      }
+      
+      const desc = newProductDesc.value.trim();
+      if (!desc) {
+        alert('Ürün açıklaması zorunludur.');
+        newProductDesc.focus();
+        return;
+      }
+      
+      itemData = {
+        component_id: '',
+        name: name,
+        category: category,
+        type: typeSelectize.getValue(),
+        description: newProductDesc.value.trim(),
+        tags: tagsSelectize.getValue().join(', '),
+        isNew: true
+      };
+    } else {
+      // Existing product validation
+      if (!selectedComponent) {
+        alert('Lütfen bir ürün seçin.');
+        return;
+      }
+      
+      itemData = {
+        component_id: selectedComponent.id,
+        name: selectedComponent.name,
+        category: selectedComponent.category,
+        type: selectedComponent.type,
+        description: '',
+        tags: '',
+        isNew: false
+      };
+    }
+    
+    // Common validation
+    const qty = parseInt(itemQuantity.value) || 1;
+    const link = itemLink.value.trim();
+    const price = getTLPrice();
+    
+    if (qty < 1) {
+      alert('Adet en az 1 olmalıdır.');
+      itemQuantity.focus();
+      return;
+    }
+    if (!link) {
+      alert('Satın alma linki zorunludur.');
+      itemLink.focus();
+      return;
+    }
+    if (price <= 0) {
+      alert('Birim fiyatı giriniz.');
+      itemPrice.focus();
+      return;
+    }
+    
+    itemData.quantity = qty;
+    itemData.link = link;
+    itemData.price = price;
+    itemData.total = qty * price;
+    
+    items.push(itemData);
+    renderItems();
+    resetItemForm();
+  });
+  
+  // Reset item form
+  function resetItemForm() {
+    // Clear existing product selection
+    componentGrid.querySelectorAll('.component-card').forEach(c => c.classList.remove('selected'));
+    selectedComponent = null;
+    selectedProductPreview.style.display = 'none';
+    
+    // Clear new product form
+    newProductName.value = '';
+    newProductDesc.value = '';
+    newProductCategory.value = '';
+    categoryButtons.forEach(b => {
+      b.classList.remove('active', 'btn-primary', 'btn-secondary');
+      b.classList.add(b.dataset.category === 'sarf' ? 'btn-outline-secondary' : 'btn-outline-primary');
+    });
+    tagsSelectize.clear();
+    typeSelectize.clear();
+    
+    // Clear common fields
+    itemQuantity.value = '1';
+    itemLink.value = '';
+    itemPrice.value = '';
+    currentCurrency = 'TRY';
+    currencyBtn.textContent = '\u20ba';
+    currencyMenu.querySelectorAll('.dropdown-item').forEach(i => i.classList.remove('active'));
+    currencyMenu.querySelector('[data-currency="TRY"]').classList.add('active');
+    conversionInfo.style.display = 'none';
+  }
+  
+  // Render items list
+  function renderItems() {
+    if (items.length === 0) {
+      emptyItemsMsg.style.display = 'block';
+      productItemsList.innerHTML = '';
+      summarySection.style.display = 'none';
+      hiddenItemsContainer.innerHTML = '';
+      return;
+    }
+    
+    emptyItemsMsg.style.display = 'none';
+    summarySection.style.display = 'block';
+    
+    let html = '';
+    let totalAmount = 0;
+    let totalQty = 0;
+    let hiddenInputs = '';
+    
+    items.forEach((item, index) => {
+      totalAmount += item.total;
+      totalQty += item.quantity;
+      
+      html += `
+        <div class="product-item">
+          <div class="item-header">
+            <span class="item-number">${index + 1}</span>
+            <span class="item-name">${item.name}${item.isNew ? ' <span class="badge bg-info">Yeni</span>' : ''}</span>
+            <button type="button" class="remove-item" data-index="${index}"><i class="bi bi-x-circle"></i></button>
+          </div>
+          <div class="item-details">
+            <div><span class="detail-label">Kategori:</span> ${item.category || '-'}</div>
+            <div><span class="detail-label">Tür:</span> ${item.type || '-'}</div>
+            <div><span class="detail-label">Adet:</span> ${item.quantity}</div>
+            <div><span class="detail-label">Birim Fiyat:</span> ${item.price.toFixed(2)} ₺</div>
+          </div>
+          <div class="item-total">Toplam: ${item.total.toFixed(2)} ₺</div>
+        </div>
+      `;
+      
+      // Hidden inputs for form submission
+      hiddenInputs += `
+        <input type="hidden" name="item_name[]" value="${escapeHtml(item.name)}">
+        <input type="hidden" name="item_component_id[]" value="${item.component_id}">
+        <input type="hidden" name="item_category[]" value="${item.category}">
+        <input type="hidden" name="item_type[]" value="${item.type}">
+        <input type="hidden" name="item_description[]" value="${escapeHtml(item.description)}">
+        <input type="hidden" name="item_tags[]" value="${escapeHtml(item.tags)}">
+        <input type="hidden" name="item_quantity[]" value="${item.quantity}">
+        <input type="hidden" name="item_link[]" value="${escapeHtml(item.link)}">
+        <input type="hidden" name="item_price[]" value="${item.price}">
+      `;
+    });
+    
+    productItemsList.innerHTML = html;
+    hiddenItemsContainer.innerHTML = hiddenInputs;
+    
+    // Update summary
+    document.getElementById('totalItemCount').textContent = items.length;
+    document.getElementById('totalQuantity').textContent = totalQty;
+    document.getElementById('totalAmount').textContent = totalAmount.toFixed(2);
+    
+    // Add remove handlers
+    productItemsList.querySelectorAll('.remove-item').forEach(btn => {
+      btn.addEventListener('click', function() {
+        const idx = parseInt(this.dataset.index);
+        items.splice(idx, 1);
+        renderItems();
+      });
+    });
+  }
+  
+  // Escape HTML
+  function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text || '';
+    return div.innerHTML;
+  }
+  
+  // Request type change handler (type pills)
+  typePills.forEach(pill => {
+    pill.addEventListener('click', function() {
+      typePills.forEach(p => p.classList.remove('active'));
+      this.classList.add('active');
+      this.querySelector('input[type="radio"]').checked = true;
+      
+      const reqType = this.dataset.type;
+      currentReqType = reqType;
+      const budgetSelect = document.getElementById('budgetSelect');
+      
+      if (reqType === 'satin_alma') {
+        satinAlmaSection.style.display = 'block';
+        arizaBakimSection.style.display = 'none';
+        descriptionLabel.innerHTML = 'İstek Açıklaması <span class="text-danger">*</span>';
+        budgetSelect.setAttribute('required', '');
+      } else {
+        satinAlmaSection.style.display = 'none';
+        arizaBakimSection.style.display = 'block';
+        const typeLabel = reqType === 'ariza' ? 'Arıza' : 'Bakım';
+        descriptionLabel.innerHTML = typeLabel + ' Açıklaması <span class="text-danger">*</span>';
+        externalDescLabel.innerHTML = typeLabel + ' Açıklaması <span class="text-danger">*</span>';
+        budgetSelect.removeAttribute('required');
+      }
+    });
+  });
+  
+  // Ariza/bakim product source toggle
+  arizaExistingRadio.addEventListener('change', function() {
+    if (this.checked) {
+      arizaExistingForm.style.display = 'block';
+      arizaExternalForm.style.display = 'none';
+      descriptionSection.style.display = 'block';
+      descriptionInput.setAttribute('required', '');
+    }
+  });
+  
+  arizaExternalRadio.addEventListener('change', function() {
+    if (this.checked) {
+      arizaExistingForm.style.display = 'none';
+      arizaExternalForm.style.display = 'block';
+      descriptionSection.style.display = 'none';
+      arizaComponentIdInput.value = '';
+      descriptionInput.removeAttribute('required');
+    }
+  });
+  
+  // Ariza component filter
+  arizaComponentSearch.addEventListener('input', () => filterComponents(arizaComponentSearch, arizaCategoryFilter, null, arizaComponentGrid, document.createElement('div')));
+  arizaCategoryFilter.addEventListener('change', () => filterComponents(arizaComponentSearch, arizaCategoryFilter, null, arizaComponentGrid, document.createElement('div')));
+  
+  // Ariza component selection
+  arizaComponentGrid.querySelectorAll('.ariza-component-card').forEach(card => {
+    card.addEventListener('click', function() {
+      arizaComponentGrid.querySelectorAll('.component-card').forEach(c => c.classList.remove('selected'));
+      this.classList.add('selected');
+      arizaComponentIdInput.value = this.dataset.id;
+      
+      // Update serial numbers
+      const serials = JSON.parse(this.dataset.serials || '[]');
+      serialNumberSelect.innerHTML = '<option value="">-- Seri numarası seçin --</option>';
+      
+      if (serials.length > 0) {
+        serials.forEach(s => {
+          const opt = document.createElement('option');
+          opt.value = s;
+          opt.textContent = s;
+          serialNumberSelect.appendChild(opt);
+        });
+        serialSection.style.display = 'block';
+      } else {
+        serialSection.style.display = 'none';
+      }
+    });
+  });
+  
+  // Clear zero on focus for price input
+  itemPrice.addEventListener('focus', function() {
+    if (this.value === '0' || this.value === '0.00') {
+      this.value = '';
+    }
+  });
+  
+  // Currency conversion
+  let currentCurrency = 'TRY';
+  let exchangeRates = { USD: null, EUR: null };
+  const currencyBtn = document.getElementById('currencyBtn');
+  const currencyMenu = document.getElementById('currencyMenu');
+  const conversionInfo = document.getElementById('currencyConversionInfo');
+  const conversionText = document.getElementById('conversionText');
+  
+  // Fetch exchange rates from TCMB (Turkish Central Bank) via a free API
+  async function fetchExchangeRates() {
+    try {
+      const response = await fetch('https://api.exchangerate-data.com/latest?base=TRY');
+      if (!response.ok) throw new Error('API error');
+      const data = await response.json();
+      if (data.rates) {
+        exchangeRates.USD = 1 / data.rates.USD;
+        exchangeRates.EUR = 1 / data.rates.EUR;
+      }
+    } catch (e) {
+      // Fallback: try alternative API
+      try {
+        const resp = await fetch('https://open.er-api.com/v6/latest/USD');
+        if (!resp.ok) throw new Error('Fallback API error');
+        const d = await resp.json();
+        if (d.rates && d.rates.TRY) {
+          exchangeRates.USD = d.rates.TRY;
+          exchangeRates.EUR = d.rates.TRY / d.rates.EUR;
+        }
+      } catch (e2) {
+        console.warn('D\u00f6viz kuru al\u0131namad\u0131, manuel giri\u015f gerekecek.');
+      }
+    }
+  }
+  fetchExchangeRates();
+  
+  // Currency menu click
+  currencyMenu.querySelectorAll('.dropdown-item').forEach(item => {
+    item.addEventListener('click', function(e) {
+      e.preventDefault();
+      currencyMenu.querySelectorAll('.dropdown-item').forEach(i => i.classList.remove('active'));
+      this.classList.add('active');
+      currentCurrency = this.dataset.currency;
+      currencyBtn.textContent = this.dataset.symbol;
+      updateConversionDisplay();
+    });
+  });
+  
+  // Update conversion display when price changes
+  itemPrice.addEventListener('input', updateConversionDisplay);
+  
+  function updateConversionDisplay() {
+    const val = parseFloat(itemPrice.value) || 0;
+    if (currentCurrency === 'TRY' || val <= 0) {
+      conversionInfo.style.display = 'none';
+      return;
+    }
+    const rate = exchangeRates[currentCurrency];
+    if (!rate) {
+      conversionInfo.style.display = 'block';
+      conversionText.textContent = 'D\u00f6viz kuru al\u0131namad\u0131. L\u00fctfen TL cinsinden girin.';
+      conversionText.parentElement.className = 'text-warning fw-bold';
+      return;
+    }
+    const tlAmount = (val * rate).toFixed(2);
+    const symbol = currentCurrency === 'USD' ? '$' : '\u20ac';
+    conversionInfo.style.display = 'block';
+    conversionText.textContent = `${val.toFixed(2)} ${symbol} = ${tlAmount} \u20ba (1 ${symbol} = ${rate.toFixed(2)} \u20ba)`;
+    conversionText.parentElement.className = 'text-success fw-bold';
+  }
+  
+  // Get TL price (convert if foreign currency)
+  function getTLPrice() {
+    const val = parseFloat(itemPrice.value) || 0;
+    if (currentCurrency === 'TRY') return val;
+    const rate = exchangeRates[currentCurrency];
+    if (!rate) return val;
+    return Math.round(val * rate * 100) / 100;
+  }
+  
+  // Form validation
+  document.getElementById('requestForm').addEventListener('submit', function(e) {
+    const reqType = currentReqType;
+    
+    if (reqType === 'satin_alma') {
+      if (items.length === 0) {
+        e.preventDefault();
+        alert('En az bir ürün eklemelisiniz.');
+        return;
+      }
+      
+      const budget = document.getElementById('budgetSelect').value;
+      if (!budget) {
+        e.preventDefault();
+        alert('Lütfen bütçe seçin.');
+        document.getElementById('budgetSelect').focus();
+        return;
+      }
+      
+      const desc = descriptionInput.value.trim();
+      if (!desc) {
+        e.preventDefault();
+        alert('Lütfen istek açıklaması girin.');
+        descriptionInput.focus();
+        return;
+      }
+    } else {
+      // Ariza/bakim validation
+      const isExternal = arizaExternalRadio.checked;
+      
+      if (isExternal) {
+        const extName = document.getElementById('externalProductName').value.trim();
+        const extDesc = document.getElementById('externalDescription').value.trim();
+        
+        if (!extName) {
+          e.preventDefault();
+          alert('Ürün adı zorunludur.');
+          document.getElementById('externalProductName').focus();
+          return;
+        }
+        if (!extDesc) {
+          e.preventDefault();
+          alert('Açıklama zorunludur.');
+          document.getElementById('externalDescription').focus();
+          return;
+        }
+      } else {
+        const compId = arizaComponentIdInput.value;
+        if (!compId) {
+          e.preventDefault();
+          alert('Lütfen bir ürün seçin.');
+          return;
+        }
+        
+        const desc = descriptionInput.value.trim();
+        if (!desc) {
+          e.preventDefault();
+          alert('Lütfen açıklama girin.');
+          descriptionInput.focus();
+          return;
+        }
+      }
+    }
+  });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+{% block title %}PDF Form Oluştur - {{ req.name }}{% endblock %}
+{% block content %}
+<style>
+  .page-header {
+    background: linear-gradient(135deg, #1a237e 0%, #3949ab 100%);
+    border-radius: 16px;
+    padding: 1.5rem 2rem;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 4px 20px rgba(26, 35, 126, 0.3);
+  }
+  .page-header h2 {
+    color: #e3f2fd !important;
+    margin: 0;
+    font-weight: 700;
+  }
+  .page-header .btn-back {
+    background: rgba(255,255,255,0.15);
+    border: 2px solid rgba(255,255,255,0.4);
+    color: #fff;
+    border-radius: 25px;
+    padding: 0.5rem 1rem;
+    font-weight: 500;
+  }
+  .preview-card {
+    background: linear-gradient(135deg, #e8eaf6 0%, #c5cae9 100%);
+    border-radius: 16px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+  }
+  .preview-card h5 {
+    color: #1a237e;
+    font-weight: 600;
+    margin-bottom: 1rem;
+  }
+  .preview-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid rgba(26,35,126,0.15);
+  }
+  .preview-item:last-child { border-bottom: none; }
+  .preview-label { color: #3949ab; font-weight: 500; }
+  .preview-value { color: #1a237e; font-weight: 600; text-align: right; }
+  .form-section {
+    background: #fff;
+    border-radius: 16px;
+    padding: 1.5rem;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+    border: 1px solid #e3e8ef;
+    margin-bottom: 1.5rem;
+  }
+  .form-section h5 {
+    color: #1a237e;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid #e3f2fd;
+  }
+  .form-label { color: #1a237e; font-weight: 500; }
+  .form-control { border-radius: 8px; border: 1px solid #c5cae9; }
+  .form-control:focus { border-color: #3949ab; box-shadow: 0 0 0 3px rgba(57,73,171,0.15); }
+  .input-group-text { background: #e8eaf6; border-color: #c5cae9; color: #1a237e; }
+  .btn-generate { background: linear-gradient(135deg, #2e7d32 0%, #43a047 100%); border: none; padding: 0.75rem 2rem; font-weight: 600; border-radius: 25px; color: #fff; }
+  .btn-cancel { background: #e8eaf6; color: #1a237e; border: none; border-radius: 25px; padding: 0.6rem 1.5rem; font-weight: 500; }
+  .alert-info { background: #e3f2fd; border: 1px solid #bbdefb; color: #1a237e; border-radius: 12px; }
+</style>
+
+<div class="container my-4">
+  <div class="page-header d-flex justify-content-between align-items-center">
+    <h2><i class="bi bi-file-earmark-pdf me-2"></i>Talep Formu Oluştur</h2>
+    <a href="{{ url_for('admin_requests') }}" class="btn btn-back"><i class="bi bi-arrow-left me-1"></i>İstek Yönetimi</a>
+  </div>
+
+  <div class="row">
+    <!-- Sol: İstek Önizlemesi -->
+    <div class="col-md-5">
+      <div class="preview-card">
+        <h5><i class="bi bi-eye me-2"></i>İstek Bilgileri (Otomatik Doldurulacak)</h5>
+        
+        <div class="preview-item">
+          <span class="preview-label">Ürün Adı</span>
+          <span class="preview-value">{{ preview.name }}</span>
+        </div>
+        
+        {% if preview.description %}
+        <div class="preview-item">
+          <span class="preview-label">Açıklama</span>
+          <span class="preview-value">{{ preview.description[:50] }}{% if preview.description|length > 50 %}...{% endif %}</span>
+        </div>
+        {% endif %}
+        
+        {% if preview.product_description %}
+        <div class="preview-item">
+          <span class="preview-label">Ürün Açıklaması</span>
+          <span class="preview-value">{{ preview.product_description[:50] }}{% if preview.product_description|length > 50 %}...{% endif %}</span>
+        </div>
+        {% endif %}
+        
+        <div class="preview-item">
+          <span class="preview-label">Miktar</span>
+          <span class="preview-value">{{ preview.quantity }} Adet</span>
+        </div>
+        
+        {% if preview.unit_price %}
+        <div class="preview-item">
+          <span class="preview-label">Birim Fiyat</span>
+          <span class="preview-value">{{ "%.2f"|format(preview.unit_price) }} ₺</span>
+        </div>
+        {% endif %}
+        
+        {% if preview.total_price %}
+        <div class="preview-item">
+          <span class="preview-label">Toplam Fiyat</span>
+          <span class="preview-value" style="color: #2e7d32;">{{ "%.2f"|format(preview.total_price) }} ₺</span>
+        </div>
+        {% endif %}
+        
+        <div class="preview-item">
+          <span class="preview-label">İsteği Oluşturan</span>
+          <span class="preview-value">{{ preview.username }}</span>
+        </div>
+        
+        <div class="preview-item">
+          <span class="preview-label">Oluşturulma Tarihi</span>
+          <span class="preview-value">{{ preview.created_at }}</span>
+        </div>
+      </div>
+      
+      <div class="alert alert-info">
+        <i class="bi bi-info-circle me-2"></i>
+        <strong>Bilgi:</strong> Yukarıdaki bilgiler PDF formuna otomatik olarak yazılacaktır.
+      </div>
+    </div>
+
+    <!-- Sağ: Admin Form -->
+    <div class="col-md-7">
+      <form method="post" action="{{ url_for('generate_request_pdf', req_id=req.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        
+        <div class="form-section">
+          <h5><i class="bi bi-pencil-square me-2"></i>Manuel Doldurulacak Alanlar</h5>
+          
+          <div class="mb-4">
+            <label for="ihtiyac_alani" class="form-label">
+              İhtiyaç Alanı <span class="text-danger">*</span>
+            </label>
+            <div class="input-group">
+              <span class="input-group-text">Üniversitemiz</span>
+              <input type="text" class="form-control" id="ihtiyac_alani" name="ihtiyac_alani" 
+                     placeholder="laboratuvar çalışmaları için" required>
+              <span class="input-group-text">ihtiyaç duyulmuştur.</span>
+            </div>
+            <div class="form-text text-muted">
+              Örnek: "laboratuvar çalışmaları için", "eğitim faaliyetleri kapsamında", "araştırma projesi için"
+            </div>
+          </div>
+          
+          <div class="mb-4">
+            <label for="tarih" class="form-label">
+              Tarih <span class="text-danger">*</span>
+            </label>
+            <input type="date" class="form-control" id="tarih" name="tarih" 
+                   value="{{ now().strftime('%Y-%m-%d') }}" required style="max-width: 200px;">
+          </div>
+          
+          <div class="mb-4">
+            <label for="talep_eden_birim" class="form-label">
+              Talep Eden Birim <span class="text-danger">*</span>
+            </label>
+            <input type="text" class="form-control" id="talep_eden_birim" name="talep_eden_birim" 
+                   placeholder="Bilgisayar Mühendisliği Bölümü" required>
+            <div class="form-text text-muted">
+              Örnek: "Bilgisayar Mühendisliği Bölümü", "Elektrik-Elektronik Lab.", "Rektörlük"
+            </div>
+          </div>
+        </div>
+
+        <div class="d-flex justify-content-between align-items-center">
+          <a href="{{ url_for('admin_requests') }}" class="btn btn-cancel">
+            <i class="bi bi-x-lg me-1"></i>İptal
+          </a>
+          <button type="submit" class="btn btn-generate">
+            <i class="bi bi-file-earmark-pdf me-2"></i>PDF Oluştur ve İndir
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

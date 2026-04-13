@@ -2,75 +2,139 @@
 {% block title %}Kullanıcı Düzenle{% endblock %}
 
 {% block content %}
-<div class="container mt-5">
-    <h2>Kullanıcı Düzenle: {{ user.username }}</h2>
+<style>
+  .page-header {
+    background: linear-gradient(135deg, #1a237e 0%, #3949ab 100%);
+    border-radius: 16px;
+    padding: 1.5rem 2rem;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 4px 20px rgba(26, 35, 126, 0.3);
+  }
+  .page-header h2 {
+    color: #e3f2fd !important;
+    margin: 0;
+    font-weight: 700;
+  }
+  .page-header .btn-back {
+    background: rgba(255,255,255,0.15);
+    border: 2px solid rgba(255,255,255,0.4);
+    color: #fff;
+    border-radius: 25px;
+    padding: 0.5rem 1rem;
+    font-weight: 500;
+  }
+  .form-card {
+    background: #fff;
+    border: 1px solid #e3e8ef;
+    border-radius: 16px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+    padding: 2rem;
+    max-width: 500px;
+    margin: 0 auto;
+  }
+  .form-label {
+    font-weight: 500;
+    color: #1a237e;
+    margin-bottom: 0.5rem;
+  }
+  .form-control, .form-select {
+    border-radius: 8px;
+    border: 1px solid #c5cae9;
+  }
+  .form-control:focus, .form-select:focus {
+    border-color: #3949ab;
+    box-shadow: 0 0 0 3px rgba(57,73,171,0.15);
+  }
+  .form-check-input:checked { background-color: #3949ab; border-color: #3949ab; }
+  .btn-submit { background: linear-gradient(135deg, #2e7d32 0%, #43a047 100%); color: #fff; border: none; border-radius: 25px; padding: 0.6rem 1.5rem; font-weight: 600; }
+  .btn-cancel { background: #e8eaf6; color: #1a237e; border: none; border-radius: 25px; padding: 0.6rem 1.5rem; font-weight: 500; }
+  .btn-delete { background: linear-gradient(135deg, #c62828 0%, #b71c1c 100%); color: #fff; border: none; border-radius: 25px; padding: 0.6rem 1.5rem; font-weight: 500; }
+  .section-divider { border-top: 2px solid #e3f2fd; margin: 1.5rem 0; padding-top: 1rem; }
+</style>
+
+<div class="container my-4">
+  <div class="page-header d-flex justify-content-between align-items-center">
+    <h2><i class="bi bi-pencil-square me-2"></i>Kullanıcı Düzenle</h2>
+    <a href="{{ url_for('manage_users') }}" class="btn btn-back"><i class="bi bi-arrow-left me-1"></i>Kullanıcılar</a>
+  </div>
+  <div class="form-card">
     <form method="post">
-        <div class="mb-3">
-            <label for="username" class="form-label">Kullanıcı Adı</label>
-            <input type="text" class="form-control" id="username" value="{{ user.username }}" disabled>
-        </div>
+      <div class="mb-3">
+        <label for="username" class="form-label">Kullanıcı Adı</label>
+        <input type="text" class="form-control" id="username" value="{{ user.username }}" disabled style="background: #f8f9fa;">
+      </div>
 
-        <div class="mb-3">
-            <label for="role" class="form-label">Rol</label>
-            <select class="form-select" id="role" name="role">
-                <option value="user" {% if user.role == 'user' %}selected{% endif %}>Kullanıcı</option>
-                <option value="admin" {% if user.role == 'admin' %}selected{% endif %}>Admin</option>
-            </select>
-        </div>
+      <div class="mb-3">
+        <label class="form-label">Rol</label>
+        <input type="text" class="form-control" value="{{ 'Admin' if user.role == 'admin' else 'Kullanıcı' }}" disabled style="background: #f8f9fa;">
+        <input type="hidden" name="role" value="{{ user.role }}">
+        <div class="form-text text-muted">Rol değişikliği sistem yöneticisi tarafından yapılabilir.</div>
+      </div>
 
+      <div class="mb-3 p-3 rounded" style="background: #f8f9fa;">
+        <label class="form-label d-block mb-2">Yetkiler</label>
         <div class="form-check mb-2">
-            <input type="checkbox" class="form-check-input" id="can_add_product" name="can_add_product"
-                   {% if user.can_add_product or user.role == 'admin' %}checked{% endif %}>
-            <label class="form-check-label" for="can_add_product">Ürün ekleme yetkisi</label>
+          <input type="checkbox" class="form-check-input" id="can_add_product" name="can_add_product"
+                 {% if user.can_add_product or user.role == 'admin' %}checked{% endif %}>
+          <label class="form-check-label" for="can_add_product">Ürün ekleme yetkisi</label>
         </div>
-
-        <div class="form-check mb-3">
-            <input type="checkbox" class="form-check-input" id="can_delete_product" name="can_delete_product"
-                   {% if user.can_delete_product or user.role == 'admin' %}checked{% endif %}>
-            <label class="form-check-label" for="can_delete_product">Ürün silme yetkisi</label>
+        <div class="form-check">
+          <input type="checkbox" class="form-check-input" id="can_delete_product" name="can_delete_product"
+                 {% if user.can_delete_product or user.role == 'admin' %}checked{% endif %}>
+          <label class="form-check-label" for="can_delete_product">Ürün silme yetkisi</label>
         </div>
+      </div>
 
-        <div class="mb-3">
-            <label for="new_password" class="form-label">Yeni Şifre</label>
-            <input type="password" class="form-control" id="new_password" name="new_password" placeholder="Yeni şifreyi girin">
+      {% if not user.is_ldap %}
+      <div class="section-divider">
+        <label class="form-label"><i class="bi bi-key me-1"></i>Şifre Değiştir</label>
+      </div>
+
+      <div class="mb-3">
+        <label for="new_password" class="form-label">Yeni Şifre</label>
+        <input type="password" class="form-control" id="new_password" name="new_password" placeholder="Yeni şifreyi girin">
+      </div>
+
+      <div class="mb-3">
+        <label for="new_password2" class="form-label">Yeni Şifre (Tekrar)</label>
+        <input type="password" class="form-control" id="new_password2" name="new_password2" placeholder="Yeni şifreyi tekrar girin">
+      </div>
+      {% else %}
+      <div class="section-divider">
+        <div class="alert alert-info mb-0">
+          <i class="bi bi-info-circle me-2"></i>Bu kullanıcı LDAP tarafından yönetildiği için şifre değiştirilemez.
         </div>
+      </div>
+      {% endif %}
 
-        <div class="mb-3">
-            <label for="new_password2" class="form-label">Yeni Şifre (Tekrar)</label>
-            <input type="password" class="form-control" id="new_password2" name="new_password2" placeholder="Yeni şifreyi tekrar girin">
-        </div>
-
-        <button type="submit" class="btn btn-primary">Kaydet</button>
-        <a href="{{ url_for('manage_users') }}" class="btn btn-secondary">Geri</a>
+      <div class="d-flex gap-2 mb-3">
+        <button type="submit" class="btn btn-submit flex-grow-1"><i class="bi bi-check-lg me-1"></i>Kaydet</button>
+        <a href="{{ url_for('manage_users') }}" class="btn btn-cancel">Geri</a>
+      </div>
     </form>
 
     <form method="post" action="{{ url_for('delete_user', user_id=user.id) }}" 
-          onsubmit="return confirm('Kullanıcıyı silmek istediğinize emin misiniz?');" class="mt-3">
-        <button type="submit" class="btn btn-danger" {% if user.id == current_user.id %}disabled{% endif %}>Kullanıcıyı Sil</button>
+          onsubmit="return confirm('Kullanıcıyı silmek istediğinize emin misiniz?');">
+      <button type="submit" class="btn btn-delete w-100" {% if user.id == current_user.id %}disabled{% endif %}>
+        <i class="bi bi-trash me-1"></i>Kullanıcıyı Sil
+      </button>
     </form>
+  </div>
 </div>
 
 <script>
-    document.addEventListener('DOMContentLoaded', function () {
-        const roleSelect = document.getElementById('role');
-        const addCheckbox = document.getElementById('can_add_product');
-        const deleteCheckbox = document.getElementById('can_delete_product');
-
-        function updateCheckboxStates() {
-            const isAdmin = roleSelect.value === 'admin';
-            if (isAdmin) {
-                addCheckbox.checked = true;
-                deleteCheckbox.checked = true;
-                addCheckbox.disabled = true;
-                deleteCheckbox.disabled = true;
-            } else {
-                addCheckbox.disabled = false;
-                deleteCheckbox.disabled = false;
-            }
-        }
-
-        roleSelect.addEventListener('change', updateCheckboxStates);
-        updateCheckboxStates();
-    });
+document.addEventListener('DOMContentLoaded', function () {
+    const roleInput = document.querySelector('input[name="role"]');
+    const addCheckbox = document.getElementById('can_add_product');
+    const deleteCheckbox = document.getElementById('can_delete_product');
+    
+    // Admin kullanıcıları için yetki checkbox'larını devre dışı bırak
+    if (roleInput && roleInput.value === 'admin') {
+        addCheckbox.checked = true; 
+        deleteCheckbox.checked = true;
+        addCheckbox.disabled = true; 
+        deleteCheckbox.disabled = true;
+    }
+});
 </script>
 {% endblock %}

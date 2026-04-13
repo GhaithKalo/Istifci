@@ -1,47 +1,744 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="container my-4">
-  <h2 class="mb-4 text-primary fw-bold">İstek Listesi</h2>
+<style>
+  /* ============================================
+     REQUESTS PAGE - Bootstrap-consistent styling
+     Matches index.html and component_detail.html
+     ============================================ */
+  
+  /* Stats Cards - Compact */
+  .stats-row {
+    display: flex;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+  }
+  .stat-card {
+    flex: 1;
+    min-width: 100px;
+    background: #fff;
+    border-radius: 8px;
+    padding: 0.75rem;
+    text-align: center;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    border-left: 3px solid;
+    cursor: pointer;
+    text-decoration: none;
+  }
+  .stat-card:hover {
+    background: #f8f9fa;
+  }
+  .stat-card.active {
+    box-shadow: 0 3px 12px rgba(0,0,0,0.15);
+  }
+  .stat-card.stat-total { border-left-color: #0d6efd; }
+  .stat-card.stat-beklemede { border-left-color: #ffc107; }
+  .stat-card.stat-kabul { border-left-color: #198754; }
+  .stat-card.stat-reddedildi { border-left-color: #dc3545; }
+  .stat-card.stat-tamamlandi { border-left-color: #6c757d; }
+  .stat-card .stat-number {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #212529;
+  }
+  .stat-card .stat-label {
+    font-size: 0.75rem;
+    color: #6c757d;
+    text-transform: uppercase;
+  }
+  
+  /* Filter Buttons - Bootstrap style */
+  .filter-btn-group .btn {
+    border-radius: 20px;
+    padding: 0.35rem 0.85rem;
+    font-size: 0.85rem;
+    margin-right: 0.25rem;
+    margin-bottom: 0.25rem;
+  }
+  .filter-btn-group .btn i {
+    margin-right: 0.3rem;
+  }
+  
+  /* Request Cards - Clean Bootstrap style */
+  .request-card {
+    background: #fff;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 0.75rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    border-left: 4px solid;
+    position: relative;
+    border: 1px solid #dee2e6;
+    cursor: pointer;
+  }
+  .request-card:hover {
+    background: #fdfdfe;
+  }
+  .request-card.type-satin_alma { border-left-color: #0d6efd; }
+  .request-card.type-ariza { border-left-color: #dc3545; }
+  .request-card.type-bakim { border-left-color: #198754; }
+  
+  .request-card .request-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #212529;
+    margin: 0 0 0.5rem 0;
+  }
+  
+  /* Expand Button */
+  .expand-btn {
+    position: absolute;
+    top: 50%;
+    right: 0.75rem;
+    transform: translateY(-50%);
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: #6c757d;
+  }
+  .expand-btn:hover {
+    background: #e9ecef;
+    color: #212529;
+  }
+  .request-card.expanded .expand-btn {
+    background: #0d6efd;
+    border-color: #0d6efd;
+    color: #fff;
+  }
+  .request-card.expanded .expand-btn i {
+    transform: rotate(180deg);
+  }
+  
+  /* Details Panel */
+  .request-details {
+    display: none;
+    background: #f8f9fa;
+    border-radius: 6px;
+    margin-top: 0;
+  }
+  .request-card.expanded .request-details {
+    display: block;
+    max-height: 600px;
+    overflow-y: auto;
+    padding: 1rem;
+    margin-top: 0.75rem;
+    border: 1px solid #dee2e6;
+  }
+  .request-details .detail-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 0.75rem;
+  }
+  .request-details .detail-label {
+    font-size: 0.7rem;
+    color: #6c757d;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 0.2rem;
+    font-weight: 500;
+  }
+  .request-details .detail-value {
+    font-size: 0.9rem;
+    color: #212529;
+    font-weight: 500;
+  }
+  
+  /* Request Meta */
+  .request-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.8rem;
+    color: #6c757d;
+    padding-right: 2.5rem;
+  }
+  .user-avatar {
+    width: 24px;
+    height: 24px;
+    background: #0d6efd;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-weight: 600;
+    font-size: 0.7rem;
+    margin-right: 0.4rem;
+  }
+  
+  /* Empty State */
+  .empty-state {
+    text-align: center;
+    padding: 3rem;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border: 1px solid #dee2e6;
+  }
+  .empty-state i {
+    font-size: 3rem;
+    color: #adb5bd;
+    margin-bottom: 1rem;
+  }
+  .empty-state h4 {
+    color: #495057;
+    margin-bottom: 0.5rem;
+  }
+  .empty-state p {
+    color: #6c757d;
+  }
 
-  <form method="post" class="row g-3 mb-5">
-    <div class="col-md-5">
-      <input type="text" name="name" class="form-control form-control-lg" maxlength="100" placeholder="Ürün Adı" required>
+  /* Active Filters */
+  .active-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding: 0.5rem;
+    background: #e9ecef;
+    border-radius: 6px;
+    margin-top: 0.75rem;
+  }
+  .filter-tag {
+    display: inline-flex;
+    align-items: center;
+    background: #fff;
+    padding: 0.2rem 0.5rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    color: #495057;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+  }
+  .filter-tag i {
+    margin-right: 0.25rem;
+    color: #6c757d;
+  }
+
+  /* Card Content Padding for expand button */
+  .card-content {
+    padding-right: 2.5rem;
+  }
+</style>
+
+<div class="container my-4">
+  <!-- Page Header - Bootstrap style like index.html -->
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h3 class="mb-0"><i class="bi bi-inbox-fill me-2"></i>İsteklerim</h3>
+    <a href="{{ url_for('create_request', status=current_status) }}" class="btn btn-primary btn-sm rounded">
+      <i class="bi bi-plus-circle me-1"></i> Yeni İstek
+    </a>
+  </div>
+
+  <!-- Stats Row - Compact -->
+  <div class="stats-row">
+    <a href="?status=all&type={{ current_type }}&q={{ current_search or '' }}&sort={{ current_sort }}" 
+       class="stat-card stat-total {% if current_status == 'all' %}active{% endif %}">
+      <div class="stat-number">{{ stats.total }}</div>
+      <div class="stat-label">Toplam</div>
+    </a>
+    <a href="?status=beklemede&type={{ current_type }}&q={{ current_search or '' }}&sort={{ current_sort }}" 
+       class="stat-card stat-beklemede {% if current_status == 'beklemede' %}active{% endif %}">
+      <div class="stat-number">{{ stats.beklemede }}</div>
+      <div class="stat-label">Beklemede</div>
+    </a>
+    <a href="?status=kabul&type={{ current_type }}&q={{ current_search or '' }}&sort={{ current_sort }}" 
+       class="stat-card stat-kabul {% if current_status == 'kabul' %}active{% endif %}">
+      <div class="stat-number">{{ stats.kabul }}</div>
+      <div class="stat-label">Kabul</div>
+    </a>
+    <a href="?status=reddedildi&type={{ current_type }}&q={{ current_search or '' }}&sort={{ current_sort }}" 
+       class="stat-card stat-reddedildi {% if current_status == 'reddedildi' %}active{% endif %}">
+      <div class="stat-number">{{ stats.reddedildi }}</div>
+      <div class="stat-label">Reddedildi</div>
+    </a>
+    <a href="?status=tamamlandi&type={{ current_type }}&q={{ current_search or '' }}&sort={{ current_sort }}" 
+       class="stat-card stat-tamamlandi {% if current_status == 'tamamlandi' %}active{% endif %}">
+      <div class="stat-number">{{ stats.tamamlandi }}</div>
+      <div class="stat-label">Tamamlandı</div>
+    </a>
+  </div>
+
+  <!-- Search and Filter - Bootstrap style like index.html -->
+  <form method="get" action="{{ url_for('requests') }}" class="mb-3" id="filterForm">
+    <div class="input-group mb-2">
+      <input type="search" name="q" class="form-control" placeholder="İstek ara..." 
+             value="{{ current_search or '' }}" id="searchInput" autocomplete="off">
+      <button class="btn btn-outline-primary" type="submit">
+        <i class="bi bi-search"></i> Ara
+      </button>
     </div>
-    <div class="col-md-5">
-      <input type="text" name="description" class="form-control form-control-lg" maxlength="150" placeholder="Açıklama (Opsiyonel)">
+    
+    <!-- Type Filter Buttons -->
+    <div class="filter-btn-group mb-2">
+      <span class="text-muted small me-2">Tür:</span>
+      <a href="?status={{ current_status }}&type=all&q={{ current_search or '' }}&sort={{ current_sort }}" 
+         class="btn btn-sm {% if current_type == 'all' %}btn-primary{% else %}btn-outline-secondary{% endif %}">
+        <i class="bi bi-collection"></i>Tümü
+      </a>
+      <a href="?status={{ current_status }}&type=satin_alma&q={{ current_search or '' }}&sort={{ current_sort }}" 
+         class="btn btn-sm {% if current_type == 'satin_alma' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+        <i class="bi bi-cart-fill"></i>Satın Alma
+      </a>
+      <a href="?status={{ current_status }}&type=ariza&q={{ current_search or '' }}&sort={{ current_sort }}" 
+         class="btn btn-sm {% if current_type == 'ariza' %}btn-danger{% else %}btn-outline-danger{% endif %}">
+        <i class="bi bi-tools"></i>Arıza
+      </a>
+      <a href="?status={{ current_status }}&type=bakim&q={{ current_search or '' }}&sort={{ current_sort }}" 
+         class="btn btn-sm {% if current_type == 'bakim' %}btn-success{% else %}btn-outline-success{% endif %}">
+        <i class="bi bi-gear-fill"></i>Bakım
+      </a>
+      
+      <span class="ms-3 text-muted small">Sırala:</span>
+      <select name="sort" class="form-select form-select-sm d-inline-block" style="width: auto;" onchange="this.form.submit()">
+        <option value="newest" {% if current_sort == 'newest' %}selected{% endif %}>En yeni</option>
+        <option value="oldest" {% if current_sort == 'oldest' %}selected{% endif %}>En eski</option>
+        <option value="name" {% if current_sort == 'name' %}selected{% endif %}>İsim (A-Z)</option>
+      </select>
     </div>
-    <div class="col-md-2 d-grid">
-      <button type="submit" class="btn btn-primary btn-lg">Ekle</button>
-    </div>
+
+    <!-- Hidden inputs -->
+    <input type="hidden" name="status" value="{{ current_status }}">
+    <input type="hidden" name="type" value="{{ current_type }}">
   </form>
 
-  <div class="list-group">
-    {% for req in requests %}
-    <div class="list-group-item list-group-item-action mb-2 shadow-sm rounded position-relative">
-      
-      {% if current_user.is_authenticated and current_user.role == "admin" %}
-          <form method="post" action="{{ url_for('delete_request', req_id=req.id) }}"
-           class="position-absolute top-0 end-0 m-2"
-           onsubmit="return confirm('Bu isteği silmek istediğinize emin misiniz?');">
-             <button type="submit" class="btn btn-sm btn-outline-danger">
-              <i class="bi bi-trash"></i>
-             </button>
-          </form>
-      {% endif %}
+  <!-- Active Filters -->
+  {% if current_status != 'all' or current_type != 'all' or current_search %}
+  <div class="active-filters mb-3">
+    <span class="text-muted small me-2">Filtreler:</span>
+    {% if current_status != 'all' %}
+    <span class="filter-tag">
+      <i class="bi bi-funnel-fill"></i>
+      {% if current_status == 'beklemede' %}Beklemede{% elif current_status == 'reddedildi' %}Reddedildi{% elif current_status == 'kabul' %}Kabul{% elif current_status == 'tamamlandi' %}Tamamlandı{% endif %}
+    </span>
+    {% endif %}
+    {% if current_type != 'all' %}
+    <span class="filter-tag">
+      <i class="bi bi-tag-fill"></i>
+      {% if current_type == 'satin_alma' %}Satın Alma{% elif current_type == 'ariza' %}Arıza{% elif current_type == 'bakim' %}Bakım{% endif %}
+    </span>
+    {% endif %}
+    {% if current_search %}
+    <span class="filter-tag">
+      <i class="bi bi-search"></i>"{{ current_search }}"
+    </span>
+    {% endif %}
+    <a href="{{ url_for('requests') }}" class="btn btn-sm btn-outline-secondary ms-auto">
+      <i class="bi bi-x-lg me-1"></i>Temizle
+    </a>
+  </div>
+  {% endif %}
 
-      
-      <h5 class="mb-1 fw-semibold text-dark">{{ req.name }}</h5>
-      <p class="mb-1 text-muted">{{ req.description or "-" }}</p>
-      <small class="text-secondary">
-        <i class="bi bi-person"></i>
-        {{ req.user.username if req.user else "Bilinmiyor" }}
-      </small>
-      <small class="text-secondary d-block mt-1">{{ req.created_at.strftime('%d.%m.%Y') }}</small>
-      
+  <!-- Results Count -->
+  <p class="text-muted small mb-2"><strong>{{ requests|length }}</strong> istek bulundu</p>
+
+  <!-- Request List -->
+  <div class="request-list">
+    {% for req in requests %}
+    <div class="request-card type-{{ req.req_type }}" id="request-{{ req.id }}" onclick="toggleDetails({{ req.id }})">
+      <!-- Expand Button -->
+      <button type="button" class="expand-btn" onclick="event.stopPropagation(); toggleDetails({{ req.id }})" title="Detayları göster">
+        <i class="bi bi-chevron-down"></i>
+      </button>
+
+      <div class="card-content">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <h5 class="request-title">
+            {{ (req.description or 'Açıklama girilmemiş')|truncate(90, True, '...') }}
+            {% if req.req_type == 'satin_alma' and req.items.count() > 0 %}
+            <span class="badge bg-info text-white ms-1" style="font-size: 0.65rem;">{{ req.items.count() }} ürün</span>
+            {% endif %}
+          </h5>
+          <div class="d-flex gap-1">
+            <span class="badge {% if req.req_type == 'satin_alma' %}bg-primary{% elif req.req_type == 'ariza' %}bg-danger{% elif req.req_type == 'bakim' %}bg-success{% endif %}">
+              {% if req.req_type == 'satin_alma' %}<i class="bi bi-cart-fill me-1"></i>Satın Alma
+              {% elif req.req_type == 'ariza' %}<i class="bi bi-tools me-1"></i>Arıza
+              {% elif req.req_type == 'bakim' %}<i class="bi bi-gear-fill me-1"></i>Bakım{% endif %}
+            </span>
+            <span class="badge {% if req.req_status == 'beklemede' %}bg-warning text-dark{% elif req.req_status == 'reddedildi' %}bg-danger{% elif req.req_status == 'kabul' %}bg-success{% elif req.req_status == 'tamamlandi' %}bg-secondary{% endif %}">
+              {% if req.req_status == 'beklemede' %}<i class="bi bi-clock me-1"></i>Beklemede
+              {% elif req.req_status == 'reddedildi' %}<i class="bi bi-x-circle me-1"></i>Reddedildi
+              {% elif req.req_status == 'kabul' %}<i class="bi bi-check-circle me-1"></i>Kabul
+              {% elif req.req_status == 'tamamlandi' %}<i class="bi bi-check2-all me-1"></i>Tamamlandı{% endif %}
+            </span>
+          </div>
+        </div>
+
+        <div class="request-meta">
+          <div>
+            <span class="user-avatar">{{ (req.user.username[0] if req.user else '?')|upper }}</span>
+            <span>{{ req.user.username if req.user else "Bilinmiyor" }}</span>
+          </div>
+          <div>
+            <i class="bi bi-calendar3 me-1"></i>{{ req.created_at|tr_date }}
+          </div>
+        </div>
+      </div>
+      <!-- Expandable Details Panel -->
+      <div class="request-details" id="details-{{ req.id }}" onclick="event.stopPropagation();">
+        <div class="detail-grid">
+          
+          {% if req.req_type == 'satin_alma' and req.items.count() > 0 %}
+          <!-- Birden fazla ürün varsa -->
+          <div class="detail-item" style="grid-column: 1 / -1;">
+            <span class="detail-label"><i class="bi bi-list-check me-1"></i>Ürün Kalemleri ({{ req.items.count() }} adet)</span>
+            <div class="table-responsive mt-2">
+              <table class="table table-sm table-bordered mb-0">
+                <thead class="table-light">
+                  <tr>
+                    <th>#</th>
+                    <th>Ürün</th>
+                    <th>Kategori</th>
+                    <th>Ürün Türü</th>
+                    <th>Ürün Açıklaması</th>
+                    <th>Etiketler</th>
+                    <th>Adet</th>
+                    <th>Birim Fiyat</th>
+                    <th>Toplam</th>
+                    <th>Link</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for item in req.items %}
+                  <tr>
+                    <td>{{ loop.index }}</td>
+                    <td>
+                      <strong>{{ item.name }}</strong>
+                      {% if item.component %}
+                      <a href="{{ url_for('component_detail', comp_id=item.component.id) }}" class="btn btn-sm btn-outline-primary ms-2" title="Ürün detayına git">
+                        <i class="bi bi-arrow-right-circle"></i>
+                      </a>
+                      {% endif %}
+                    </td>
+                    <td>
+                      {% if item.product_category == 'demirbas' %}Demirbaş
+                      {% elif item.product_category == 'gerec' %}Gereçler
+                      {% elif item.product_category == 'sarf' %}Sarf
+                      {% else %}{{ item.product_category or '-' }}{% endif %}
+                    </td>
+                    <td>{{ item.product_type or '-' }}</td>
+                    <td>{{ item.product_description or '-' }}</td>
+                    <td>{{ item.tags or '-' }}</td>
+                    <td>{{ item.quantity }}</td>
+                    <td>{% if item.unit_price %}{{ "%.2f"|format(item.unit_price) }} ₺{% else %}-{% endif %}</td>
+                    <td class="fw-bold text-success">{% if item.total_price %}{{ "%.2f"|format(item.total_price) }} ₺{% else %}-{% endif %}</td>
+                    <td>
+                      {% if item.purchase_link %}
+                        <a href="{{ item.purchase_link }}" target="_blank" class="btn btn-sm btn-outline-primary"><i class="bi bi-box-arrow-up-right"></i></a>
+                      {% else %}-{% endif %}
+                    </td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+                <tfoot class="table-light">
+                  <tr>
+                    <td colspan="8" class="text-end fw-bold">Genel Toplam:</td>
+                    <td class="fw-bold text-primary">{{ "%.2f"|format(req.total_items_price or 0) }} ₺</td>
+                    <td></td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+          
+          <!-- Bütçe -->
+          {% if req.budget %}
+          <div class="detail-item">
+            <span class="detail-label"><i class="bi bi-wallet2 me-1"></i>Bütçe</span>
+            <span class="detail-value">
+              {% if req.budget == 'TTO' %}
+              <span class="badge bg-primary">TTO</span>
+              {% elif req.budget == 'Merkez' %}
+              <span class="badge bg-success">Merkez</span>
+              {% else %}
+              <span class="badge bg-warning text-dark">{{ req.budget }}</span>
+              {% endif %}
+            </span>
+          </div>
+          {% endif %}
+          
+          <!-- İstek Durumu -->
+          <div class="detail-item">
+            <span class="detail-label"><i class="bi bi-flag me-1"></i>Durum</span>
+            <span class="detail-value">
+              {% if req.req_status == 'beklemede' %}<span class="badge bg-warning text-dark">Beklemede</span>
+              {% elif req.req_status == 'reddedildi' %}<span class="badge bg-danger">Reddedildi</span>
+              {% elif req.req_status == 'kabul' %}<span class="badge bg-success">Kabul Edildi</span>
+              {% elif req.req_status == 'tamamlandi' %}<span class="badge bg-secondary">Tamamlandı</span>
+              {% else %}<span class="badge bg-light text-dark">{{ req.req_status }}</span>{% endif %}
+            </span>
+          </div>
+          
+          <!-- Tarih -->
+          <div class="detail-item">
+            <span class="detail-label"><i class="bi bi-calendar-event me-1"></i>Oluşturulma Tarihi</span>
+            <span class="detail-value">{{ req.created_at|tr_date }}</span>
+          </div>
+          
+          <!-- Açıklama (tam genişlik) -->
+          {% if req.description %}
+          <div class="detail-item" style="grid-column: 1 / -1;">
+            <span class="detail-label"><i class="bi bi-chat-left-text me-1"></i>İstek Açıklaması</span>
+            <span class="detail-value">{{ req.description }}</span>
+          </div>
+          {% endif %}
+          
+          <!-- Admin Notu -->
+          {% if req.admin_note %}
+          <div class="detail-item" style="grid-column: 1 / -1;">
+            <span class="detail-label"><i class="bi bi-sticky me-1"></i>Yönetici Notu</span>
+            <span class="detail-value">
+              <div class="alert {% if req.req_status == 'reddedildi' %}alert-danger{% elif req.req_status == 'kabul' %}alert-success{% else %}alert-info{% endif %} mb-0 py-2">
+                <i class="bi bi-info-circle me-1"></i>{{ req.admin_note }}
+              </div>
+            </span>
+          </div>
+          {% endif %}
+          
+          {% else %}
+          <!-- Tek ürün (eski format) veya arıza/bakım isteği -->
+          
+          <!-- Ürün Adı -->
+          <div class="detail-item">
+            <span class="detail-label"><i class="bi bi-box-seam me-1"></i>Ürün Adı</span>
+            <span class="detail-value">
+              {{ req.name }}
+              {% if req.component %}
+              <a href="{{ url_for('component_detail', comp_id=req.component.id) }}" class="btn btn-sm btn-outline-primary ms-2" title="Ürün detayına git">
+                <i class="bi bi-arrow-right-circle"></i> Ürüne Git
+              </a>
+              {% endif %}
+            </span>
+          </div>
+          
+          <!-- İstek Türü -->
+          <div class="detail-item">
+            <span class="detail-label"><i class="bi bi-bookmark me-1"></i>İstek Türü</span>
+            <span class="detail-value">
+              {% if req.req_type == 'satin_alma' %}Satın Alma
+              {% elif req.req_type == 'ariza' %}Arıza Bildirimi
+              {% elif req.req_type == 'bakim' %}Bakım Talebi
+              {% else %}{{ req.req_type }}{% endif %}
+            </span>
+          </div>
+          
+          <!-- İstek Durumu -->
+          <div class="detail-item">
+            <span class="detail-label"><i class="bi bi-flag me-1"></i>Durum</span>
+            <span class="detail-value">
+              {% if req.req_status == 'beklemede' %}<span class="badge bg-warning text-dark">Beklemede</span>
+              {% elif req.req_status == 'reddedildi' %}<span class="badge bg-danger">Reddedildi</span>
+              {% elif req.req_status == 'kabul' %}<span class="badge bg-success">Kabul Edildi</span>
+              {% elif req.req_status == 'tamamlandi' %}<span class="badge bg-secondary">Tamamlandı</span>
+              {% else %}<span class="badge bg-light text-dark">{{ req.req_status }}</span>{% endif %}
+            </span>
+          </div>
+          
+          <!-- Tarih -->
+          <div class="detail-item">
+            <span class="detail-label"><i class="bi bi-calendar-event me-1"></i>Oluşturulma Tarihi</span>
+            <span class="detail-value">{{ req.created_at|tr_date }}</span>
+          </div>
+          
+          <!-- Oluşturan -->
+          <div class="detail-item">
+            <span class="detail-label"><i class="bi bi-person me-1"></i>Oluşturan</span>
+            <span class="detail-value">{{ req.user.username if req.user else "Bilinmiyor" }}</span>
+          </div>
+          
+          <!-- Mevcut Ürün Bilgileri (component seçildiyse) -->
+          {% if req.component %}
+          <div class="detail-item">
+            <span class="detail-label"><i class="bi bi-upc-scan me-1"></i>Mevcut Ürün</span>
+            <span class="detail-value">
+              <span class="badge bg-info text-dark">Sistemde Kayıtlı Ürün</span>
+            </span>
+          </div>
+          
+          {% if req.component.category %}
+          <div class="detail-item">
+            <span class="detail-label"><i class="bi bi-folder me-1"></i>Ürün Kategorisi</span>
+            <span class="detail-value">
+              {% if req.component.category == 'demirbas' %}Demirbaş
+              {% elif req.component.category == 'gerec' %}Gereçler
+              {% elif req.component.category == 'sarf' %}Sarf Malzemesi
+              {% else %}{{ req.component.category }}{% endif %}
+            </span>
+          </div>
+          {% endif %}
+          
+          {% if req.component.type %}
+          <div class="detail-item">
+            <span class="detail-label"><i class="bi bi-tag me-1"></i>Ürün Türü</span>
+            <span class="detail-value">{{ req.component.type }}</span>
+          </div>
+          {% endif %}
+          
+          {% if req.component.quantity is not none %}
+          <div class="detail-item">
+            <span class="detail-label"><i class="bi bi-stack me-1"></i>Mevcut Stok</span>
+            <span class="detail-value">{{ req.component.quantity }} adet</span>
+          </div>
+          {% endif %}
+          {% endif %}
+          
+          <!-- Arıza/Bakım için Seri Numarası -->
+          {% if req.req_type in ['ariza', 'bakim'] and req.serial_number %}
+          <div class="detail-item">
+            <span class="detail-label"><i class="bi bi-upc-scan me-1"></i>Seri Numarası</span>
+            <span class="detail-value"><code>{{ req.serial_number }}</code></span>
+          </div>
+          {% endif %}
+          
+          <!-- Satın Alma İstekleri için Ek Bilgiler -->
+          {% if req.req_type == 'satin_alma' and not req.component %}
+          {% if req.product_category %}
+          <div class="detail-item">
+            <span class="detail-label"><i class="bi bi-folder me-1"></i>Kategori</span>
+            <span class="detail-value">
+              {% if req.product_category == 'demirbas' %}Demirbaş
+              {% elif req.product_category == 'gerec' %}Gereçler
+              {% elif req.product_category == 'sarf' %}Sarf Malzemesi
+              {% else %}{{ req.product_category }}{% endif %}
+            </span>
+          </div>
+          {% endif %}
+          
+          {% if req.product_type %}
+          <div class="detail-item">
+            <span class="detail-label"><i class="bi bi-tag me-1"></i>Ürün Türü</span>
+            <span class="detail-value">{{ req.product_type }}</span>
+          </div>
+          {% endif %}
+          {% endif %}
+          
+          <!-- Adet (hem yeni hem mevcut için) -->
+          {% if req.quantity %}
+          <div class="detail-item">
+            <span class="detail-label"><i class="bi bi-123 me-1"></i>Talep Edilen Adet</span>
+            <span class="detail-value"><strong>{{ req.quantity }}</strong> adet</span>
+          </div>
+          {% endif %}
+          
+          <!-- Fiyat Bilgileri -->
+          {% if req.unit_price %}
+          <div class="detail-item">
+            <span class="detail-label"><i class="bi bi-currency-exchange me-1"></i>Birim Fiyat</span>
+            <span class="detail-value price">{{ "%.2f"|format(req.unit_price) }} ₺</span>
+          </div>
+          {% endif %}
+          
+          {% if req.total_price %}
+          <div class="detail-item">
+            <span class="detail-label"><i class="bi bi-cash-stack me-1"></i>Toplam Fiyat</span>
+            <span class="detail-value price"><strong>{{ "%.2f"|format(req.total_price) }} ₺</strong></span>
+          </div>
+          {% endif %}
+          
+          <!-- Bütçe -->
+          {% if req.budget %}
+          <div class="detail-item">
+            <span class="detail-label"><i class="bi bi-wallet2 me-1"></i>Bütçe</span>
+            <span class="detail-value">
+              {% if req.budget == 'TTO' %}
+              <span class="badge bg-primary">TTO</span>
+              {% elif req.budget == 'Merkez' %}
+              <span class="badge bg-success">Merkez</span>
+              {% else %}
+              <span class="badge bg-warning text-dark">{{ req.budget }}</span>
+              {% endif %}
+            </span>
+          </div>
+          {% endif %}
+          
+          <!-- Satın Alma Linki -->
+          {% if req.purchase_link %}
+          <div class="detail-item">
+            <span class="detail-label"><i class="bi bi-link-45deg me-1"></i>Satın Alma Linki</span>
+            <span class="detail-value">
+              <a href="{{ req.purchase_link }}" target="_blank" class="btn btn-sm btn-outline-success">
+                <i class="bi bi-box-arrow-up-right me-1"></i>Linke Git
+              </a>
+            </span>
+          </div>
+          {% endif %}
+          
+          <!-- Etiketler -->
+          {% if req.tags %}
+          <div class="detail-item">
+            <span class="detail-label"><i class="bi bi-tags me-1"></i>Etiketler</span>
+            <span class="detail-value">
+              {% for tag in req.tags.split(',') %}
+              <span class="badge bg-light text-dark me-1">{{ tag.strip() }}</span>
+              {% endfor %}
+            </span>
+          </div>
+          {% endif %}
+          
+          <!-- Açıklama (tam genişlik) -->
+          <div class="detail-item" style="grid-column: 1 / -1;">
+            <span class="detail-label"><i class="bi bi-chat-left-text me-1"></i>İstek Açıklaması</span>
+            <span class="detail-value">{{ req.description or "Açıklama eklenmemiş." }}</span>
+          </div>
+          
+          <!-- Ürün Açıklaması (yeni ürün için) -->
+          {% if req.product_description %}
+          <div class="detail-item" style="grid-column: 1 / -1;">
+            <span class="detail-label"><i class="bi bi-file-text me-1"></i>Ürün Açıklaması</span>
+            <span class="detail-value">{{ req.product_description }}</span>
+          </div>
+          {% endif %}
+          
+          <!-- Admin Notu -->
+          {% if req.admin_note %}
+          <div class="detail-item" style="grid-column: 1 / -1;">
+            <span class="detail-label"><i class="bi bi-sticky me-1"></i>Yönetici Notu</span>
+            <span class="detail-value">
+              <div class="alert {% if req.req_status == 'reddedildi' %}alert-danger{% elif req.req_status == 'kabul' %}alert-success{% else %}alert-info{% endif %} mb-0 py-2">
+                <i class="bi bi-info-circle me-1"></i>{{ req.admin_note }}
+              </div>
+            </span>
+          </div>
+          {% endif %}
+          
+          {% endif %} {# End of else block for single product #}
+        </div>
+        
+      </div>
     </div>
     {% else %}
-    <p class="text-muted fst-italic">Henüz istek bulunmamaktadır.</p>
+    <div class="empty-state">
+      <i class="bi bi-inbox"></i>
+      <h4>İstek bulunamadı</h4>
+      <p>Arama kriterlerinize uygun istek bulunmamaktadır.</p>
+      <a href="{{ url_for('create_request') }}" class="btn btn-primary mt-3">
+        <i class="bi bi-plus-circle me-1"></i>Yeni İstek Oluştur
+      </a>
+    </div>
     {% endfor %}
   </div>
 </div>
+
+<script>
+function toggleDetails(id) {
+  const card = document.getElementById('request-' + id);
+  card.classList.toggle('expanded');
+}
+
+function clearSearch() {
+  document.getElementById('searchInput').value = '';
+  document.getElementById('filterForm').submit();
+}
+
+// Submit form on Enter in search
+document.getElementById('searchInput').addEventListener('keypress', function(e) {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    document.getElementById('filterForm').submit();
+  }
+});
+</script>
 {% endblock %}

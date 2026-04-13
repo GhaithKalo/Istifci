@@ -134,12 +134,19 @@
     <!-- Bileşen ekleme formu başlangıcı -->
     <form method="POST" enctype="multipart/form-data" action="{{ url_for('add_component') }}" id="add-component-form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <!-- İstek ID'leri (satın alma isteğinden geliyorsa) -->
+      {% if request.args.get('from_request') %}
+      <input type="hidden" name="from_request" value="{{ request.args.get('from_request') }}">
+      {% endif %}
+      {% if request.args.get('request_item_id') %}
+      <input type="hidden" name="request_item_id" value="{{ request.args.get('request_item_id') }}">
+      {% endif %}
 
       <!-- 1. Ürün Tipi Seçimi -->
       <div class="mb-3">
         <label class="form-label">Ürün Tipi</label>
         <div class="btn-group w-100" role="group" aria-label="Ürün Tipi">
-          <input type="hidden" name="category" id="category-input" required>
+          <input type="hidden" name="category" id="category-input" value="{{ form_data.category or '' }}" required>
           <button type="button" class="btn btn-outline-primary w-33" id="btn-demirbas" onclick="selectCategory('demirbas')">Demirbaş</button>
           <button type="button" class="btn btn-outline-primary w-33" id="btn-gerec" onclick="selectCategory('gerec')">Gereçler</button>
           <button type="button" class="btn btn-outline-secondary w-33" id="btn-sarf" onclick="selectCategory('sarf')">Sarf</button>
@@ -149,7 +156,7 @@
       <!-- 2. Bileşen Adı -->
       <div class="mb-3">
         <label for="name" class="form-label">Bileşen Adı</label>
-        <input type="text" class="form-control" id="name" name="name" placeholder="Bileşen adı" required maxlength="50">
+        <input type="text" class="form-control" id="name" name="name" placeholder="Bileşen adı" required maxlength="50" value="{{ form_data.name or '' }}">
         <div class="form-text">En fazla 50 karakter.</div>
       </div>
 
@@ -159,8 +166,11 @@
           <label for="type" class="form-label">Tür</label>
           <select id="type-select" name="type" class="form-select" placeholder="Tür seçin veya ekleyin..." maxlength="30">
             {% for t in types %}
-            <option value="{{ t }}">{{ t }}</option>
+            <option value="{{ t }}" {% if form_data.type == t %}selected{% endif %}>{{ t }}</option>
             {% endfor %}
+            {% if form_data.type and form_data.type not in types %}
+            <option value="{{ form_data.type }}" selected>{{ form_data.type }}</option>
+            {% endif %}
           </select>
           <div class="form-text">Yeni tür eklemek için yazıp Enter'a basın. En fazla 30 karakter.</div>
         </div>
@@ -171,7 +181,7 @@
       <!-- 4. Açıklama -->
       <div class="mb-3">
         <label for="description" class="form-label">Açıklama</label>
-        <textarea class="form-control" id="description" name="description" placeholder="Açıklama" maxlength="200"></textarea>
+        <textarea class="form-control" id="description" name="description" placeholder="Açıklama" maxlength="200">{{ form_data.description or '' }}</textarea>
         <div class="form-text">En fazla 200 karakter.</div>
       </div>
 
@@ -181,8 +191,11 @@
         <select id="location-select" name="location" class="form-select" placeholder="Varsayılan yer seçin veya ekleyin..." maxlength="50">
           {% if locations %}
             {% for loc in locations %}
-              <option value="{{ loc }}">{{ loc }}</option>
+              <option value="{{ loc }}" {% if form_data.location == loc %}selected{% endif %}>{{ loc }}</option>
             {% endfor %}
+          {% endif %}
+          {% if form_data.location and form_data.location not in (locations or []) %}
+          <option value="{{ form_data.location }}" selected>{{ form_data.location }}</option>
           {% endif %}
         </select>
         <div class="form-text">En fazla 50 karakter.</div>
@@ -191,7 +204,7 @@
       <!-- 6. Stok Miktarı -->
       <div class="mb-3">
         <label for="quantity" class="form-label">Stok Miktarı</label>
-        <input type="number" class="form-control" id="quantity" name="quantity" min="0" value="0" required>
+        <input type="number" class="form-control" id="quantity" name="quantity" min="0" value="{{ form_data.quantity or 0 }}" required>
       </div>
 
       <!-- 7. Etiketler (Selectize + manuel ekleme) -->
@@ -203,7 +216,7 @@
         </div>
         <select id="tags" name="tags[]" multiple class="form-control" placeholder="Etiket seçin veya ekleyin..." maxlength="50">
           {% for tag in existing_tags %}
-            <option value="{{ tag.id }}" {% if tag.id|string in selected_tags %}selected{% endif %}>{{ tag.name }}</option>
+            <option value="{{ tag.id }}" {% if tag.id|string in selected_tags or tag.name in selected_tags %}selected{% endif %}>{{ tag.name }}</option>
           {% endfor %}
         </select>
         <div class="form-text">Her etiket en fazla 50 karakter olabilir.</div>
@@ -216,8 +229,11 @@
           <select id="owner-prefix-select" name="owner_prefix" class="form-select" placeholder="Kısaltma seçin veya ekleyin..." maxlength="10" style="flex:1;">
             {% if owner_prefixes %}
               {% for prefix in owner_prefixes %}
-                <option value="{{ prefix }}">{{ prefix }}</option>
+                <option value="{{ prefix }}" {% if form_data.owner_prefix == prefix %}selected{% endif %}>{{ prefix }}</option>
               {% endfor %}
+            {% endif %}
+            {% if form_data.owner_prefix and form_data.owner_prefix not in (owner_prefixes or []) %}
+            <option value="{{ form_data.owner_prefix }}" selected>{{ form_data.owner_prefix }}</option>
             {% endif %}
           </select>
           <button type="button" id="delete-owner-prefix-btn" class="btn btn-danger ms-2" title="Seçili kısaltmayı sil">Sil</button>
@@ -228,7 +244,7 @@
       <!-- 9. Demirbaş ise Seri Numaraları (sadece demirbaşta görünür) -->
       <div class="mb-3 demirbas-only" style="display:none;">
         <label for="serial_numbers" class="form-label">Seri Numaraları</label>
-        <textarea class="form-control" id="serial_numbers" name="serial_numbers" rows="3" placeholder="Seri numaralarını virgülle ayırarak girin (örn: 001, 002, 003)" maxlength="100"></textarea>
+        <textarea class="form-control" id="serial_numbers" name="serial_numbers" rows="3" placeholder="Seri numaralarını virgülle ayırarak girin (örn: 001, 002, 003)" maxlength="100">{{ form_data.serial_numbers_raw or '' }}</textarea>
         <div class="form-text">Toplamda en fazla 100 karakter.</div>
       </div>
 
@@ -412,6 +428,12 @@ $(document).ready(function () {
 
   // Sayfa ilk açıldığında kontrol et
   updateDemirbasFieldsVisibility();
+  
+  // Hata sonrası geri dönüşte mevcut kategoriyi seç
+  var savedCategory = $('#category-input').val();
+  if (savedCategory) {
+    selectCategory(savedCategory);
+  }
 });
 
 // Ürün tipi seçimi fonksiyonu

@@ -4,7 +4,7 @@
 # GEREKLİ KÜTÜPHANELERİN VE MODÜLLERİN YÜKLENMESİ
 # ==============================================================================
 import uuid
-from flask import Flask, render_template, request, redirect, url_for, flash, abort, g
+from flask import Flask, render_template, request, redirect, url_for, flash, abort, g, send_file, jsonify
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_migrate import Migrate
@@ -20,8 +20,29 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# LDAP configuration (can be set via environment variables)
+USE_LDAP_AUTH = os.environ.get('USE_LDAP_AUTH', '0') in ('1', 'true', 'True')
+LDAP_HOST = os.environ.get('LDAP_HOST', '172.28.1.103')
+LDAP_PORT = int(os.environ.get('LDAP_PORT', os.environ.get('LDAP_PORT', 3890)))
+LDAP_USE_SSL = os.environ.get('LDAP_USE_SSL', '0') in ('1', 'true', 'True')
+LDAP_BASE_DN = os.environ.get('LDAP_BASE_DN', '')
+LDAP_USER_ATTR = os.environ.get('LDAP_USER_ATTR', 'uid')
+# Optional credentials to perform an initial search (if anonymous search is not allowed)
+LDAP_SEARCH_BIND_DN = os.environ.get('LDAP_SEARCH_BIND_DN')
+LDAP_SEARCH_BIND_PASS = os.environ.get('LDAP_SEARCH_BIND_PASS')
+
+# LDAP Group configuration for role management
+# Admin group - users in this group will have admin role
+LDAP_ADMIN_GROUP = os.environ.get('LDAP_ADMIN_GROUP', 'istifci_admins')  # Default: istifci_admins
+# Group base DN for searching groups (if different from LDAP_BASE_DN)
+LDAP_GROUP_BASE_DN = os.environ.get('LDAP_GROUP_BASE_DN', '')
+# Group member attribute (memberUid, member, uniqueMember etc.)
+LDAP_GROUP_MEMBER_ATTR = os.environ.get('LDAP_GROUP_MEMBER_ATTR', 'memberUid')
+
+from ldap3 import Server, Connection, ALL, SUBTREE
+
 # Proje içi modüller
-from models import db, User, Component, BorrowLog, Project, ProjectItem, Tag, Request, InventoryItem
+from models import db, User, Component, BorrowLog, Project, ProjectItem, Tag, Request, InventoryItem, RequestItem
 
 # ==============================================================================
 # YARDIMCI FONKSİYONLAR
@@ -162,6 +183,12 @@ def inject_timezone():
     """Tarih/saat gösterimleri için zaman dilimini şablonlara ekler."""
     return dict(tz=ZoneInfo("Europe/Istanbul"))
 
+@app.context_processor
+def inject_datetime():
+    """Template'lerde datetime.now() kullanabilmek için."""
+    from datetime import datetime
+    return dict(now=datetime.now)
+
 # `utility_processor` fonksiyonunu context processor olarak kaydet
 app.context_processor(utility_processor)
 
@@ -171,6 +198,23 @@ def get_user_by_username(username):
     Kullanıcı adına göre User nesnesini döndüren bir template filtresi.
     """
     return User.query.filter_by(username=username).first()
+
+
+@app.template_filter('tr_date')
+def tr_date(value, with_time=False):
+    """Tarihleri Turkce ay adlari ile formatlar."""
+    if not value:
+        return ''
+
+    month_names = {
+        1: 'Ocak', 2: 'Subat', 3: 'Mart', 4: 'Nisan', 5: 'Mayis', 6: 'Haziran',
+        7: 'Temmuz', 8: 'Agustos', 9: 'Eylul', 10: 'Ekim', 11: 'Kasim', 12: 'Aralik'
+    }
+    month_name = month_names.get(value.month, '')
+
+    if with_time:
+        return f"{value.day:02d} {month_name} {value.year} {value:%H:%M}"
+    return f"{value.day:02d} {month_name} {value.year}"
 
 # ==============================================================================
 # ANA SAYFA VE KULLANICI İŞLEMLERİ (GİRİŞ, ÇIKIŞ, ŞİFRE DEĞİŞTİRME)
@@ -187,7 +231,7 @@ def index():
     all_categories = sorted({c[0] for c in raw_cats if c and c[0]})
 
     # Temel sorgu
-    query = Component.query
+    query = Component.query.filter_by(is_deleted=False)
 
     # Arama filtresi
     if search_query:
@@ -239,6 +283,178 @@ def index():
 def login():
     """Kullanıcı giriş sayfasını yönetir."""
     if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+
+        # If LDAP auth is enabled, try LDAP first
+        if USE_LDAP_AUTH and username and password:
+            try:
+                def check_ldap_group_membership(usern, user_dn):
+                    """Check if user is member of admin group.
+                    
+                    Returns True if user is in admin group, False otherwise.
+                    """
+                    if not LDAP_ADMIN_GROUP:
+                        return False
+                    
+                    try:
+                        server = Server(LDAP_HOST, port=LDAP_PORT, use_ssl=LDAP_USE_SSL, get_info=ALL)
+                        
+                        # Connect with search credentials
+                        if LDAP_SEARCH_BIND_DN and LDAP_SEARCH_BIND_PASS:
+                            conn = Connection(server, user=LDAP_SEARCH_BIND_DN, password=LDAP_SEARCH_BIND_PASS, auto_bind=True)
+                        else:
+                            conn = Connection(server, auto_bind=True)
+                        
+                        # Determine group base DN
+                        group_base = LDAP_GROUP_BASE_DN if LDAP_GROUP_BASE_DN else LDAP_BASE_DN
+                        
+                        # Build search filter based on member attribute type
+                        if LDAP_GROUP_MEMBER_ATTR == 'memberUid':
+                            # For posixGroup - memberUid contains just username
+                            search_filter = f'(&(objectClass=*)(cn={LDAP_ADMIN_GROUP})(memberUid={usern}))'
+                        elif LDAP_GROUP_MEMBER_ATTR in ('member', 'uniqueMember'):
+                            # For groupOfNames/groupOfUniqueNames - member contains full DN
+                            search_filter = f'(&(objectClass=*)({LDAP_GROUP_MEMBER_ATTR}={user_dn}))'
+                        else:
+                            # Generic fallback
+                            search_filter = f'(&(objectClass=*)({LDAP_GROUP_MEMBER_ATTR}={usern}))'
+                        
+                        # If LDAP_ADMIN_GROUP is a full DN, search it directly
+                        if '=' in LDAP_ADMIN_GROUP and ',' in LDAP_ADMIN_GROUP:
+                            # It's a DN, search for it
+                            if LDAP_GROUP_MEMBER_ATTR == 'memberUid':
+                                search_filter = f'(memberUid={usern})'
+                            else:
+                                search_filter = f'({LDAP_GROUP_MEMBER_ATTR}={user_dn})'
+                            conn.search(search_base=LDAP_ADMIN_GROUP, search_filter=search_filter, search_scope='BASE', attributes=['cn'])
+                        else:
+                            # It's just a group name, search under group base
+                            conn.search(search_base=group_base, search_filter=search_filter, search_scope=SUBTREE, attributes=['cn'])
+                        
+                        is_member = len(conn.entries) > 0
+                        conn.unbind()
+                        return is_member
+                        
+                    except Exception as e:
+                        logging.exception(f"LDAP group check error: {e}")
+                        return False
+                
+                def ldap_authenticate(usern, pwd):
+                    """Try to authenticate against LDAP.
+
+                    Returns a tuple (ok: bool, user_dn: str or None, attrs: dict).
+                    """
+                    server = Server(LDAP_HOST, port=LDAP_PORT, use_ssl=LDAP_USE_SSL, get_info=ALL)
+
+                    # If a search bind is configured, use it to find the user's DN.
+                    search_conn = None
+                    try:
+                        if LDAP_SEARCH_BIND_DN and LDAP_SEARCH_BIND_PASS:
+                            search_conn = Connection(server, user=LDAP_SEARCH_BIND_DN, password=LDAP_SEARCH_BIND_PASS, auto_bind=True)
+                        else:
+                            # anonymous bind or no pre-bind
+                            search_conn = Connection(server, auto_bind=False)
+                    except Exception:
+                        search_conn = None
+
+                    user_dn = None
+                    found_attrs = {}
+                    try:
+                        if search_conn and LDAP_BASE_DN:
+                            # search for the user to get DN
+                            search_filter = f'({LDAP_USER_ATTR}={usern})'
+                            if not search_conn.bound:
+                                try:
+                                    search_conn.open()
+                                except Exception:
+                                    pass
+                            try:
+                                search_conn.search(search_base=LDAP_BASE_DN, search_filter=search_filter, search_scope=SUBTREE, attributes=['*'])
+                                if search_conn.entries:
+                                    entry = search_conn.entries[0]
+                                    user_dn = entry.entry_dn
+                                    # convert attributes to dict of simple values
+                                    for k in entry.entry_attributes_as_dict:
+                                        found_attrs[k] = entry.entry_attributes_as_dict[k]
+                            except Exception:
+                                # search failed; we'll try a direct DN bind fallback below
+                                pass
+
+                    finally:
+                        try:
+                            if search_conn:
+                                search_conn.unbind()
+                        except Exception:
+                            pass
+
+                    # If we didn't find a DN via search, try a common DN pattern if base is provided
+                    if not user_dn and LDAP_BASE_DN:
+                        # Try e.g. uid=username,base or cn=username,base
+                        possible_dns = [f'{LDAP_USER_ATTR}={usern},{LDAP_BASE_DN}', f'cn={usern},{LDAP_BASE_DN}']
+                        for dn_try in possible_dns:
+                            try_conn = Connection(server, user=dn_try, password=pwd, auto_bind=True)
+                            if try_conn.bound:
+                                try_conn.unbind()
+                                return True, dn_try, {}
+                    # If we have a DN from search, try binding with that DN and the provided password
+                    if user_dn:
+                        try:
+                            user_conn = Connection(server, user=user_dn, password=pwd, auto_bind=True)
+                            if user_conn.bound:
+                                # success
+                                try:
+                                    user_conn.unbind()
+                                except Exception:
+                                    pass
+                                return True, user_dn, found_attrs
+                        except Exception:
+                            return False, None, {}
+
+                    return False, None, {}
+
+                ok, user_dn, ldap_attrs = ldap_authenticate(username, password)
+            except Exception as e:
+                ok = False
+                user_dn = None
+                ldap_attrs = {}
+
+            if ok:
+                # Check LDAP group membership for role assignment
+                is_ldap_admin = check_ldap_group_membership(username, user_dn)
+                
+                # Create local user record if missing (password_hash left null for LDAP users)
+                user = User.query.filter_by(username=username).first()
+                if not user:
+                    # Create local user record marking it as LDAP-managed
+                    user = User(username=username, is_ldap=True)
+                    # Set role based on LDAP group membership
+                    user.role = 'admin' if is_ldap_admin else 'user'
+                    # Optional: populate email or full name if available
+                    try:
+                        if 'mail' in ldap_attrs and ldap_attrs.get('mail'):
+                            # ldap_attrs values may be lists
+                            mail_val = ldap_attrs.get('mail')
+                            if isinstance(mail_val, (list, tuple)):
+                                mail_val = mail_val[0]
+                            # If your User model has an email field, set it here.
+                            # Example: user.email = mail_val
+                    except Exception:
+                        pass
+                    db.session.add(user)
+                    db.session.commit()
+                else:
+                    # Update existing LDAP user's role based on current group membership
+                    if user.is_ldap:
+                        new_role = 'admin' if is_ldap_admin else 'user'
+                        if user.role != new_role:
+                            user.role = new_role
+                            db.session.commit()
+
+                login_user(user)
+                return redirect(url_for('index'))
+
+        # Fallback: local DB authentication
         user = User.query.filter_by(username=request.form['username']).first()
         if user and user.check_password(request.form['password']):
             login_user(user)
@@ -261,6 +477,16 @@ def change_password():
         old_password = request.form.get('old_password')
         new_password = request.form.get('new_password')
         new_password2 = request.form.get('new_password2')
+
+        # If the user is LDAP-managed, prevent local password changes here.
+        # (Optional: implement LDAP password change separately if desired.)
+        try:
+            if getattr(current_user, 'is_ldap', False):
+                flash('Bu hesap LDAP tarafından yönetildiği için yerel şifre değişikliği desteklenmiyor.', 'warning')
+                return redirect(url_for('index'))
+        except Exception:
+            # If current_user doesn't have attribute, fall back to normal behavior
+            pass
 
         if not current_user.check_password(old_password):
             flash("Mevcut şifreniz yanlış.", "danger")
@@ -335,7 +561,7 @@ def component_list():
     # Bileşenleri sıralı şekilde getir
     components = Component.query.order_by(order_by).all()
     
-    return render_template('components/list.html', 
+    return render_template('admin/component_list.html', 
                          components=components,
                          sort_by=sort_by,
                          sort_direction=sort_direction)
@@ -434,7 +660,27 @@ def add_component():
     selected_tags = []
     owner_prefixes = [i[0] for i in db.session.query(InventoryItem.serial_number).distinct().all() if i[0]]
     owner_prefixes = list({sn.split('-')[0] for sn in owner_prefixes if '-' in sn})  # Prefixleri ayıkla
+    locations = [loc[0] for loc in db.session.query(Component.location).distinct().all() if loc[0]]
 
+    # Form verileri için boş başlangıç değerleri veya URL parametrelerinden gelen değerler (istek formundan)
+    form_data = {}
+    from_request = request.args.get('from_request')
+    request_item_id = request.args.get('request_item_id')  # Çoklu ürün içeren isteklerden gelen item ID
+    
+    # URL parametrelerinden gelen değerleri form_data'ya aktar (satın alma isteğinden geliyorsa)
+    if request.method == 'GET' and (from_request or request_item_id):
+        form_data = {
+            'name': request.args.get('name', ''),
+            'category': request.args.get('category', ''),
+            'type': request.args.get('type', ''),
+            'description': request.args.get('description', ''),
+            'quantity': request.args.get('quantity', '1'),
+        }
+        # Etiketleri işle
+        tags_str = request.args.get('tags', '')
+        if tags_str:
+            selected_tags = [t.strip() for t in tags_str.split(',') if t.strip()]
+    
     if request.method == 'POST':
         try:
             # --- 1. Form Verilerini Topla ve Doğrula ---
@@ -453,7 +699,7 @@ def add_component():
 
             if not (form_data['quantity'].isdigit() and int(form_data['quantity']) >= 0):
                 flash("Geçerli pozitif bir miktar giriniz.", "danger")
-                return render_template('add.html', types=types, existing_tags=existing_tags, selected_tags=selected_tags, owner_prefixes=owner_prefixes)
+                return render_template('add.html', types=types, existing_tags=existing_tags, selected_tags=form_data.get('tags_raw', []), owner_prefixes=owner_prefixes, locations=locations, form_data=form_data)
             
             quantity_int = int(form_data['quantity'])
 
@@ -462,12 +708,12 @@ def add_component():
             if is_fixed_asset(form_data['category']):
                 if not form_data['owner_prefix']:
                     flash("Demirbaşlar için sahiplik kısaltması (prefix) zorunludur.", "danger")
-                    return render_template('add.html', types=types, existing_tags=existing_tags, selected_tags=selected_tags, owner_prefixes=owner_prefixes)
+                    return render_template('add.html', types=types, existing_tags=existing_tags, selected_tags=form_data.get('tags_raw', []), owner_prefixes=owner_prefixes, locations=locations, form_data=form_data)
 
                 serial_numbers = [f"{form_data['owner_prefix']}-{sn.strip()}" for sn in form_data['serial_numbers_raw'].split(',') if sn.strip()]
                 if len(serial_numbers) != quantity_int:
                     flash("Seri numarası sayısı ile miktar eşleşmeli.", "danger")
-                    return render_template('add.html', types=types, existing_tags=existing_tags, selected_tags=selected_tags, owner_prefixes=owner_prefixes)
+                    return render_template('add.html', types=types, existing_tags=existing_tags, selected_tags=form_data.get('tags_raw', []), owner_prefixes=owner_prefixes, locations=locations, form_data=form_data)
 
             # --- 3. Veritabanı İşlemlerini Başlat ---
             image_url = _handle_photo_upload(request.files.get('photo'))
@@ -495,6 +741,22 @@ def add_component():
                     item = InventoryItem(component_id=component.id, serial_number=sn)
                     db.session.add(item)
 
+            # İstek kalemi varsa, envantere eklendiğini işaretle
+            request_item_id_post = request.form.get('request_item_id')
+            from_request_post = request.form.get('from_request')
+            
+            if request_item_id_post:
+                req_item = RequestItem.query.get(int(request_item_id_post))
+                if req_item:
+                    req_item.added_to_inventory = True
+                    req_item.added_component_id = component.id
+            elif from_request_post:
+                # Eski tek ürünlü istek durumu için Request modelini güncelle
+                req = Request.query.get(int(from_request_post))
+                if req:
+                    req.added_to_inventory = True
+                    req.added_component_id = component.id
+
             db.session.commit()
             flash(f"{component.name} bileşeni eklendi. Kod: {component.code}", "success")
             return redirect(url_for('index'))
@@ -502,12 +764,14 @@ def add_component():
         except ValueError as ve:
             db.session.rollback()
             flash(str(ve), "danger")
+            return render_template('add.html', types=types, existing_tags=existing_tags, selected_tags=form_data.get('tags_raw', []), owner_prefixes=owner_prefixes, locations=locations, form_data=form_data)
         except Exception as e:
             db.session.rollback()
             logging.exception("Component eklenirken bir hata oluştu.")
             flash("Bileşen eklenirken beklenmedik bir hata oluştu.", "danger")
+            return render_template('add.html', types=types, existing_tags=existing_tags, selected_tags=form_data.get('tags_raw', []), owner_prefixes=owner_prefixes, locations=locations, form_data=form_data)
 
-    return render_template('add.html', types=types, existing_tags=existing_tags, selected_tags=selected_tags, owner_prefixes=owner_prefixes)
+    return render_template('add.html', types=types, existing_tags=existing_tags, selected_tags=selected_tags, owner_prefixes=owner_prefixes, locations=locations, form_data=form_data)
 
 
 @app.route('/component/<int:comp_id>')
@@ -704,16 +968,37 @@ def delete_component(comp_id):
 
     component = Component.query.get_or_404(comp_id)
 
-    inventory_items = InventoryItem.query.filter_by(component_id=comp_id).all()
-    for item in inventory_items:
-        db.session.delete(item)
-
-    BorrowLog.query.filter_by(comp_id=comp_id).delete()
-
-    db.session.delete(component)
+    # STOKT MİKTARINI SIFIRLA VE SİLİNDİ OLARAK İŞARETLE
+    # InventoryItem ve BorrowLog kayıtlarını silmiyoruz, sadece ilişkiyi koparıyoruz veya olduğu gibi bırakıyoruz.
+    # Kullanıcı isteği: "urunler tam olarak silinemesin sadece is_deleted booleni eklensin"
+    
+    # Ancak stok miktarını 0 yapmalıyız ki sistemde var gibi gözükmesin (veya low_stock'a düşmesin diye ne yapmalı?
+    # Eğer low_stock'ta is_deleted kontrolü yaparsak sorun olmaz.)
+    
+    component.is_deleted = True
+    # component.quantity = 0 # İsteğe bağlı: miktar sıfırlanabilir, ama geçmiş takibi için kalması daha iyi olabilir.
+    
     db.session.commit()
-    flash(f"{component.name} bileşeni silindi.")
+    flash(f"{component.name} bileşeni silindi (Arşivlendi).")
     return redirect(url_for('index'))
+
+@app.route('/restore/<int:comp_id>', methods=['POST'])
+@login_required
+def restore_component(comp_id):
+    """Soft-delete edilmiş bir bileşeni geri getirir."""
+    if not current_user.is_admin():
+        return "Bu işlemi yapmaya yetkiniz yok.", 403
+
+    component = Component.query.get_or_404(comp_id)
+
+    if not component.is_deleted:
+        flash(f"{component.name} zaten aktif durumda.", "warning")
+        return redirect(url_for('component_list'))
+
+    component.is_deleted = False
+    db.session.commit()
+    flash(f"{component.name} bileşeni başarıyla geri getirildi.")
+    return redirect(url_for('component_list'))
 
 # ==============================================================================
 # STOK VE ENVANTER İŞLEMLERİ
@@ -754,6 +1039,23 @@ def update_stock(comp_id):
             db.session.add(new_item)
 
         component.quantity += amount
+        
+        # İstek kalemi varsa, envantere eklendiğini işaretle
+        request_item_id = request.form.get('request_item_id')
+        from_request_id = request.form.get('from_request')
+        
+        if request_item_id:
+            req_item = RequestItem.query.get(int(request_item_id))
+            if req_item:
+                req_item.added_to_inventory = True
+                req_item.added_component_id = component.id
+        elif from_request_id:
+            # Tek ürünlü istek için Request modelini güncelle
+            req = Request.query.get(int(from_request_id))
+            if req:
+                req.added_to_inventory = True
+                req.added_component_id = component.id
+        
         flash(f"{amount} adet stok eklendi.", "success")
 
     elif action == 'decrease':
@@ -798,8 +1100,8 @@ def low_stock():
     # Sarf malzemeleri için koşul (stok 5'in altına düştüğünde)
     consumable_condition = (Component.category == 'sarf') & (Component.quantity < 5)
 
-    # Temel sorgu
-    query = Component.query.filter(or_(fixed_asset_condition, consumable_condition))
+    # Temel sorgu - Silinmiş ürünleri hariç tut
+    query = Component.query.filter(Component.is_deleted == False).filter(or_(fixed_asset_condition, consumable_condition))
 
     # Get all categories for the filter buttons, based on the low_stock query
     all_categories_query = query.with_entities(Component.category).distinct().all()
@@ -811,7 +1113,7 @@ def low_stock():
 
     low_stock_components = query.order_by(Component.quantity).all()
     
-    return render_template('low_stock.html', 
+    return render_template('admin/low_stock.html', 
                            components=low_stock_components,
                            all_categories=all_categories,
                            selected_category=selected_category)
@@ -871,6 +1173,14 @@ def process_item(comp_id):
         if inventory_item.assigned_to:
             flash(f"Bu seri numarası ({serial_number}) zaten '{inventory_item.assigned_to}' kullanıcısına atanmış.", "danger")
             return redirect(url_for('index'))
+        
+        # --- YENİ ---
+        # Eğer ürün arızalı ise ödünç verilmesini engelle
+        if inventory_item.is_defective:
+            flash(f"Bu seri numaralı ürün ({serial_number}) arızalı olarak işaretlenmiş ve ödünç alınamaz.", "danger")
+            return redirect(url_for('index'))
+        # ------------
+
         inventory_item.assigned_to = User.query.get(user_id).username
 
     component.quantity -= amount
@@ -1058,29 +1368,255 @@ def my_borrowed():
 @app.route('/istekler', methods=['GET', 'POST'])
 @login_required
 def requests():
+    # Desteklenen filtreler
+    status = request.args.get('status', 'all')
+    req_type = request.args.get('type', 'all')
+    search_query = request.args.get('q', '').strip()
+    sort_by = request.args.get('sort', 'newest')
+    exclude_status = request.args.get('exclude', '')  # Hariç tutulacak durum
+
     if request.method == 'POST':
-        name = request.form['name'].strip()
+        name = request.form.get('name', '').strip()
         description = request.form.get('description', '').strip()
+        req_type_form = request.form.get('req_type', 'satin_alma')
         if not name:
             flash("Ürün adı zorunlu.", "danger")
         else:
-            req = Request(name=name, description=description, created_by=current_user.id)
+            req = Request(name=name, description=description, created_by=current_user.id, req_type=req_type_form)
             db.session.add(req)
             db.session.commit()
-            flash("istek eklendi.", "success")
+            flash("İstek eklendi.", "success")
+        if status and status != 'all':
+            return redirect(url_for('requests', status=status))
         return redirect(url_for('requests'))
-    requests = Request.query.order_by(Request.created_at.desc()).all()
-    return render_template('requests.html', requests=requests)
+
+    # Build base query - herkes sadece kendi isteklerini görür
+    base_q = Request.query.filter_by(created_by=current_user.id)
+
+    # Calculate stats before filtering (but after user filter)
+    stats = {
+        'total': base_q.count(),
+        'beklemede': base_q.filter(Request.req_status == 'beklemede').count(),
+        'kabul': base_q.filter(Request.req_status == 'kabul').count(),
+        'reddedildi': base_q.filter(Request.req_status == 'reddedildi').count(),
+        'tamamlandi': base_q.filter(Request.req_status == 'tamamlandi').count()
+    }
+
+    # Apply status filter
+    if status and status != 'all':
+        base_q = base_q.filter(Request.req_status == status)
+    
+    # Apply exclude filter (hariç tutma)
+    if exclude_status:
+        base_q = base_q.filter(Request.req_status != exclude_status)
+
+    # Apply type filter
+    if req_type and req_type != 'all':
+        base_q = base_q.filter(Request.req_type == req_type)
+
+    # Apply search filter
+    if search_query:
+        search_pattern = f'%{search_query}%'
+        base_q = base_q.filter(
+            db.or_(
+                Request.name.ilike(search_pattern),
+                Request.description.ilike(search_pattern)
+            )
+        )
+
+    # Apply sorting
+    if sort_by == 'oldest':
+        base_q = base_q.order_by(Request.created_at.asc())
+    elif sort_by == 'name':
+        base_q = base_q.order_by(Request.name.asc())
+    else:  # newest (default)
+        base_q = base_q.order_by(Request.created_at.desc())
+
+    requests_list = base_q.all()
+
+    return render_template('requests.html', 
+                           requests=requests_list, 
+                           current_status=status,
+                           current_type=req_type,
+                           current_search=search_query,
+                           current_sort=sort_by,
+                           current_exclude=exclude_status,
+                           stats=stats)
+
+
+@app.route('/istek/olustur', methods=['GET', 'POST'])
+@login_required
+def create_request():
+    """Yeni istek oluşturma sayfası."""
+    status = request.args.get('status', 'all')
+    if request.method == 'POST':
+        description = request.form.get('description', '').strip()
+        req_type = request.form.get('req_type', 'satin_alma')
+        budget = request.form.get('budget', '').strip()
+        
+        # External product fields (for ariza/bakim)
+        external_product_name = request.form.get('external_product_name', '').strip()
+        external_description = request.form.get('external_description', '').strip()
+        
+        # Arıza/bakım isteği
+        if req_type in ['ariza', 'bakim']:
+            component_id = request.form.get('component_id')
+            name = ''
+            selected_component = None
+            
+            if component_id and component_id.isdigit():
+                selected_component = Component.query.get(int(component_id))
+                if selected_component:
+                    name = selected_component.name
+            
+            # Envanter dışı ürün
+            if external_product_name:
+                name = external_product_name
+                if not external_description:
+                    flash('Açıklama zorunlu.', 'danger')
+                    return redirect(url_for('create_request', status=status))
+                description = external_description
+            elif not description:
+                flash('Açıklama zorunlu.', 'danger')
+                return redirect(url_for('create_request', status=status))
+            
+            if not name:
+                flash('Ürün adı zorunlu.', 'danger')
+                return redirect(url_for('create_request', status=status))
+            
+            req = Request(name=name, description=description, created_by=current_user.id, req_type=req_type)
+            req.username = current_user.username
+            
+            if selected_component:
+                req.component_id = selected_component.id
+            
+            serial_number = request.form.get('serial_number', '').strip()
+            if serial_number:
+                req.serial_number = serial_number
+            
+            db.session.add(req)
+            
+            # --- YENİ ---
+            # Eğer istek türü 'ariza' ise ve seri numarası belirtilmişse,
+            # ilgili InventoryItem'ı bul ve 'is_defective' olarak işaretle.
+            if req_type == 'ariza' and serial_number and selected_component:
+                inventory_item = InventoryItem.query.filter_by(
+                    component_id=selected_component.id, 
+                    serial_number=serial_number
+                ).first()
+                if inventory_item:
+                    inventory_item.is_defective = True
+                    # Opsiyonel: Eğer ürün zimmetliyse, bunu kaldırmak gerekebilir mi? 
+                    # Şimdilik zimmeti kaldırmıyoruz, sadece arızalı işaretliyoruz.
+                    # Eğer zimmet düşsün istenseydi: inventory_item.assigned_to = None
+            # ------------
+
+            db.session.commit()
+            flash('İstek eklendi.', 'success')
+            
+        # Satın alma isteği - birden fazla ürün desteği
+        else:
+            if not budget:
+                flash('Bütçe seçimi zorunlu.', 'danger')
+                return redirect(url_for('create_request', status=status))
+
+            if not description:
+                flash('İstek açıklaması zorunlu.', 'danger')
+                return redirect(url_for('create_request', status=status))
+
+            # Ürün bilgilerini al
+            item_names = request.form.getlist('item_name[]')
+            item_component_ids = request.form.getlist('item_component_id[]')
+            item_categories = request.form.getlist('item_category[]')
+            item_types = request.form.getlist('item_type[]')
+            item_descriptions = request.form.getlist('item_description[]')
+            item_tags = request.form.getlist('item_tags[]')
+            item_quantities = request.form.getlist('item_quantity[]')
+            item_links = request.form.getlist('item_link[]')
+            item_prices = request.form.getlist('item_price[]')
+            
+            if not item_names or all(not n.strip() for n in item_names):
+                flash('En az bir ürün eklemelisiniz.', 'danger')
+                return redirect(url_for('create_request', status=status))
+            
+            # Ana istek kaydı
+            first_name = item_names[0].strip() if item_names else 'Satın Alma İsteği'
+            req = Request(
+                name=first_name,
+                description=description,
+                created_by=current_user.id,
+                req_type=req_type,
+                budget=budget if budget else None
+            )
+            req.username = current_user.username
+            
+            # Toplam fiyat hesaplama
+            total_request_price = 0
+            
+            # Her ürün için RequestItem oluştur
+            for i in range(len(item_names)):
+                name = item_names[i].strip() if i < len(item_names) else ''
+                if not name:
+                    continue
+                
+                component_id = item_component_ids[i] if i < len(item_component_ids) else ''
+                category = item_categories[i] if i < len(item_categories) else ''
+                item_type = item_types[i] if i < len(item_types) else ''
+                item_desc = item_descriptions[i] if i < len(item_descriptions) else ''
+                tags = item_tags[i] if i < len(item_tags) else ''
+                
+                try:
+                    quantity = int(item_quantities[i]) if i < len(item_quantities) and item_quantities[i] else 1
+                except ValueError:
+                    quantity = 1
+                
+                link = item_links[i] if i < len(item_links) else ''
+                
+                try:
+                    unit_price = float(item_prices[i]) if i < len(item_prices) and item_prices[i] else None
+                except ValueError:
+                    unit_price = None
+                
+                item_total = (unit_price * quantity) if unit_price else None
+                if item_total:
+                    total_request_price += item_total
+                
+                request_item = RequestItem(
+                    name=name,
+                    component_id=int(component_id) if component_id and component_id.isdigit() else None,
+                    product_category=category if category else None,
+                    product_type=item_type if item_type else None,
+                    product_description=item_desc if item_desc else None,
+                    tags=tags if tags else None,
+                    quantity=quantity,
+                    purchase_link=link if link else None,
+                    unit_price=unit_price,
+                    total_price=item_total
+                )
+                req.items.append(request_item)
+            
+            # Ana istek toplam fiyatını güncelle
+            req.total_price = total_request_price if total_request_price > 0 else None
+            
+            db.session.add(req)
+            db.session.commit()
+            flash('İstek eklendi.', 'success')
+        
+        if status and status != 'all':
+            return redirect(url_for('requests', status=status))
+        return redirect(url_for('requests'))
+
+    components = Component.query.filter_by(is_deleted=False).order_by(Component.name).all()
+    types = sorted({(c.type or 'Diğer') for c in components})
+    categories = sorted({(c.category or 'Diğer') for c in components})
+    existing_tags = Tag.query.order_by(Tag.name).all()
+    return render_template('create_request.html', current_status=status, components=components, component_types=types, component_categories=categories, existing_tags=existing_tags)
 
 @app.route('/delete_request/<int:req_id>', methods=['POST'])
 @login_required
 def delete_request(req_id):
-    if not current_user.is_admin():
-        abort(403)
-    req = Request.query.get_or_404(req_id)
-    db.session.delete(req)
-    db.session.commit()
-    flash('istek başarıyla silindi.', 'success')
+    # İstekler silinemez
+    flash('İstekler silinemez.', 'danger')
     return redirect(url_for('requests'))
 
 # ==============================================================================
@@ -1107,7 +1643,7 @@ def manage_users():
 @app.route('/admin/users/<int:user_id>/edit', methods=['GET', 'POST'])
 @login_required
 def edit_user(user_id):
-    """Adminlerin kullanıcı bilgilerini (rol, şifre) düzenlemesini sağlar."""
+    """Adminlerin kullanıcı bilgilerini (rol, şifre, yetkiler) düzenlemesini sağlar."""
     if not current_user.is_admin():
         abort(403)
     user = User.query.get_or_404(user_id)
@@ -1115,9 +1651,17 @@ def edit_user(user_id):
         role = request.form.get('role')
         new_password = request.form.get('new_password')
         new_password2 = request.form.get('new_password2')
+        
+        # Yetkileri al
+        can_add_product = bool(request.form.get('can_add_product'))
+        can_delete_product = bool(request.form.get('can_delete_product'))
 
         if role in ['user', 'admin']:
             user.role = role
+        
+        # Yetkileri güncelle
+        user.can_add_product = can_add_product
+        user.can_delete_product = can_delete_product
 
         if new_password:
             if not new_password2 or new_password != new_password2:
@@ -1134,7 +1678,7 @@ def edit_user(user_id):
 @app.route('/admin/users/delete/<int:user_id>', methods=['POST'])
 @login_required
 def delete_user(user_id):
-    """Adminlerin kullanıcı silmesini sağlar."""
+    """Adminlerin kullanıcı silmesini sağlar. Log kayıtları korunur."""
     if not current_user.is_admin():
         flash("Bu işlemi yapmak için yetkiniz yok!")
         return redirect(url_for('index'))
@@ -1145,9 +1689,38 @@ def delete_user(user_id):
         flash("Kendi hesabınızı silemezsiniz!")
         return redirect(url_for('manage_users'))
 
-    db.session.delete(user)
-    db.session.commit()
-    flash(f"{user.username} silindi.")
+    try:
+        # Kullanıcının aktif ödünç aldığı (iade etmediği) ürünler var mı kontrol et
+        active_borrows = BorrowLog.query.filter_by(user_id=user.id, action='borrow').count()
+        returned = BorrowLog.query.filter_by(user_id=user.id, action='return').count()
+        
+        if active_borrows > returned:
+            flash(f"{user.username} kullanıcısının iade etmediği ürünler var. Önce iade işlemlerini tamamlayın.", "danger")
+            return redirect(url_for('manage_users'))
+
+        username = user.username  # Kullanıcı adını sakla
+        
+        # Log kayıtlarını koru - username alanını doldur, user_id NULL olacak (ondelete='SET NULL')
+        BorrowLog.query.filter_by(user_id=user.id).update({'username': username})
+        
+        # ComponentLog kayıtlarını güncelle
+        from models import ComponentLog
+        ComponentLog.query.filter_by(user_id=user.id).update({'user_id': None})
+        
+        # Request kayıtlarını güncelle
+        Request.query.filter_by(created_by=user.id).update({'username': username})
+        
+        # Project kayıtlarını güncelle
+        Project.query.filter_by(user_id=user.id).update({'username': username})
+
+        db.session.delete(user)
+        db.session.commit()
+        flash(f"{username} silindi. Geçmiş kayıtlar korundu.", "success")
+    except Exception as e:
+        db.session.rollback()
+        logging.exception(f"Kullanıcı silinirken hata: {user.username}")
+        flash(f"Kullanıcı silinirken bir hata oluştu: {str(e)}", "danger")
+    
     return redirect(url_for('manage_users'))
 
 @app.route('/admin/users/toggle_role/<int:user_id>', methods=['POST'])
@@ -1168,6 +1741,241 @@ def toggle_user_role(user_id):
     db.session.commit()
     flash(f"{user.username} rolü güncellendi.")
     return redirect(url_for('manage_users'))
+
+
+# ------------------------------------------------------------------------------
+# Admin: Requests management (list, filter, change status)
+# ------------------------------------------------------------------------------
+
+@app.route('/admin/requests')
+@login_required
+def admin_requests():
+    """Admin istek yönetim sayfası."""
+    if not current_user.is_admin():
+        abort(403)
+
+    status = request.args.get('status', 'all')
+    req_type = request.args.get('type', 'all')
+    search_query = request.args.get('q', '').strip()
+    sort_by = request.args.get('sort', 'newest')
+    user_filter = request.args.get('user', 'all')
+    exclude_status = request.args.get('exclude', '')  # Hariç tutulacak durum
+    
+    # Kullanıcı listesi (istek oluşturmuş kullanıcılar)
+    users_with_requests = db.session.query(User).join(Request, User.id == Request.created_by).distinct().order_by(User.username).all()
+    
+    # İstatistikler
+    stats = {
+        'total': Request.query.count(),
+        'beklemede': Request.query.filter_by(req_status='beklemede').count(),
+        'kabul': Request.query.filter_by(req_status='kabul').count(),
+        'reddedildi': Request.query.filter_by(req_status='reddedildi').count(),
+        'tamamlandi': Request.query.filter_by(req_status='tamamlandi').count()
+    }
+    
+    q = Request.query
+    if status and status != 'all':
+        q = q.filter_by(req_status=status)
+    
+    # Exclude filter (hariç tutma)
+    if exclude_status:
+        q = q.filter(Request.req_status != exclude_status)
+    
+    if req_type and req_type != 'all':
+        q = q.filter_by(req_type=req_type)
+    if user_filter and user_filter != 'all':
+        q = q.filter_by(created_by=int(user_filter))
+    if search_query:
+        q = q.filter(
+            db.or_(
+                Request.name.ilike(f'%{search_query}%'),
+                Request.description.ilike(f'%{search_query}%'),
+                Request.username.ilike(f'%{search_query}%'),
+                Request.serial_number.ilike(f'%{search_query}%')
+            )
+        )
+    
+    # Sıralama
+    if sort_by == 'oldest':
+        q = q.order_by(Request.created_at.asc())
+    elif sort_by == 'name':
+        q = q.order_by(Request.name.asc())
+    else:
+        q = q.order_by(Request.created_at.desc())
+
+    requests_list = q.all()
+    return render_template('admin/manage_requests.html', 
+                          requests=requests_list, 
+                          current_status=status, 
+                          current_type=req_type,
+                          current_search=search_query,
+                          current_sort=sort_by,
+                          current_user_filter=user_filter,
+                          current_exclude=exclude_status,
+                          users_with_requests=users_with_requests,
+                          stats=stats)
+
+
+@app.route('/admin/request/<int:req_id>/set_status', methods=['POST'])
+@login_required
+def admin_set_request_status(req_id):
+    """Admin istek durumunu günceller."""
+    if not current_user.is_admin():
+        abort(403)
+
+    new_status = request.form.get('status')
+    admin_note = request.form.get('admin_note', '').strip()
+    
+    if new_status not in ('beklemede', 'reddedildi', 'kabul', 'tamamlandi'):
+        flash('Geçersiz durum.', 'danger')
+        return redirect(url_for('admin_requests'))
+
+    req = Request.query.get_or_404(req_id)
+    
+    # Kabul edilmiş veya tamamlanmış istekler reddedilemez
+    if req.req_status in ('kabul', 'tamamlandi') and new_status == 'reddedildi':
+        flash('Kabul edilmiş veya tamamlanmış istekler reddedilemez.', 'warning')
+        return redirect(url_for('admin_requests'))
+    
+    # Reddedilmiş istekler kabul edilemez
+    if req.req_status == 'reddedildi' and new_status in ('kabul', 'tamamlandi'):
+        flash('Reddedilmiş istekler kabul edilemez.', 'warning')
+        return redirect(url_for('admin_requests'))
+    
+    req.req_status = new_status
+    if admin_note:
+        req.admin_note = admin_note
+    db.session.commit()
+    flash('İstek durumu güncellendi.', 'success')
+    return redirect(url_for('admin_requests'))
+
+
+@app.route('/admin/requests/bulk_status', methods=['POST'])
+@login_required
+def admin_bulk_request_status():
+    """Admin toplu istek durumu günceller."""
+    if not current_user.is_admin():
+        abort(403)
+
+    new_status = request.form.get('status')
+    admin_note = request.form.get('admin_note', '').strip()
+    request_ids_str = request.form.get('request_ids', '')
+    
+    if new_status not in ('beklemede', 'reddedildi', 'kabul', 'tamamlandi'):
+        flash('Geçersiz durum.', 'danger')
+        return redirect(url_for('admin_requests'))
+    
+    if not request_ids_str:
+        flash('İşlem yapılacak istek seçilmedi.', 'warning')
+        return redirect(url_for('admin_requests'))
+    
+    # Parse request IDs
+    try:
+        request_ids = [int(id.strip()) for id in request_ids_str.split(',') if id.strip()]
+    except ValueError:
+        flash('Geçersiz istek ID formatı.', 'danger')
+        return redirect(url_for('admin_requests'))
+    
+    if not request_ids:
+        flash('İşlem yapılacak istek seçilmedi.', 'warning')
+        return redirect(url_for('admin_requests'))
+    
+    # Process each request
+    updated_count = 0
+    skipped_count = 0
+    
+    for req_id in request_ids:
+        req = Request.query.get(req_id)
+        if not req:
+            skipped_count += 1
+            continue
+        
+        # Apply business rules
+        if new_status == 'kabul':
+            # Can't accept rejected requests
+            if req.req_status == 'reddedildi':
+                skipped_count += 1
+                continue
+            # Skip already accepted/completed
+            if req.req_status in ('kabul', 'tamamlandi'):
+                skipped_count += 1
+                continue
+        elif new_status == 'reddedildi':
+            # Can't reject accepted or completed requests
+            if req.req_status in ('kabul', 'tamamlandi'):
+                skipped_count += 1
+                continue
+            # Skip already rejected
+            if req.req_status == 'reddedildi':
+                skipped_count += 1
+                continue
+        elif new_status == 'tamamlandi':
+            # Can only complete accepted requests
+            if req.req_status != 'kabul':
+                skipped_count += 1
+                continue
+        
+        req.req_status = new_status
+        if admin_note:
+            req.admin_note = admin_note
+        updated_count += 1
+    
+    db.session.commit()
+    
+    # Generate appropriate flash message
+    if updated_count > 0 and skipped_count > 0:
+        flash(f'{updated_count} istek güncellendi, {skipped_count} istek atlandı.', 'info')
+    elif updated_count > 0:
+        flash(f'{updated_count} istek başarıyla güncellendi.', 'success')
+    else:
+        flash('Hiçbir istek güncellenemedi.', 'warning')
+    
+    return redirect(url_for('admin_requests'))
+
+
+@app.route('/admin/request/<int:req_id>/generate_pdf', methods=['GET', 'POST'])
+@login_required
+def generate_request_pdf(req_id):
+    """Satın alma isteği için PDF form oluşturur."""
+    if not current_user.is_admin():
+        abort(403)
+    
+    req = Request.query.get_or_404(req_id)
+    
+    # Sadece satın alma istekleri için PDF oluşturulabilir
+    if req.req_type != 'satin_alma':
+        flash('PDF formu sadece satın alma istekleri için oluşturulabilir.', 'warning')
+        return redirect(url_for('admin_requests'))
+    
+    if request.method == 'POST':
+        # Admin verilerini al
+        admin_data = {
+            'ihtiyac_alani': request.form.get('ihtiyac_alani', '').strip(),
+            'tarih': request.form.get('tarih', '').strip(),
+            'talep_eden_birim': request.form.get('talep_eden_birim', '').strip()
+        }
+        
+        try:
+            from pdf_generator import generate_purchase_form
+            output_path, filename = generate_purchase_form(req, admin_data)
+            
+            # PDF'i indir
+            return send_file(
+                output_path,
+                mimetype='application/pdf',
+                as_attachment=True,
+                download_name=filename
+            )
+        except Exception as e:
+            flash(f'PDF oluşturulurken hata oluştu: {str(e)}', 'danger')
+            return redirect(url_for('admin_requests'))
+    
+    # GET - Form göster
+    from pdf_generator import get_form_preview_data
+    preview_data = get_form_preview_data(req)
+    
+    return render_template('admin/generate_pdf.html', req=req, preview=preview_data)
+
 
 @app.route('/admin/borrow_return', methods=['GET', 'POST'])
 @login_required
