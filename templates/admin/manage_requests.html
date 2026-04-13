@@ -896,14 +896,13 @@
                         {% endif %}
                       </div>
 
-                      <form method="post" action="{{ url_for('admin_request_messages', req_id=req.id) }}" class="mt-2" enctype="multipart/form-data" onclick="event.stopPropagation();">
+                      <form method="post" action="{{ url_for('admin_request_messages', req_id=req.id) }}" class="mt-2" enctype="multipart/form-data">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                        <input type="hidden" name="next" value="{{ request.full_path if request.query_string else request.path }}">
                         <div class="mb-2">
-                          <textarea name="message" class="form-control form-control-sm" rows="2" maxlength="2000" placeholder="Kullanıcıya mesaj yazın..."></textarea>
+                          <textarea name="message" class="form-control form-control-sm" rows="2" maxlength="2000" placeholder="Kullanıcıya mesaj yazın..." aria-label="Kullanıcıya mesaj"></textarea>
                         </div>
                         <div class="d-flex gap-2 align-items-center">
-                          <input type="file" name="attachment" class="form-control form-control-sm">
+                          <input type="file" name="attachment" class="form-control form-control-sm" aria-label="Dosya ekle">
                           <button type="submit" class="btn btn-sm btn-primary">Gönder</button>
                         </div>
                       </form>

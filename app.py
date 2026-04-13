@@ -130,7 +130,8 @@ def build_request_conversation_map(requests_list):
                 'legacy': True
             })
 
-        entries.sort(key=lambda e: (e.get('created_at') or datetime.min, e.get('id') or 0))
+        fallback_date = req.created_at or datetime.utcnow()
+        entries.sort(key=lambda e: (e.get('created_at') or fallback_date, e.get('id') or 0))
         conversation_map[req.id] = entries
 
     return conversation_map
@@ -171,18 +172,9 @@ def append_admin_note_message(req, note: str, admin_user):
 def build_request_return_url(default_endpoint: str, req_id: int):
     """
     Mesaj sonrası dönüş URL'sini güvenli şekilde oluşturur.
-    Sadece relatif next değerini kabul eder ve request kart anchor'ını ekler.
+    Kullanıcı girdisine bağlı yönlendirme yapılmaz.
     """
-    next_url = request.form.get('next', '').strip()
-    if next_url.startswith('/'):
-        target = next_url
-    else:
-        target = request.referrer or url_for(default_endpoint)
-
-    anchor = f"#request-{req_id}"
-    if '#' in target:
-        return target
-    return f"{target}{anchor}"
+    return f"{url_for(default_endpoint)}#request-{req_id}"
 
 
 def is_allowed_request_message_file(filename: str) -> bool:
@@ -216,6 +208,14 @@ def save_request_message_attachment(file_storage):
         'name': original_name,
         'mime': getattr(file_storage, 'mimetype', None)
     }
+
+
+def validate_request_message_content(message_body: str, has_attachment: bool) -> str | None:
+    if not message_body and not has_attachment:
+        return 'Mesaj veya dosya eklemelisiniz.'
+    if len(message_body) > REQUEST_MESSAGE_MAX_LENGTH:
+        return f'Mesaj en fazla {REQUEST_MESSAGE_MAX_LENGTH} karakter olabilir.'
+    return None
 
 def get_locations() -> list[str]:
     """
@@ -1794,11 +1794,9 @@ def request_messages(req_id):
             flash(str(ve), 'danger')
             return redirect(build_request_return_url('requests', req.id))
 
-    if not message_body and not saved_attachment:
-        flash('Mesaj veya dosya eklemelisiniz.', 'danger')
-        return redirect(build_request_return_url('requests', req.id))
-    if len(message_body) > REQUEST_MESSAGE_MAX_LENGTH:
-        flash(f'Mesaj en fazla {REQUEST_MESSAGE_MAX_LENGTH} karakter olabilir.', 'danger')
+    validation_error = validate_request_message_content(message_body, bool(saved_attachment))
+    if validation_error:
+        flash(validation_error, 'danger')
         return redirect(build_request_return_url('requests', req.id))
 
     message = RequestMessage(
@@ -1836,11 +1834,9 @@ def admin_request_messages(req_id):
             flash(str(ve), 'danger')
             return redirect(build_request_return_url('admin_requests', req.id))
 
-    if not message_body and not saved_attachment:
-        flash('Mesaj veya dosya eklemelisiniz.', 'danger')
-        return redirect(build_request_return_url('admin_requests', req.id))
-    if len(message_body) > REQUEST_MESSAGE_MAX_LENGTH:
-        flash(f'Mesaj en fazla {REQUEST_MESSAGE_MAX_LENGTH} karakter olabilir.', 'danger')
+    validation_error = validate_request_message_content(message_body, bool(saved_attachment))
+    if validation_error:
+        flash(validation_error, 'danger')
         return redirect(build_request_return_url('admin_requests', req.id))
 
     message = RequestMessage(
@@ -1873,11 +1869,9 @@ def edit_request_message(req_id, msg_id):
         abort(403)
 
     new_body = request.form.get('message', '').strip()
-    if not new_body and not msg.attachment_path:
-        flash('Mesaj boş bırakılamaz.', 'danger')
-        return redirect(build_request_return_url('requests', req.id))
-    if len(new_body) > REQUEST_MESSAGE_MAX_LENGTH:
-        flash(f'Mesaj en fazla {REQUEST_MESSAGE_MAX_LENGTH} karakter olabilir.', 'danger')
+    validation_error = validate_request_message_content(new_body, bool(msg.attachment_path))
+    if validation_error:
+        flash(validation_error, 'danger')
         return redirect(build_request_return_url('requests', req.id))
 
     msg.body = new_body
