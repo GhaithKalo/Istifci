@@ -259,9 +259,11 @@ def utility_processor():
 # ==============================================================================
 app = Flask(__name__, static_folder='static')
 app.secret_key = os.environ.get('SECRET_KEY', 'CHANGE_ME_DEV_ONLY')
+_instance_dir = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'instance')
+os.makedirs(_instance_dir, exist_ok=True)
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get(
     'DATABASE_URL',
-    'sqlite:///' + os.path.join(os.path.abspath(os.path.dirname(__file__)), 'instance', 'database.db')
+    'sqlite:///' + os.path.join(_instance_dir, 'database.db')
 )
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
