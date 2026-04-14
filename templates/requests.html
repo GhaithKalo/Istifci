@@ -732,19 +732,7 @@
                     </a>
                   </div>
                   {% endif %}
-                  {% if msg.message_type == 'chat' and msg.author_role == 'user' and msg.author_user_id == current_user.id and msg.id %}
-                  <div class="mt-2 d-flex gap-2">
-                    <form method="post" action="{{ url_for('edit_request_message', req_id=req.id, msg_id=msg.id) }}" class="d-flex gap-2 flex-grow-1">
-                      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                      <input type="text" name="message" class="form-control form-control-sm" value="{{ msg.body }}" maxlength="2000" placeholder="Mesajı düzenle" aria-label="Mesajı düzenle">
-                      <button type="submit" class="btn btn-sm btn-outline-secondary">Güncelle</button>
-                    </form>
-                    <form method="post" action="{{ url_for('delete_request_message', req_id=req.id, msg_id=msg.id) }}">
-                      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                      <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Mesaj silinsin mi?')">Sil</button>
-                    </form>
-                  </div>
-                  {% endif %}
+
                 </div>
                 {% endfor %}
               {% else %}

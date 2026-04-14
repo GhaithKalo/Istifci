@@ -1859,13 +1859,13 @@ def admin_request_messages(req_id):
 @app.route('/request/<int:req_id>/messages/<int:msg_id>/edit', methods=['POST'])
 @login_required
 def edit_request_message(req_id, msg_id):
-    """Kullanıcının kendi sohbet mesajını düzenlemesi."""
-    req = Request.query.get_or_404(req_id)
-    if req.created_by != current_user.id:
+    """Sohbet mesajı düzenleme (yalnızca admin)."""
+    if not current_user.is_admin():
         abort(403)
+    req = Request.query.get_or_404(req_id)
 
     msg = RequestMessage.query.filter_by(id=msg_id, request_id=req.id).first_or_404()
-    if msg.author_user_id != current_user.id or msg.message_type != 'chat':
+    if msg.message_type != 'chat':
         abort(403)
 
     new_body = request.form.get('message', '').strip()
@@ -1883,13 +1883,13 @@ def edit_request_message(req_id, msg_id):
 @app.route('/request/<int:req_id>/messages/<int:msg_id>/delete', methods=['POST'])
 @login_required
 def delete_request_message(req_id, msg_id):
-    """Kullanıcının kendi sohbet mesajını silmesi."""
-    req = Request.query.get_or_404(req_id)
-    if req.created_by != current_user.id:
+    """Sohbet mesajı silme (yalnızca admin)."""
+    if not current_user.is_admin():
         abort(403)
+    req = Request.query.get_or_404(req_id)
 
     msg = RequestMessage.query.filter_by(id=msg_id, request_id=req.id).first_or_404()
-    if msg.author_user_id != current_user.id or msg.message_type != 'chat':
+    if msg.message_type != 'chat':
         abort(403)
 
     if msg.attachment_path:
