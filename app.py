@@ -1905,6 +1905,31 @@ def delete_request_message(req_id, msg_id):
     flash('Mesaj silindi.', 'success')
     return redirect(build_request_return_url('requests', req.id))
 
+
+@app.route('/request/<int:req_id>/messages/<int:msg_id>/attachment')
+@login_required
+def request_message_attachment(req_id, msg_id):
+    """
+    İstek sohbet mesajı ekini yetkili kullanıcıya sunar.
+    İstek sahibi veya admin erişebilir; diğer kullanıcılar 403 alır.
+    """
+    req = Request.query.get_or_404(req_id)
+    if not current_user.is_admin() and req.created_by != current_user.id:
+        abort(403)
+
+    msg = RequestMessage.query.filter_by(id=msg_id, request_id=req.id).first_or_404()
+    if not msg.attachment_path:
+        abort(404)
+
+    abs_path = os.path.join(app.static_folder, msg.attachment_path)
+    if not os.path.isfile(abs_path):
+        abort(404)
+
+    return send_file(
+        abs_path,
+        download_name=secure_filename(msg.attachment_name or os.path.basename(abs_path))
+    )
+
 # ==============================================================================
 # ADMİN PANELİ ROTALARI
 # ==============================================================================

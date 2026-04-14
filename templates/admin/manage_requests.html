@@ -882,9 +882,9 @@
                             {% if msg.body %}
                             <div class="small">{{ msg.body|e|replace('\n', '<br>')|safe }}</div>
                             {% endif %}
-                            {% if msg.attachment_path %}
+                            {% if msg.attachment_path and msg.id %}
                             <div class="mt-2">
-                              <a class="btn btn-sm btn-outline-primary" href="{{ url_for('static', filename=msg.attachment_path) }}" target="_blank">
+                              <a class="btn btn-sm btn-outline-primary" href="{{ url_for('request_message_attachment', req_id=req.id, msg_id=msg.id) }}" target="_blank">
                                 <i class="bi bi-paperclip me-1"></i>{{ msg.attachment_name or 'Dosya' }}
                               </a>
                             </div>
