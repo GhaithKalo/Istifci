@@ -14,6 +14,7 @@ from flask_wtf.csrf import generate_csrf
 from sqlalchemy import func, or_, event, case
 from sqlalchemy.orm import joinedload, selectinload, subqueryload
 from collections import defaultdict, Counter
+from datetime import datetime
 from zoneinfo import ZoneInfo # Python 3.9+
 import os, re, logging, sys
 from dotenv import load_dotenv
@@ -42,7 +43,7 @@ LDAP_GROUP_MEMBER_ATTR = os.environ.get('LDAP_GROUP_MEMBER_ATTR', 'memberUid')
 from ldap3 import Server, Connection, ALL, SUBTREE
 
 # Proje içi modüller
-from models import db, User, Component, BorrowLog, Project, ProjectItem, Tag, Request, InventoryItem, RequestItem
+from models import db, User, Component, BorrowLog, Project, ProjectItem, Tag, Request, InventoryItem, RequestItem, RequestMessage
 
 # ==============================================================================
 # YARDIMCI FONKSİYONLAR
@@ -62,6 +63,159 @@ def is_fixed_asset(category: str) -> bool:
 
 def clean_text(s):
     return re.sub(r"[\"'()]", "", s)
+
+
+REQUEST_MESSAGE_MAX_LENGTH = 2000
+REQUEST_MESSAGE_UPLOAD_DIR = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'static', 'uploads', 'request_messages')
+REQUEST_MESSAGE_ALLOWED_EXTENSIONS = {
+    'png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp',
+    'pdf', 'txt', 'csv', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx',
+    'zip', 'rar'
+}
+
+
+def status_label(status: str) -> str:
+    labels = {
+        'beklemede': 'Beklemede',
+        'reddedildi': 'Reddedildi',
+        'kabul': 'Kabul Edildi',
+        'tamamlandi': 'Tamamlandı'
+    }
+    return labels.get(status or '', status or '-')
+
+
+def build_request_conversation_map(requests_list):
+    """
+    Şablonlarda kullanılmak üzere request_id -> conversation entries map üretir.
+    Legacy admin_note alanını, ilgili timeline'da admin_note mesajı yoksa sentetik olarak ekler.
+    """
+    conversation_map = {}
+    for req in requests_list:
+        entries = []
+        has_admin_note_message = False
+
+        for msg in (req.messages or []):
+            if msg.message_type == 'admin_note':
+                has_admin_note_message = True
+            entries.append({
+                'id': msg.id,
+                'author_user_id': msg.author_user_id,
+                'author_role': msg.author_role or 'user',
+                'author': msg.author_username_snapshot or ('Sistem' if msg.author_role == 'system' else 'Bilinmiyor'),
+                'message_type': msg.message_type or 'chat',
+                'body': msg.body or '',
+                'attachment_path': msg.attachment_path,
+                'attachment_name': msg.attachment_name,
+                'attachment_mime': msg.attachment_mime,
+                'status_from': msg.status_from,
+                'status_to': msg.status_to,
+                'created_at': msg.created_at,
+                'legacy': False
+            })
+
+        if req.admin_note and not has_admin_note_message:
+            entries.append({
+                'id': None,
+                'author_user_id': None,
+                'author_role': 'admin',
+                'author': 'Admin',
+                'message_type': 'admin_note',
+                'body': req.admin_note,
+                'attachment_path': None,
+                'attachment_name': None,
+                'attachment_mime': None,
+                'status_from': None,
+                'status_to': None,
+                'created_at': req.created_at,
+                'legacy': True
+            })
+
+        fallback_date = req.created_at or datetime.utcnow()
+        entries.sort(key=lambda e: (e.get('created_at') or fallback_date, e.get('id') or 0))
+        conversation_map[req.id] = entries
+
+    return conversation_map
+
+
+def append_status_event_message(req, old_status: str, new_status: str):
+    if old_status == new_status:
+        return
+
+    event_message = RequestMessage(
+        request_id=req.id,
+        author_role='system',
+        author_username_snapshot='Sistem',
+        message_type='status_event',
+        body=f"Durum güncellendi: {status_label(old_status)} → {status_label(new_status)}",
+        status_from=old_status,
+        status_to=new_status
+    )
+    db.session.add(event_message)
+
+
+def append_admin_note_message(req, note: str, admin_user):
+    note = (note or '').strip()
+    if not note:
+        return
+
+    admin_note_message = RequestMessage(
+        request_id=req.id,
+        author_user_id=admin_user.id if admin_user else None,
+        author_username_snapshot=admin_user.username if admin_user else 'Admin',
+        author_role='admin',
+        message_type='admin_note',
+        body=note
+    )
+    db.session.add(admin_note_message)
+
+
+def build_request_return_url(default_endpoint: str, req_id: int):
+    """
+    Mesaj sonrası dönüş URL'sini güvenli şekilde oluşturur.
+    Kullanıcı girdisine bağlı yönlendirme yapılmaz.
+    """
+    return f"{url_for(default_endpoint)}#request-{req_id}"
+
+
+def is_allowed_request_message_file(filename: str) -> bool:
+    if not filename or '.' not in filename:
+        return False
+    ext = filename.rsplit('.', 1)[1].lower()
+    return ext in REQUEST_MESSAGE_ALLOWED_EXTENSIONS
+
+
+def save_request_message_attachment(file_storage):
+    """
+    RequestMessage eklentisini doğrular ve static/uploads/request_messages altına kaydeder.
+    """
+    if not file_storage or not file_storage.filename:
+        return None
+
+    original_name = secure_filename(file_storage.filename)
+    if not original_name:
+        return None
+    if not is_allowed_request_message_file(original_name):
+        raise ValueError("Desteklenmeyen dosya uzantısı.")
+
+    os.makedirs(REQUEST_MESSAGE_UPLOAD_DIR, exist_ok=True)
+    unique_name = f"{uuid.uuid4().hex}_{original_name}"
+    abs_path = os.path.join(REQUEST_MESSAGE_UPLOAD_DIR, unique_name)
+    file_storage.save(abs_path)
+
+    rel_static_path = os.path.join('uploads', 'request_messages', unique_name).replace('\\', '/')
+    return {
+        'path': rel_static_path,
+        'name': original_name,
+        'mime': getattr(file_storage, 'mimetype', None)
+    }
+
+
+def validate_request_message_content(message_body: str, has_attachment: bool) -> str | None:
+    if not message_body and not has_attachment:
+        return 'Mesaj veya dosya eklemelisiniz.'
+    if len(message_body) > REQUEST_MESSAGE_MAX_LENGTH:
+        return f'Mesaj en fazla {REQUEST_MESSAGE_MAX_LENGTH} karakter olabilir.'
+    return None
 
 def get_locations() -> list[str]:
     """
@@ -1391,7 +1545,7 @@ def requests():
         return redirect(url_for('requests'))
 
     # Build base query - herkes sadece kendi isteklerini görür
-    base_q = Request.query.filter_by(created_by=current_user.id)
+    base_q = Request.query.options(selectinload(Request.messages)).filter_by(created_by=current_user.id)
 
     # Calculate stats before filtering (but after user filter)
     stats = {
@@ -1433,9 +1587,11 @@ def requests():
         base_q = base_q.order_by(Request.created_at.desc())
 
     requests_list = base_q.all()
+    conversation_map = build_request_conversation_map(requests_list)
 
     return render_template('requests.html', 
                            requests=requests_list, 
+                           conversation_map=conversation_map,
                            current_status=status,
                            current_type=req_type,
                            current_search=search_query,
@@ -1619,6 +1775,161 @@ def delete_request(req_id):
     flash('İstekler silinemez.', 'danger')
     return redirect(url_for('requests'))
 
+
+@app.route('/request/<int:req_id>/messages', methods=['POST'])
+@login_required
+def request_messages(req_id):
+    """İstek sahibi kullanıcı için sohbet mesajı ekleme."""
+    req = Request.query.get_or_404(req_id)
+    if req.created_by != current_user.id:
+        abort(403)
+
+    message_body = request.form.get('message', '').strip()
+    attachment = request.files.get('attachment')
+    saved_attachment = None
+    if attachment and attachment.filename:
+        try:
+            saved_attachment = save_request_message_attachment(attachment)
+        except ValueError as ve:
+            flash(str(ve), 'danger')
+            return redirect(build_request_return_url('requests', req.id))
+
+    validation_error = validate_request_message_content(message_body, bool(saved_attachment))
+    if validation_error:
+        flash(validation_error, 'danger')
+        return redirect(build_request_return_url('requests', req.id))
+
+    message = RequestMessage(
+        request_id=req.id,
+        author_user_id=current_user.id,
+        author_username_snapshot=current_user.username,
+        author_role='user',
+        message_type='chat',
+        body=message_body,
+        attachment_path=saved_attachment['path'] if saved_attachment else None,
+        attachment_name=saved_attachment['name'] if saved_attachment else None,
+        attachment_mime=saved_attachment['mime'] if saved_attachment else None
+    )
+    db.session.add(message)
+    db.session.commit()
+    flash('Mesaj gönderildi.', 'success')
+    return redirect(build_request_return_url('requests', req.id))
+
+
+@app.route('/admin/request/<int:req_id>/messages', methods=['POST'])
+@login_required
+def admin_request_messages(req_id):
+    """Admin için istek sohbetine mesaj ekleme."""
+    if not current_user.is_admin():
+        abort(403)
+
+    req = Request.query.get_or_404(req_id)
+    message_body = request.form.get('message', '').strip()
+    attachment = request.files.get('attachment')
+    saved_attachment = None
+    if attachment and attachment.filename:
+        try:
+            saved_attachment = save_request_message_attachment(attachment)
+        except ValueError as ve:
+            flash(str(ve), 'danger')
+            return redirect(build_request_return_url('admin_requests', req.id))
+
+    validation_error = validate_request_message_content(message_body, bool(saved_attachment))
+    if validation_error:
+        flash(validation_error, 'danger')
+        return redirect(build_request_return_url('admin_requests', req.id))
+
+    message = RequestMessage(
+        request_id=req.id,
+        author_user_id=current_user.id,
+        author_username_snapshot=current_user.username,
+        author_role='admin',
+        message_type='chat',
+        body=message_body,
+        attachment_path=saved_attachment['path'] if saved_attachment else None,
+        attachment_name=saved_attachment['name'] if saved_attachment else None,
+        attachment_mime=saved_attachment['mime'] if saved_attachment else None
+    )
+    db.session.add(message)
+    db.session.commit()
+    flash('Mesaj gönderildi.', 'success')
+    return redirect(build_request_return_url('admin_requests', req.id))
+
+
+@app.route('/request/<int:req_id>/messages/<int:msg_id>/edit', methods=['POST'])
+@login_required
+def edit_request_message(req_id, msg_id):
+    """Sohbet mesajı düzenleme (yalnızca admin)."""
+    if not current_user.is_admin():
+        abort(403)
+    req = Request.query.get_or_404(req_id)
+
+    msg = RequestMessage.query.filter_by(id=msg_id, request_id=req.id).first_or_404()
+    if msg.message_type != 'chat':
+        abort(403)
+
+    new_body = request.form.get('message', '').strip()
+    validation_error = validate_request_message_content(new_body, bool(msg.attachment_path))
+    if validation_error:
+        flash(validation_error, 'danger')
+        return redirect(build_request_return_url('requests', req.id))
+
+    msg.body = new_body
+    db.session.commit()
+    flash('Mesaj güncellendi.', 'success')
+    return redirect(build_request_return_url('requests', req.id))
+
+
+@app.route('/request/<int:req_id>/messages/<int:msg_id>/delete', methods=['POST'])
+@login_required
+def delete_request_message(req_id, msg_id):
+    """Sohbet mesajı silme (yalnızca admin)."""
+    if not current_user.is_admin():
+        abort(403)
+    req = Request.query.get_or_404(req_id)
+
+    msg = RequestMessage.query.filter_by(id=msg_id, request_id=req.id).first_or_404()
+    if msg.message_type != 'chat':
+        abort(403)
+
+    if msg.attachment_path:
+        try:
+            attachment_abs_path = os.path.join(app.static_folder, msg.attachment_path)
+            if os.path.isfile(attachment_abs_path):
+                os.remove(attachment_abs_path)
+        except Exception:
+            logging.exception("Mesaj eklentisi silinirken hata oluştu.")
+
+    db.session.delete(msg)
+    db.session.commit()
+    flash('Mesaj silindi.', 'success')
+    return redirect(build_request_return_url('requests', req.id))
+
+
+@app.route('/request/<int:req_id>/messages/<int:msg_id>/attachment')
+@login_required
+def request_message_attachment(req_id, msg_id):
+    """
+    İstek sohbet mesajı ekini yetkili kullanıcıya sunar.
+    İstek sahibi veya admin erişebilir; diğer kullanıcılar 403 alır.
+    """
+    req = Request.query.get_or_404(req_id)
+    if not current_user.is_admin() and req.created_by != current_user.id:
+        abort(403)
+
+    msg = RequestMessage.query.filter_by(id=msg_id, request_id=req.id).first_or_404()
+    if not msg.attachment_path:
+        abort(404)
+
+    abs_path = os.path.join(app.static_folder, msg.attachment_path)
+    if not os.path.isfile(abs_path):
+        abort(404)
+
+    return send_file(
+        abs_path,
+        download_name=secure_filename(msg.attachment_name or os.path.basename(abs_path))
+    )
+
 # ==============================================================================
 # ADMİN PANELİ ROTALARI
 # ==============================================================================
@@ -1773,7 +2084,7 @@ def admin_requests():
         'tamamlandi': Request.query.filter_by(req_status='tamamlandi').count()
     }
     
-    q = Request.query
+    q = Request.query.options(selectinload(Request.messages))
     if status and status != 'all':
         q = q.filter_by(req_status=status)
     
@@ -1804,8 +2115,10 @@ def admin_requests():
         q = q.order_by(Request.created_at.desc())
 
     requests_list = q.all()
+    conversation_map = build_request_conversation_map(requests_list)
     return render_template('admin/manage_requests.html', 
                           requests=requests_list, 
+                          conversation_map=conversation_map,
                           current_status=status, 
                           current_type=req_type,
                           current_search=search_query,
@@ -1842,9 +2155,12 @@ def admin_set_request_status(req_id):
         flash('Reddedilmiş istekler kabul edilemez.', 'warning')
         return redirect(url_for('admin_requests'))
     
+    old_status = req.req_status
     req.req_status = new_status
+    append_status_event_message(req, old_status, new_status)
     if admin_note:
         req.admin_note = admin_note
+        append_admin_note_message(req, admin_note, current_user)
     db.session.commit()
     flash('İstek durumu güncellendi.', 'success')
     return redirect(url_for('admin_requests'))
@@ -1915,9 +2231,12 @@ def admin_bulk_request_status():
                 skipped_count += 1
                 continue
         
+        old_status = req.req_status
         req.req_status = new_status
+        append_status_event_message(req, old_status, new_status)
         if admin_note:
             req.admin_note = admin_note
+            append_admin_note_message(req, admin_note, current_user)
         updated_count += 1
     
     db.session.commit()

@@ -407,15 +407,28 @@
     font-weight: 500;
   }
   
-  /* Admin Note Alert */
-  .admin-note-alert {
-    background: #e3f2fd;
-    border: 1px solid #90caf9;
+  .conversation-thread {
+    background: #fff;
+    border: 1px solid #dee2e6;
     border-radius: 10px;
-    padding: 0.75rem 1rem;
-    color: #1565c0;
+    max-height: 320px;
+    overflow-y: auto;
+    padding: 0.75rem;
   }
-  .admin-note-alert i { color: #1976d2; }
+  .conversation-item {
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    padding: 0.6rem 0.75rem;
+    margin-bottom: 0.5rem;
+  }
+  .conversation-item.role-admin { background: #eef5ff; border-color: #cfe2ff; }
+  .conversation-item.role-user { background: #f8f9fa; }
+  .conversation-item.role-system { background: #fff3cd; border-color: #ffe69c; }
+  .conversation-meta {
+    font-size: 0.72rem;
+    color: #6c757d;
+    margin-bottom: 0.25rem;
+  }
   
   /* User Badge */
   .user-badge {
@@ -849,6 +862,50 @@
                           </div>
                         </div>
                       {% endif %}
+
+                      {% set conv = conversation_map.get(req.id, []) %}
+                      <hr class="my-3">
+                      <h6 class="mt-0"><i class="bi bi-chat-square-text me-2"></i>Konuşma</h6>
+                      <div class="conversation-thread">
+                        {% if conv %}
+                          {% for msg in conv %}
+                          <div class="conversation-item role-{{ msg.author_role }}">
+                            <div class="conversation-meta d-flex justify-content-between">
+                              <span>
+                                <strong>{{ msg.author }}</strong>
+                                {% if msg.message_type == 'status_event' %}<span class="badge bg-warning text-dark ms-1">Durum</span>{% endif %}
+                                {% if msg.message_type == 'admin_note' %}<span class="badge bg-info text-dark ms-1">Admin Notu</span>{% endif %}
+                                {% if msg.legacy %}<span class="badge bg-secondary ms-1">Eski Not</span>{% endif %}
+                              </span>
+                              <span>{{ msg.created_at|tr_date(True) if msg.created_at else '' }}</span>
+                            </div>
+                            {% if msg.body %}
+                            <div class="small">{{ msg.body|e|replace('\n', '<br>')|safe }}</div>
+                            {% endif %}
+                            {% if msg.attachment_path and msg.id %}
+                            <div class="mt-2">
+                              <a class="btn btn-sm btn-outline-primary" href="{{ url_for('request_message_attachment', req_id=req.id, msg_id=msg.id) }}" target="_blank">
+                                <i class="bi bi-paperclip me-1"></i>{{ msg.attachment_name or 'Dosya' }}
+                              </a>
+                            </div>
+                            {% endif %}
+                          </div>
+                          {% endfor %}
+                        {% else %}
+                          <div class="text-muted small">Henüz mesaj yok.</div>
+                        {% endif %}
+                      </div>
+
+                      <form method="post" action="{{ url_for('admin_request_messages', req_id=req.id) }}" class="mt-2" enctype="multipart/form-data">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <div class="mb-2">
+                          <textarea name="message" class="form-control form-control-sm" rows="2" maxlength="2000" placeholder="Kullanıcıya mesaj yazın..." aria-label="Kullanıcıya mesaj"></textarea>
+                        </div>
+                        <div class="d-flex gap-2 align-items-center">
+                          <input type="file" name="attachment" class="form-control form-control-sm" aria-label="Dosya ekle">
+                          <button type="submit" class="btn btn-sm btn-primary">Gönder</button>
+                        </div>
+                      </form>
                     </div>
                   </div>
                   
@@ -856,12 +913,6 @@
                   <div class="col-md-4">
                     <div class="detail-card">
                       <h6><i class="bi bi-gear me-2"></i>İşlemler</h6>
-                      
-                      {% if req.admin_note %}
-                      <div class="admin-note-alert mb-3">
-                        <small><strong><i class="bi bi-sticky-fill me-1"></i>Admin Notu:</strong><br>{{ req.admin_note }}</small>
-                      </div>
-                      {% endif %}
                       
                       <div class="d-grid gap-2">
                         {% if req.req_status not in ['kabul', 'reddedildi', 'tamamlandi'] %}
