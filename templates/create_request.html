@@ -570,6 +570,8 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
   const formState = {{ (form_state or {})|tojson }};
+  const WET_SIGNATURE_THRESHOLD = 100000;
+  const COMPONENT_SEARCH_DEBOUNCE_MS = 300;
   // Elements
   const typePills = document.querySelectorAll('.type-pill');
   const satinAlmaSection = document.getElementById('satinAlmaSection');
@@ -657,6 +659,12 @@ document.addEventListener('DOMContentLoaded', function() {
       el.addEventListener(evt, () => updateMandatoryFieldBorder(el));
     });
     updateMandatoryFieldBorder(el);
+  }
+
+  function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text || '';
+    return div.innerHTML;
   }
   
   // Initialize Selectize for tags
@@ -796,7 +804,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
   function triggerImageComponentSearch() {
     clearTimeout(componentSearchTimer);
-    componentSearchTimer = setTimeout(loadImageComponents, 300);
+    componentSearchTimer = setTimeout(loadImageComponents, COMPONENT_SEARCH_DEBOUNCE_MS);
   }
 
   componentSearch.addEventListener('input', triggerImageComponentSearch);
@@ -900,7 +908,7 @@ document.addEventListener('DOMContentLoaded', function() {
       return;
     }
     updateMandatoryFieldBorder(itemPrice, true);
-    wetSignatureWarning.classList.toggle('d-none', !(price > 100000));
+    wetSignatureWarning.classList.toggle('d-none', !(price > WET_SIGNATURE_THRESHOLD));
     
     itemData.quantity = qty;
     itemData.link = link;
@@ -1012,13 +1020,6 @@ document.addEventListener('DOMContentLoaded', function() {
         renderItems();
       });
     });
-  }
-  
-  // Escape HTML
-  function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text || '';
-    return div.innerHTML;
   }
   
   function applyRequestTypeUI(reqType) {
@@ -1154,7 +1155,7 @@ document.addEventListener('DOMContentLoaded', function() {
   // Update conversion display when price changes
   itemPrice.addEventListener('input', () => {
     updateConversionDisplay();
-    wetSignatureWarning.classList.toggle('d-none', !(getTLPrice() > 100000));
+    wetSignatureWarning.classList.toggle('d-none', !(getTLPrice() > WET_SIGNATURE_THRESHOLD));
     updateMandatoryFieldBorder(itemPrice);
   });
   
@@ -1268,7 +1269,7 @@ document.addEventListener('DOMContentLoaded', function() {
       arizaComponentIdInput.value = formState.component_id;
     }
   }
-  if ((getTLPrice() || 0) > 100000) {
+  if ((getTLPrice() || 0) > WET_SIGNATURE_THRESHOLD) {
     wetSignatureWarning.classList.remove('d-none');
   }
   

@@ -72,6 +72,7 @@ REQUEST_MESSAGE_ALLOWED_EXTENSIONS = {
     'pdf', 'txt', 'csv', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx',
     'zip', 'rar'
 }
+WET_SIGNATURE_PRICE_THRESHOLD = 100000
 
 
 def status_label(status: str) -> str:
@@ -392,7 +393,7 @@ def tr_date(value, with_time=False):
     }
     month_name = month_names.get(value.month, '')
 
-    now_utc = datetime.utcnow()
+    now_utc = datetime.now(ZoneInfo("UTC")).replace(tzinfo=None)
     dt_value = value
     if getattr(dt_value, "tzinfo", None):
         try:
@@ -408,7 +409,7 @@ def tr_date(value, with_time=False):
         return f"{txt} sonra" if future else f"{txt} önce"
 
     if delta_seconds < 60:
-        relative = rel_suffix("az önce")
+        relative = "birazdan" if future else "az önce"
     elif delta_seconds < 3600:
         minutes = delta_seconds // 60
         relative = rel_suffix(f"{minutes} dakika")
@@ -422,10 +423,18 @@ def tr_date(value, with_time=False):
         weeks = max(1, delta_seconds // (86400 * 7))
         relative = rel_suffix(f"{weeks} hafta")
     elif delta_seconds < 86400 * 365:
-        months = max(1, delta_seconds // (86400 * 30))
+        earlier, later = (dt_value, now_utc) if dt_value <= now_utc else (now_utc, dt_value)
+        months = (later.year - earlier.year) * 12 + (later.month - earlier.month)
+        if later.day < earlier.day:
+            months -= 1
+        months = max(1, months)
         relative = rel_suffix(f"{months} ay")
     else:
-        years = max(1, delta_seconds // (86400 * 365))
+        earlier, later = (dt_value, now_utc) if dt_value <= now_utc else (now_utc, dt_value)
+        months = (later.year - earlier.year) * 12 + (later.month - earlier.month)
+        if later.day < earlier.day:
+            months -= 1
+        years = max(1, months // 12)
         relative = rel_suffix(f"{years} yıl")
 
     if with_time:
@@ -1873,7 +1882,7 @@ def create_request():
                 except ValueError:
                     unit_price = None
 
-                wet_signature_for_item = bool(unit_price and unit_price > 100000)
+                wet_signature_for_item = bool(unit_price and unit_price > WET_SIGNATURE_PRICE_THRESHOLD)
                 if wet_signature_for_item:
                     has_wet_signature_warning = True
 
