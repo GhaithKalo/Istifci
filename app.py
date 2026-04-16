@@ -1982,7 +1982,8 @@ def edit_request(req_id):
         req.unit_price = None
         req.total_price = None
         req.budget = None
-        req.items.delete()
+        for existing_item in req.items.all():
+            db.session.delete(existing_item)
 
         if req_type in ['ariza', 'bakim']:
             component_id = request.form.get('component_id')
