@@ -625,7 +625,7 @@
                 {% elif req.req_type == 'ariza' %}
                   <span class="badge-type ariza"><i class="bi bi-tools"></i>Arıza</span>
                 {% elif req.req_type == 'bakim' %}
-                  <span class="badge-type bakim"><i class="bi bi-wrench"></i>Bakım</span>
+                  <span class="badge-type bakim"><i class="bi bi-gear-fill"></i>Bakım</span>
                 {% else %}
                   <span class="badge-type">{{ req.req_type }}</span>
                 {% endif %}
@@ -640,7 +640,7 @@
                 {% endif %}
               </td>
               <td>
-                <small>{{ req.created_at.strftime('%d.%m.%Y %H:%M') }}</small>
+                <small>{{ req.created_at|tr_date(True) }}</small>
               </td>
               <td>
                 {% if req.req_status == 'beklemede' %}
@@ -685,8 +685,8 @@
                                   <th>Ürün Açıklaması</th>
                                   <th>Etiketler</th>
                                   <th>Adet</th>
-                                  <th>Birim Fiyat</th>
-                                  <th>Toplam</th>
+                                  <th>Tahmini Birim Fiyat</th>
+                                  <th>Toplam (KDV Hariç)</th>
                                   <th>Link</th>
                                   {% if req.req_status in ['kabul', 'tamamlandi'] %}
                                   <th>İşlem</th>
@@ -781,13 +781,21 @@
                               </tbody>
                               <tfoot class="table-light">
                                 <tr>
-                                  <td colspan="{% if req.req_status in ['kabul', 'tamamlandi'] %}9{% else %}8{% endif %}" class="text-end fw-bold">Genel Toplam:</td>
+                                  <td colspan="{% if req.req_status in ['kabul', 'tamamlandi'] %}9{% else %}8{% endif %}" class="text-end fw-bold">Genel Toplam (KDV Hariç):</td>
                                   <td class="fw-bold text-primary">
                                     <span class="copyable" onclick="copyText(this, '{{ "%.2f"|format(req.total_items_price or 0) }}', event)">
                                       {{ "%.2f"|format(req.total_items_price or 0) }} ₺
                                       <i class="bi bi-clipboard ms-1 small text-muted"></i>
                                     </span>
                                   </td>
+                                  <td></td>
+                                  {% if req.req_status in ['kabul', 'tamamlandi'] %}
+                                  <td></td>
+                                  {% endif %}
+                                </tr>
+                                <tr>
+                                  <td colspan="{% if req.req_status in ['kabul', 'tamamlandi'] %}9{% else %}8{% endif %}" class="text-end fw-bold">KDV Dahil:</td>
+                                  <td class="fw-bold text-success">{{ "%.2f"|format((req.total_items_price or 0) * 1.2) }} ₺</td>
                                   <td></td>
                                   {% if req.req_status in ['kabul', 'tamamlandi'] %}
                                   <td></td>
@@ -807,6 +815,12 @@
                             <span class="badge bg-warning text-dark">{{ req.budget }}</span>
                             {% endif %}
                           </p>
+                        {% endif %}
+                        {% if req.project_number %}
+                          <p class="mb-2"><strong>Proje Numarası:</strong> <span class="copyable" onclick="copyText(this, '{{ req.project_number }}', event)">{{ req.project_number }} <i class="bi bi-clipboard ms-1 small text-muted"></i></span></p>
+                        {% endif %}
+                        {% if req.requires_wet_signature %}
+                          <p class="mb-2"><span class="badge bg-warning text-dark">Islak imza gerekli</span></p>
                         {% endif %}
                       {% else %}
                         <!-- Tek ürün (eski format) veya arıza/bakım isteği -->
@@ -829,10 +843,11 @@
                                 <p class="mb-2"><strong>Adet:</strong> <span class="copyable" onclick="copyText(this, '{{ req.quantity }}', event)">{{ req.quantity }} <i class="bi bi-clipboard ms-1 small text-muted"></i></span></p>
                               {% endif %}
                               {% if req.unit_price %}
-                                <p class="mb-2"><strong>Birim Fiyat:</strong> <span class="copyable" onclick="copyText(this, '{{ "%.2f"|format(req.unit_price) }}', event)">{{ "%.2f"|format(req.unit_price) }} ₺ <i class="bi bi-clipboard ms-1 small text-muted"></i></span></p>
+                                <p class="mb-2"><strong>Tahmini Birim Fiyat:</strong> <span class="copyable" onclick="copyText(this, '{{ "%.2f"|format(req.unit_price) }}', event)">{{ "%.2f"|format(req.unit_price) }} ₺ <i class="bi bi-clipboard ms-1 small text-muted"></i></span></p>
                               {% endif %}
                               {% if req.total_price %}
-                                <p class="mb-2"><strong>Toplam Fiyat:</strong> <span class="copyable text-success fw-bold" onclick="copyText(this, '{{ "%.2f"|format(req.total_price) }}', event)">{{ "%.2f"|format(req.total_price) }} ₺ <i class="bi bi-clipboard ms-1 small text-muted"></i></span></p>
+                                <p class="mb-2"><strong>Genel Toplam (KDV Hariç):</strong> <span class="copyable text-success fw-bold" onclick="copyText(this, '{{ "%.2f"|format(req.total_price) }}', event)">{{ "%.2f"|format(req.total_price) }} ₺ <i class="bi bi-clipboard ms-1 small text-muted"></i></span></p>
+                                <p class="mb-2"><strong>KDV Dahil:</strong> <span class="copyable text-success fw-bold" onclick="copyText(this, '{{ "%.2f"|format(req.total_price * 1.2) }}', event)">{{ "%.2f"|format(req.total_price * 1.2) }} ₺ <i class="bi bi-clipboard ms-1 small text-muted"></i></span></p>
                               {% endif %}
                               {% if req.budget %}
                                 <p class="mb-2"><strong>Bütçe:</strong> 
@@ -844,6 +859,12 @@
                                   <span class="badge bg-warning text-dark">{{ req.budget }}</span>
                                   {% endif %}
                                 </p>
+                              {% endif %}
+                              {% if req.project_number %}
+                                <p class="mb-2"><strong>Proje Numarası:</strong> <span class="copyable" onclick="copyText(this, '{{ req.project_number }}', event)">{{ req.project_number }} <i class="bi bi-clipboard ms-1 small text-muted"></i></span></p>
+                              {% endif %}
+                              {% if req.requires_wet_signature %}
+                                <p class="mb-2"><span class="badge bg-warning text-dark">Islak imza gerekli</span></p>
                               {% endif %}
                               {% if req.purchase_link %}
                                 <p class="mb-2"><strong>Satın Alma Linki:</strong> <a href="{{ req.purchase_link }}" target="_blank" class="btn btn-sm btn-outline-primary"><i class="bi bi-box-arrow-up-right me-1"></i>Linke Git</a> <button type="button" class="btn btn-sm btn-outline-secondary" onclick="copyText(this, '{{ req.purchase_link }}', event)"><i class="bi bi-clipboard"></i></button></p>

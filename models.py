@@ -253,6 +253,8 @@ class Request(db.Model):
     unit_price = db.Column(db.Float, nullable=True)  # Birim fiyatı (KDV'siz)
     total_price = db.Column(db.Float, nullable=True)  # Toplam fiyat (KDV'siz) = Adet * Birim Fiyatı
     budget = db.Column(db.String(50), nullable=True)  # Bütçe: 'TTO', 'Merkez', 'Emin degilim'
+    project_number = db.Column(db.String(120), nullable=True)  # TTO bütçeli talepler için proje numarası
+    requires_wet_signature = db.Column(db.Boolean, default=False, nullable=False)  # Bilgilendirici ıslak imza uyarısı
 
     # Admin notu (kabul/red sırasında eklenen not)
     admin_note = db.Column(db.Text, nullable=True)
@@ -323,6 +325,7 @@ class RequestItem(db.Model):
     purchase_link = db.Column(db.String(500), nullable=True)
     unit_price = db.Column(db.Float, nullable=True)
     total_price = db.Column(db.Float, nullable=True)
+    requires_wet_signature = db.Column(db.Boolean, default=False, nullable=False)
     
     # Envantere eklenme durumu
     added_to_inventory = db.Column(db.Boolean, default=False, nullable=False)

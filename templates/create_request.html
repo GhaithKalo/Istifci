@@ -220,6 +220,15 @@
   }
   .serial-section .form-label { color: #856404; font-weight: 600; }
 
+  .mandatory-empty {
+    border-color: #dc3545 !important;
+    box-shadow: 0 0 0 0.1rem rgba(220, 53, 69, 0.15) !important;
+  }
+  .mandatory-filled {
+    border-color: #198754 !important;
+    box-shadow: 0 0 0 0.1rem rgba(25, 135, 84, 0.15) !important;
+  }
+
   /* Hide number input spin arrows */
   input[type="number"]::-webkit-outer-spin-button,
   input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none !important; margin: 0; }
@@ -228,6 +237,7 @@
 {% endblock %}
 
 {% block content %}
+{% set fs = form_state or {} %}
 <div class="container my-4">
   <!-- Page Header - matches requests.html -->
   <div class="d-flex justify-content-between align-items-center mb-3">
@@ -242,6 +252,10 @@
 
   <div class="bg-white rounded p-3 border" style="box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
     <form method="post" action="{% if edit_mode %}{{ url_for('edit_request', req_id=edit_request.id, status=current_status) }}{% else %}{{ url_for('create_request', status=current_status) }}{% endif %}" id="requestForm">
+      <div id="formMessageBox" class="alert alert-danger d-none" role="alert"></div>
+      <div class="alert alert-warning">
+        Ürün adı ve açıklaması satıcı websitesinden alıntılanmalıdır.
+      </div>
       
       <!-- Request Type -->
       <div class="mb-3">
@@ -250,17 +264,17 @@
         </div>
         <div class="type-pills">
           <label class="type-pill active" data-type="satin_alma">
-            <input type="radio" name="req_type" value="satin_alma" checked style="display:none;">
+            <input type="radio" name="req_type" value="satin_alma" {% if (fs.req_type or 'satin_alma') == 'satin_alma' %}checked{% endif %} style="display:none;">
             <i class="bi bi-cart-fill"></i>
             Satın Alma
           </label>
           <label class="type-pill type-ariza" data-type="ariza">
-            <input type="radio" name="req_type" value="ariza" style="display:none;">
+            <input type="radio" name="req_type" value="ariza" {% if fs.req_type == 'ariza' %}checked{% endif %} style="display:none;">
             <i class="bi bi-tools"></i>
             Arıza
           </label>
           <label class="type-pill type-bakim" data-type="bakim">
-            <input type="radio" name="req_type" value="bakim" style="display:none;">
+            <input type="radio" name="req_type" value="bakim" {% if fs.req_type == 'bakim' %}checked{% endif %} style="display:none;">
             <i class="bi bi-gear-fill"></i>
             Bakım
           </label>
@@ -311,22 +325,8 @@
             </div>
             
             <div class="component-picker" id="componentPicker">
+              <div class="small text-muted mb-2" id="componentSearchHint">Arama yaptıkça mevcut envanter görselleri listelenir.</div>
               <div class="component-grid" id="componentGrid">
-                {% for comp in components %}
-                <div class="component-card" 
-                     data-id="{{ comp.id }}" 
-                     data-name="{{ comp.name }}"
-                     data-category="{{ comp.category or 'Diğer' }}"
-                     data-type="{{ comp.type or 'Diğer' }}"
-                     data-image="{{ comp.image_url or '' }}">
-                  {% if comp.image_url %}
-                  <img src="{{ comp.image_url }}" alt="{{ comp.name }}" loading="lazy">
-                  {% else %}
-                  <div class="placeholder-img"><i class="bi bi-image"></i></div>
-                  {% endif %}
-                  <div class="comp-name">{{ comp.name }}</div>
-                </div>
-                {% endfor %}
               </div>
               <div class="no-results" id="noResults" style="display:none;text-align:center;padding:2rem;color:#6c757d;">
                 <i class="bi bi-search"></i> Sonuç bulunamadı
@@ -363,14 +363,14 @@
                 <small class="text-muted">Listede yoksa yeni tür adı yazabilirsiniz</small>
               </div>
             </div>
-            <div class="mb-3">
-              <label class="form-label fw-bold">Ürün Adı <span class="text-danger">*</span></label>
-              <input type="text" id="newProductName" class="form-control" maxlength="120" placeholder="Ürün adını yazın">
-            </div>
-            <div class="mb-3">
-              <label class="form-label fw-bold">Ürün Açıklaması <span class="text-danger">*</span></label>
-              <textarea id="newProductDesc" class="form-control" rows="2" placeholder="Ürün hakkında detay..."></textarea>
-            </div>
+              <div class="mb-3">
+                <label class="form-label fw-bold">Ürün Adı <span class="text-danger">*</span></label>
+                <input type="text" id="newProductName" class="form-control mandatory-field" maxlength="120" placeholder="Ürün adını yazın">
+              </div>
+              <div class="mb-3">
+                <label class="form-label fw-bold">Ürün Açıklaması <span class="text-danger">*</span></label>
+                <textarea id="newProductDesc" class="form-control mandatory-field" rows="2" placeholder="Ürün hakkında detay..."></textarea>
+              </div>
             <div class="mb-3">
               <label class="form-label">Etiketler</label>
               <select id="newProductTags" multiple class="form-control">
@@ -385,16 +385,16 @@
           <div class="row mt-3">
             <div class="col-md-3 mb-3">
               <label class="form-label fw-bold">Adet <span class="text-danger">*</span></label>
-              <input type="number" id="itemQuantity" class="form-control no-spin" min="1" value="1">
+              <input type="number" id="itemQuantity" class="form-control no-spin mandatory-field" min="1" value="1">
             </div>
             <div class="col-md-5 mb-3">
               <label class="form-label fw-bold">Satın Alma Linki <span class="text-danger">*</span></label>
-              <input type="url" id="itemLink" class="form-control" placeholder="https://...">
+              <input type="url" id="itemLink" class="form-control mandatory-field" placeholder="https://...">
             </div>
             <div class="col-md-4 mb-3">
-              <label class="form-label fw-bold">Birim Fiyatı (KDV'siz) <span class="text-danger">*</span></label>
+              <label class="form-label fw-bold">Tahmini Birim Fiyat <span class="text-danger">*</span></label>
               <div class="input-group">
-                <input type="number" id="itemPrice" class="form-control no-spin" step="0.01" min="0" placeholder="Fiyat girin">
+                <input type="number" id="itemPrice" class="form-control no-spin mandatory-field" step="0.01" min="0" placeholder="Fiyat girin">
                 <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="currencyBtn" data-bs-toggle="dropdown" aria-expanded="false" style="font-weight: 600; min-width: 55px;">
                   ₺
                 </button>
@@ -407,7 +407,8 @@
               <div id="currencyConversionInfo" style="display:none;">
                 <small class="text-success fw-bold"><i class="bi bi-arrow-repeat me-1"></i><span id="conversionText"></span></small>
               </div>
-              <small class="text-muted"><i class="bi bi-info-circle me-1"></i>Gümrük ve kargo bedelleri dahil birim fiyatı giriniz.</small>
+              <small class="text-muted"><i class="bi bi-info-circle me-1"></i>Tahmini birim fiyatı KDV hariç olacak şekilde giriniz.</small>
+              <div id="wetSignatureWarning" class="small text-warning fw-bold mt-1 d-none">Islak imza gerekli</div>
             </div>
           </div>
           
@@ -435,13 +436,17 @@
           <div class="section-header">
             <i class="bi bi-wallet2"></i>Bütçe Seçimi <span class="text-danger">*</span>
           </div>
-          <select name="budget" id="budgetSelect" class="form-select" required>
-            <option value="" disabled selected>Bütçe seçin...</option>
-            <option value="Merkez">Merkez</option>
-            <option value="TTO">TTO</option>
-            <option value="SSB">SSB</option>
-            <option value="Emin degilim">Emin değilim</option>
+          <select name="budget" id="budgetSelect" class="form-select mandatory-field" required>
+            <option value="" {% if not fs.budget %}selected{% endif %}>Bütçe seçin...</option>
+            <option value="Merkez" {% if fs.budget == 'Merkez' %}selected{% endif %}>Merkez</option>
+            <option value="TTO" {% if fs.budget == 'TTO' %}selected{% endif %}>TTO</option>
+            <option value="SSB" {% if fs.budget == 'SSB' %}selected{% endif %}>SSB</option>
+            <option value="Emin degilim" {% if fs.budget == 'Emin degilim' %}selected{% endif %}>Emin değilim</option>
           </select>
+          <div class="mt-2 {% if fs.budget != 'TTO' %}d-none{% endif %}" id="projectNumberWrap">
+            <label for="projectNumberInput" class="form-label fw-bold">Proje Numarası <span class="text-danger">*</span></label>
+            <input type="text" name="project_number" id="projectNumberInput" class="form-control" value="{{ fs.project_number or '' }}" placeholder="Proje numarası giriniz">
+          </div>
         </div>
         
         <!-- Summary Section -->
@@ -452,8 +457,9 @@
               <div class="text-muted small">Toplam <span id="totalQuantity">0</span> adet</div>
             </div>
             <div class="text-end">
-              <div class="text-muted small">Toplam Tutar</div>
+              <div class="text-muted small">Genel Toplam (KDV Hariç)</div>
               <div class="total-amount"><span id="totalAmount">0.00</span> ₺</div>
+              <div class="text-muted small mt-1">KDV Dahil: <strong><span id="totalAmountWithVat">0.00</span> ₺</strong></div>
             </div>
           </div>
         </div>
@@ -527,11 +533,11 @@
         <div id="arizaExternalForm" style="display:none;">
           <div class="mb-3">
             <label class="form-label fw-bold">Ürün Adı <span class="text-danger">*</span></label>
-            <input type="text" name="external_product_name" id="externalProductName" class="form-control" maxlength="120" placeholder="Envanter dışı ürün adı">
+            <input type="text" name="external_product_name" id="externalProductName" class="form-control mandatory-field" maxlength="120" placeholder="Envanter dışı ürün adı" value="{{ fs.external_product_name or '' }}">
           </div>
           <div class="mb-3">
             <label class="form-label fw-bold" id="externalDescLabel">Arıza/Bakım Açıklaması <span class="text-danger">*</span></label>
-            <textarea name="external_description" id="externalDescription" class="form-control" rows="3" placeholder="Arıza veya bakım detaylarını yazın..."></textarea>
+            <textarea name="external_description" id="externalDescription" class="form-control mandatory-field" rows="3" placeholder="Arıza veya bakım detaylarını yazın...">{{ fs.external_description or '' }}</textarea>
           </div>
         </div>
       </div>
@@ -539,9 +545,9 @@
       <!-- Request Description (for all types) -->
       <div class="mb-3" id="descriptionSection">
         <div class="section-header">
-          <i class="bi bi-chat-left-text-fill"></i><span id="descriptionLabel">İstek Açıklaması <span class="text-danger">*</span></span>
+          <i class="bi bi-chat-left-text-fill"></i><span id="descriptionLabel">Talep Gerekçesi <span class="text-danger">*</span></span>
         </div>
-        <textarea name="description" id="descriptionInput" class="form-control" rows="3" maxlength="500" placeholder="Ürünlerin ne amaçla kullanılacağını detaylı yazınız." required></textarea>
+        <textarea name="description" id="descriptionInput" class="form-control mandatory-field" rows="3" maxlength="500" placeholder="Ürünlerin ne amaçla kullanılacağını detaylı yazınız." required>{{ fs.description or '' }}</textarea>
       </div>
 
       <!-- Hidden inputs container for product items -->
@@ -566,6 +572,9 @@
 <script src="{{ url_for('static', filename='js/selectize.min.js') }}"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+  const formState = {{ (form_state or {})|tojson }};
+  const WET_SIGNATURE_THRESHOLD = 100000;
+  const COMPONENT_SEARCH_DEBOUNCE_MS = 300;
   // Elements
   const typePills = document.querySelectorAll('.type-pill');
   const satinAlmaSection = document.getElementById('satinAlmaSection');
@@ -573,9 +582,9 @@ document.addEventListener('DOMContentLoaded', function() {
   const descriptionSection = document.getElementById('descriptionSection');
   const descriptionLabel = document.getElementById('descriptionLabel');
   const descriptionInput = document.getElementById('descriptionInput');
-  let currentReqType = 'satin_alma';
   const editMode = {{ 'true' if edit_mode else 'false' }};
   const editPayload = {{ (edit_payload or {})|tojson }};
+  let currentReqType = formState.req_type || (editMode && editPayload ? editPayload.req_type : '') || 'satin_alma';
   
   // Satin alma elements
   const existingProductRadio = document.getElementById('existingProduct');
@@ -596,6 +605,11 @@ document.addEventListener('DOMContentLoaded', function() {
   const summarySection = document.getElementById('summarySection');
   const hiddenItemsContainer = document.getElementById('hiddenItemsContainer');
   const addItemBtn = document.getElementById('addItemBtn');
+  const formMessageBox = document.getElementById('formMessageBox');
+  const projectNumberWrap = document.getElementById('projectNumberWrap');
+  const projectNumberInput = document.getElementById('projectNumberInput');
+  const wetSignatureWarning = document.getElementById('wetSignatureWarning');
+  const budgetSelect = document.getElementById('budgetSelect');
   
   // New product form elements
   const categoryButtons = document.querySelectorAll('.category-btn');
@@ -626,6 +640,37 @@ document.addEventListener('DOMContentLoaded', function() {
   let items = [];
   let selectedComponent = null;
   let isNewProduct = true;
+
+  function showFormMessage(message) {
+    formMessageBox.textContent = message;
+    formMessageBox.classList.remove('d-none');
+  }
+
+  function clearFormMessage() {
+    formMessageBox.classList.add('d-none');
+    formMessageBox.textContent = '';
+  }
+
+  function updateMandatoryFieldBorder(el, valid = null) {
+    if (!el) return;
+    const checkValid = valid === null ? !!String(el.value || '').trim() : !!valid;
+    el.classList.remove('mandatory-empty', 'mandatory-filled');
+    el.classList.add(checkValid ? 'mandatory-filled' : 'mandatory-empty');
+  }
+
+  function bindMandatoryField(el) {
+    if (!el) return;
+    ['input', 'change', 'blur'].forEach(evt => {
+      el.addEventListener(evt, () => updateMandatoryFieldBorder(el));
+    });
+    updateMandatoryFieldBorder(el);
+  }
+
+  function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text || '';
+    return div.innerHTML;
+  }
   
   // Initialize Selectize for tags
   var tagsSelectize = $('#newProductTags').selectize({
@@ -676,7 +721,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
   
-  // Filter components
+  // Filter components (static filter for arıza/bakım list)
   function filterComponents(searchEl, catFilterEl, typeFilterEl, gridEl, noResultsEl) {
     const search = searchEl.value.toLowerCase().trim();
     const category = catFilterEl ? catFilterEl.value : '';
@@ -703,27 +748,73 @@ document.addEventListener('DOMContentLoaded', function() {
     
     noResultsEl.style.display = visible === 0 ? 'block' : 'none';
   }
-  
-  // Satin alma component filter
-  componentSearch.addEventListener('input', () => filterComponents(componentSearch, categoryFilter, typeFilter, componentGrid, noResults));
-  categoryFilter.addEventListener('change', () => filterComponents(componentSearch, categoryFilter, typeFilter, componentGrid, noResults));
-  typeFilter.addEventListener('change', () => filterComponents(componentSearch, categoryFilter, typeFilter, componentGrid, noResults));
-  
-  // Satin alma component selection
-  componentGrid.querySelectorAll('.component-card').forEach(card => {
-    card.addEventListener('click', function() {
-      componentGrid.querySelectorAll('.component-card').forEach(c => c.classList.remove('selected'));
-      this.classList.add('selected');
-      selectedComponent = {
-        id: this.dataset.id,
-        name: this.dataset.name,
-        category: this.dataset.category,
-        type: this.dataset.type
-      };
-      selectedProductName.textContent = this.dataset.name;
-      selectedProductPreview.style.display = 'block';
-    });
-  });
+
+  // Satin alma component search (dynamic from inventory images)
+  let componentSearchTimer = null;
+  async function loadImageComponents() {
+    const q = componentSearch.value.trim();
+    const category = categoryFilter.value;
+    const type = typeFilter.value;
+
+    componentGrid.innerHTML = '';
+    noResults.style.display = 'none';
+
+    if (!q && !category && !type) {
+      noResults.style.display = 'block';
+      return;
+    }
+
+    try {
+      const params = new URLSearchParams({ q, category, type, limit: '24' });
+      const resp = await fetch(`{{ url_for('component_image_search') }}?${params.toString()}`);
+      if (!resp.ok) throw new Error('search failed');
+      const payload = await resp.json();
+      const results = payload.items || [];
+
+      if (!results.length) {
+        noResults.style.display = 'block';
+        return;
+      }
+
+      componentGrid.innerHTML = results.map(comp => `
+        <div class="component-card"
+             data-id="${comp.id}"
+             data-name="${escapeHtml(comp.name)}"
+             data-category="${escapeHtml(comp.category || '')}"
+             data-type="${escapeHtml(comp.type || '')}"
+             data-image="${escapeHtml(comp.image_url || '')}">
+          <img src="${escapeHtml(comp.image_url || '')}" alt="${escapeHtml(comp.name)}" loading="lazy">
+          <div class="comp-name">${escapeHtml(comp.name)}</div>
+        </div>
+      `).join('');
+
+      componentGrid.querySelectorAll('.component-card').forEach(card => {
+        card.addEventListener('click', function() {
+          componentGrid.querySelectorAll('.component-card').forEach(c => c.classList.remove('selected'));
+          this.classList.add('selected');
+          selectedComponent = {
+            id: this.dataset.id,
+            name: this.dataset.name,
+            category: this.dataset.category,
+            type: this.dataset.type
+          };
+          selectedProductName.textContent = this.dataset.name;
+          selectedProductPreview.style.display = 'block';
+        });
+      });
+    } catch (e) {
+      noResults.style.display = 'block';
+    }
+  }
+
+  function triggerImageComponentSearch() {
+    clearTimeout(componentSearchTimer);
+    componentSearchTimer = setTimeout(loadImageComponents, COMPONENT_SEARCH_DEBOUNCE_MS);
+  }
+
+  componentSearch.addEventListener('input', triggerImageComponentSearch);
+  categoryFilter.addEventListener('change', triggerImageComponentSearch);
+  typeFilter.addEventListener('change', triggerImageComponentSearch);
   
   // Clear selection
   clearSelectedProduct.addEventListener('click', function() {
@@ -734,6 +825,7 @@ document.addEventListener('DOMContentLoaded', function() {
   
   // Add item to list
   addItemBtn.addEventListener('click', function() {
+    clearFormMessage();
     let itemData = {};
     
     if (isNewProduct) {
@@ -742,27 +834,31 @@ document.addEventListener('DOMContentLoaded', function() {
       const category = newProductCategory.value;
       
       if (!name) {
-        alert('Ürün adı zorunludur.');
+        updateMandatoryFieldBorder(newProductName, false);
+        showFormMessage('Ürün adı zorunludur.');
         newProductName.focus();
         return;
       }
+      updateMandatoryFieldBorder(newProductName, true);
       if (!category) {
-        alert('Ürün kategorisi seçiniz.');
+        showFormMessage('Ürün kategorisi seçiniz.');
         return;
       }
       
       const type = typeSelectize.getValue();
       if (!type) {
-        alert('Ürün türü zorunludur.');
+        showFormMessage('Ürün türü zorunludur.');
         return;
       }
       
       const desc = newProductDesc.value.trim();
       if (!desc) {
-        alert('Ürün açıklaması zorunludur.');
+        updateMandatoryFieldBorder(newProductDesc, false);
+        showFormMessage('Ürün açıklaması zorunludur.');
         newProductDesc.focus();
         return;
       }
+      updateMandatoryFieldBorder(newProductDesc, true);
       
       itemData = {
         component_id: '',
@@ -776,7 +872,7 @@ document.addEventListener('DOMContentLoaded', function() {
     } else {
       // Existing product validation
       if (!selectedComponent) {
-        alert('Lütfen bir ürün seçin.');
+        showFormMessage('Lütfen bir ürün seçin.');
         return;
       }
       
@@ -797,20 +893,27 @@ document.addEventListener('DOMContentLoaded', function() {
     const price = getTLPrice();
     
     if (qty < 1) {
-      alert('Adet en az 1 olmalıdır.');
+      updateMandatoryFieldBorder(itemQuantity, false);
+      showFormMessage('Adet en az 1 olmalıdır.');
       itemQuantity.focus();
       return;
     }
+    updateMandatoryFieldBorder(itemQuantity, true);
     if (!link) {
-      alert('Satın alma linki zorunludur.');
+      updateMandatoryFieldBorder(itemLink, false);
+      showFormMessage('Satın alma linki zorunludur.');
       itemLink.focus();
       return;
     }
+    updateMandatoryFieldBorder(itemLink, true);
     if (price <= 0) {
-      alert('Birim fiyatı giriniz.');
+      updateMandatoryFieldBorder(itemPrice, false);
+      showFormMessage('Tahmini birim fiyat giriniz.');
       itemPrice.focus();
       return;
     }
+    updateMandatoryFieldBorder(itemPrice, true);
+    wetSignatureWarning.classList.toggle('d-none', !(price > WET_SIGNATURE_THRESHOLD));
     
     itemData.quantity = qty;
     itemData.link = link;
@@ -849,6 +952,7 @@ document.addEventListener('DOMContentLoaded', function() {
     currencyMenu.querySelectorAll('.dropdown-item').forEach(i => i.classList.remove('active'));
     currencyMenu.querySelector('[data-currency="TRY"]').classList.add('active');
     conversionInfo.style.display = 'none';
+    wetSignatureWarning.classList.add('d-none');
   }
   
   // Render items list
@@ -884,9 +988,9 @@ document.addEventListener('DOMContentLoaded', function() {
             <div><span class="detail-label">Kategori:</span> ${item.category || '-'}</div>
             <div><span class="detail-label">Tür:</span> ${item.type || '-'}</div>
             <div><span class="detail-label">Adet:</span> ${item.quantity}</div>
-            <div><span class="detail-label">Birim Fiyat:</span> ${item.price.toFixed(2)} ₺</div>
+            <div><span class="detail-label">Tahmini Birim Fiyat:</span> ${item.price.toFixed(2)} ₺</div>
           </div>
-          <div class="item-total">Toplam: ${item.total.toFixed(2)} ₺</div>
+          <div class="item-total">Toplam (KDV Hariç): ${item.total.toFixed(2)} ₺</div>
         </div>
       `;
       
@@ -911,6 +1015,7 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('totalItemCount').textContent = items.length;
     document.getElementById('totalQuantity').textContent = totalQty;
     document.getElementById('totalAmount').textContent = totalAmount.toFixed(2);
+    document.getElementById('totalAmountWithVat').textContent = (totalAmount * 1.2).toFixed(2);
     
     // Add remove handlers
     productItemsList.querySelectorAll('.remove-item').forEach(btn => {
@@ -922,17 +1027,8 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
   
-  // Escape HTML
-  function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text || '';
-    return div.innerHTML;
-  }
-  
   function setRequestTypeUI(reqType) {
     currentReqType = reqType;
-    const budgetSelect = document.getElementById('budgetSelect');
-    const externalDescLabel = document.getElementById('externalDescLabel');
 
     typePills.forEach(p => {
       p.classList.toggle('active', p.dataset.type === reqType);
@@ -943,16 +1039,14 @@ document.addEventListener('DOMContentLoaded', function() {
     if (reqType === 'satin_alma') {
       satinAlmaSection.style.display = 'block';
       arizaBakimSection.style.display = 'none';
-      descriptionLabel.innerHTML = 'İstek Açıklaması <span class="text-danger">*</span>';
+      descriptionLabel.innerHTML = 'Talep Gerekçesi <span class="text-danger">*</span>';
       budgetSelect.setAttribute('required', '');
     } else {
       satinAlmaSection.style.display = 'none';
       arizaBakimSection.style.display = 'block';
       const typeLabel = reqType === 'ariza' ? 'Arıza' : 'Bakım';
       descriptionLabel.innerHTML = typeLabel + ' Açıklaması <span class="text-danger">*</span>';
-      if (externalDescLabel) {
-        externalDescLabel.innerHTML = typeLabel + ' Açıklaması <span class="text-danger">*</span>';
-      }
+      externalDescLabel.innerHTML = typeLabel + ' Açıklaması <span class="text-danger">*</span>';
       budgetSelect.removeAttribute('required');
     }
   }
@@ -1068,7 +1162,11 @@ document.addEventListener('DOMContentLoaded', function() {
   });
   
   // Update conversion display when price changes
-  itemPrice.addEventListener('input', updateConversionDisplay);
+  itemPrice.addEventListener('input', () => {
+    updateConversionDisplay();
+    wetSignatureWarning.classList.toggle('d-none', !(getTLPrice() > WET_SIGNATURE_THRESHOLD));
+    updateMandatoryFieldBorder(itemPrice);
+  });
   
   function updateConversionDisplay() {
     const val = parseFloat(itemPrice.value) || 0;
@@ -1097,6 +1195,63 @@ document.addEventListener('DOMContentLoaded', function() {
     const rate = exchangeRates[currentCurrency];
     if (!rate) return val;
     return Math.round(val * rate * 100) / 100;
+  }
+
+  function toggleProjectNumberRequirement() {
+    const isTto = budgetSelect.value === 'TTO';
+    projectNumberWrap.classList.toggle('d-none', !isTto);
+    if (isTto) {
+      projectNumberInput.setAttribute('required', '');
+      projectNumberInput.classList.add('mandatory-field');
+      bindMandatoryField(projectNumberInput);
+    } else {
+      projectNumberInput.removeAttribute('required');
+      projectNumberInput.classList.remove('mandatory-empty', 'mandatory-filled');
+      projectNumberInput.value = '';
+    }
+  }
+
+  budgetSelect.addEventListener('change', () => {
+    toggleProjectNumberRequirement();
+    updateMandatoryFieldBorder(budgetSelect);
+  });
+
+  function restoreItemsFromFormState() {
+    const names = formState.item_name || [];
+    const componentIds = formState.item_component_id || [];
+    const categories = formState.item_category || [];
+    const types = formState.item_type || [];
+    const descriptions = formState.item_description || [];
+    const tags = formState.item_tags || [];
+    const quantities = formState.item_quantity || [];
+    const links = formState.item_link || [];
+    const prices = formState.item_price || [];
+
+    if (!names.length) return;
+    const restored = [];
+    for (let i = 0; i < names.length; i++) {
+      const name = (names[i] || '').trim();
+      if (!name) continue;
+      const qty = parseInt(quantities[i] || '1', 10) || 1;
+      const price = parseFloat(prices[i] || '0') || 0;
+      restored.push({
+        component_id: componentIds[i] || '',
+        name,
+        category: categories[i] || '',
+        type: types[i] || '',
+        description: descriptions[i] || '',
+        tags: tags[i] || '',
+        quantity: qty,
+        link: links[i] || '',
+        price,
+        total: qty * price,
+        isNew: !(componentIds[i] || '').toString().trim()
+      });
+    }
+    if (restored.length) {
+      items = restored;
+      renderItems();
+    }
   }
 
   function preloadEditForm() {
@@ -1154,34 +1309,75 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
 
-  preloadEditForm();
+  document.querySelectorAll('.mandatory-field').forEach(bindMandatoryField);
+  if (editMode) {
+    preloadEditForm();
+    toggleProjectNumberRequirement();
+  } else {
+    // Initial UI sync from server form state
+    setRequestTypeUI(currentReqType);
+    restoreItemsFromFormState();
+    toggleProjectNumberRequirement();
+    if (currentReqType !== 'satin_alma' && (formState.external_product_name || formState.external_description)) {
+      arizaExternalRadio.checked = true;
+      arizaExternalRadio.dispatchEvent(new Event('change'));
+    }
+    if (formState.component_id) {
+      const matchCard = arizaComponentGrid.querySelector(`.ariza-component-card[data-id="${formState.component_id}"]`);
+      if (matchCard) {
+        matchCard.click();
+        if (formState.serial_number) {
+          serialNumberSelect.value = formState.serial_number;
+        }
+      } else {
+        arizaComponentIdInput.value = formState.component_id;
+      }
+    }
+    if ((getTLPrice() || 0) > WET_SIGNATURE_THRESHOLD) {
+      wetSignatureWarning.classList.remove('d-none');
+    }
+  }
   
   // Form validation
   document.getElementById('requestForm').addEventListener('submit', function(e) {
+    clearFormMessage();
     const reqType = currentReqType;
     
     if (reqType === 'satin_alma') {
       if (items.length === 0) {
         e.preventDefault();
-        alert('En az bir ürün eklemelisiniz.');
+        showFormMessage('En az bir ürün eklemelisiniz.');
         return;
       }
       
       const budget = document.getElementById('budgetSelect').value;
       if (!budget) {
         e.preventDefault();
-        alert('Lütfen bütçe seçin.');
-        document.getElementById('budgetSelect').focus();
+        const budgetEl = document.getElementById('budgetSelect');
+        updateMandatoryFieldBorder(budgetEl, false);
+        showFormMessage('Lütfen bütçe seçin.');
+        budgetEl.focus();
+        return;
+      }
+      updateMandatoryFieldBorder(document.getElementById('budgetSelect'), true);
+
+      if (budget === 'TTO' && !projectNumberInput.value.trim()) {
+        e.preventDefault();
+        updateMandatoryFieldBorder(projectNumberInput, false);
+        showFormMessage('Proje Numarası zorunlu.');
+        projectNumberInput.focus();
         return;
       }
       
       const desc = descriptionInput.value.trim();
       if (!desc) {
         e.preventDefault();
-        alert('Lütfen istek açıklaması girin.');
+        updateMandatoryFieldBorder(descriptionInput, false);
+        showFormMessage('Lütfen talep gerekçesi girin.');
         descriptionInput.focus();
         return;
       }
+      updateMandatoryFieldBorder(descriptionInput, true);
     } else {
       // Ariza/bakim validation
       const isExternal = arizaExternalRadio.checked;
@@ -1192,31 +1388,37 @@ document.addEventListener('DOMContentLoaded', function() {
         
         if (!extName) {
           e.preventDefault();
-          alert('Ürün adı zorunludur.');
-          document.getElementById('externalProductName').focus();
+          const extNameEl = document.getElementById('externalProductName');
+          updateMandatoryFieldBorder(extNameEl, false);
+          showFormMessage('Ürün adı zorunludur.');
+          extNameEl.focus();
           return;
         }
         if (!extDesc) {
           e.preventDefault();
-          alert('Açıklama zorunludur.');
-          document.getElementById('externalDescription').focus();
+          const extDescEl = document.getElementById('externalDescription');
+          updateMandatoryFieldBorder(extDescEl, false);
+          showFormMessage('Açıklama zorunludur.');
+          extDescEl.focus();
           return;
         }
       } else {
         const compId = arizaComponentIdInput.value;
         if (!compId) {
           e.preventDefault();
-          alert('Lütfen bir ürün seçin.');
+          showFormMessage('Lütfen bir ürün seçin.');
           return;
         }
         
         const desc = descriptionInput.value.trim();
         if (!desc) {
           e.preventDefault();
-          alert('Lütfen açıklama girin.');
+          updateMandatoryFieldBorder(descriptionInput, false);
+          showFormMessage('Lütfen açıklama girin.');
           descriptionInput.focus();
           return;
         }
+        updateMandatoryFieldBorder(descriptionInput, true);
       }
     }
   });

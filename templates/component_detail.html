@@ -161,10 +161,10 @@
                                     {% endif %}
                                 </td>
                                 <td><span class="font-monospace">{{ record.serial_number }}</span></td>
-                                <td>{{ record.borrow_date.strftime('%d-%m-%Y') }}</td>
+                                <td>{{ record.borrow_date|tr_date }}</td>
                                 <td>
                                     {% if record.return_date %}
-                                    <span class="text-muted">{{ record.return_date.strftime('%d-%m-%Y') }}</span>
+                                    <span class="text-muted">{{ record.return_date|tr_date }}</span>
                                     {% else %}
                                     <span class="badge bg-danger">İade Edilmedi</span>
                                     {% endif %}
@@ -212,7 +212,7 @@
                                     <i class="bi bi-person-fill me-1"></i>{{ record.user_name }}
                                     {% endif %}
                                 </td>
-                                <td>{{ record.timestamp.strftime('%d-%m-%Y %H:%M') }}</td>
+                                <td>{{ record.timestamp|tr_date(True) }}</td>
                                 <td><span class="badge bg-secondary">{{ record.amount }}</span></td>
                                 <td>
                                     {% if record.notes %}
