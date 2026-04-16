@@ -43,7 +43,7 @@ LDAP_GROUP_MEMBER_ATTR = os.environ.get('LDAP_GROUP_MEMBER_ATTR', 'memberUid')
 from ldap3 import Server, Connection, ALL, SUBTREE
 
 # Proje içi modüller
-from models import db, User, Component, BorrowLog, Project, ProjectItem, Tag, Request, InventoryItem, RequestItem, RequestMessage
+from models import db, User, Component, BorrowLog, Project, ProjectItem, Tag, Request, InventoryItem, RequestItem, RequestMessage, RequestRevision
 
 # ==============================================================================
 # YARDIMCI FONKSİYONLAR
@@ -167,6 +167,186 @@ def append_admin_note_message(req, note: str, admin_user):
         body=note
     )
     db.session.add(admin_note_message)
+
+
+def build_request_snapshot(req) -> dict:
+    """
+    Request + RequestItem verisini karşılaştırılabilir normalize bir snapshot olarak döndürür.
+    """
+    items = []
+    for item in req.items.order_by(RequestItem.id.asc()).all():
+        items.append({
+            'name': item.name or '',
+            'component_id': item.component_id,
+            'product_category': item.product_category or '',
+            'product_type': item.product_type or '',
+            'product_description': item.product_description or '',
+            'tags': item.tags or '',
+            'quantity': item.quantity or 0,
+            'purchase_link': item.purchase_link or '',
+            'unit_price': item.unit_price,
+            'total_price': item.total_price
+        })
+
+    return {
+        'req_type': req.req_type or '',
+        'name': req.name or '',
+        'description': req.description or '',
+        'component_id': req.component_id,
+        'serial_number': req.serial_number or '',
+        'product_category': req.product_category or '',
+        'product_type': req.product_type or '',
+        'product_description': req.product_description or '',
+        'tags': req.tags or '',
+        'quantity': req.quantity or 0,
+        'purchase_link': req.purchase_link or '',
+        'unit_price': req.unit_price,
+        'total_price': req.total_price,
+        'budget': req.budget or '',
+        'items': items
+    }
+
+
+def create_request_revision(req, submitted_by=None, status_at_submit=None):
+    """
+    İstek için yeni revision/snapshot kaydı oluşturur.
+    """
+    if not req or not req.id:
+        return
+
+    current_max = db.session.query(func.max(RequestRevision.revision_no)).filter(
+        RequestRevision.request_id == req.id
+    ).scalar() or 0
+
+    revision = RequestRevision(
+        request_id=req.id,
+        revision_no=current_max + 1,
+        submitted_by=submitted_by,
+        status_at_submit=status_at_submit or (req.req_status or 'beklemede'),
+        snapshot=build_request_snapshot(req)
+    )
+    db.session.add(revision)
+
+
+def _normalize_snapshot_value(value):
+    if value is None:
+        return ''
+    return value
+
+
+def build_snapshot_diff(old_snapshot: dict, new_snapshot: dict) -> dict:
+    """
+    İki revision snapshot'u arasındaki alan ve item farklarını hesaplar.
+    """
+    old_snapshot = old_snapshot or {}
+    new_snapshot = new_snapshot or {}
+
+    field_labels = {
+        'req_type': 'İstek Türü',
+        'name': 'Ürün/İstek Adı',
+        'description': 'Açıklama',
+        'component_id': 'Bileşen ID',
+        'serial_number': 'Seri Numarası',
+        'product_category': 'Kategori',
+        'product_type': 'Ürün Türü',
+        'product_description': 'Ürün Açıklaması',
+        'tags': 'Etiketler',
+        'quantity': 'Adet',
+        'purchase_link': 'Satın Alma Linki',
+        'unit_price': 'Birim Fiyat',
+        'total_price': 'Toplam Fiyat',
+        'budget': 'Bütçe'
+    }
+
+    changed_fields = []
+    for key, label in field_labels.items():
+        old_val = _normalize_snapshot_value(old_snapshot.get(key))
+        new_val = _normalize_snapshot_value(new_snapshot.get(key))
+        if old_val != new_val:
+            changed_fields.append({
+                'field': key,
+                'label': label,
+                'old': old_val,
+                'new': new_val
+            })
+
+    old_items = old_snapshot.get('items') or []
+    new_items = new_snapshot.get('items') or []
+    max_common = min(len(old_items), len(new_items))
+
+    updated_items = []
+    item_field_labels = {
+        'name': 'Ürün',
+        'component_id': 'Bileşen ID',
+        'product_category': 'Kategori',
+        'product_type': 'Tür',
+        'product_description': 'Açıklama',
+        'tags': 'Etiketler',
+        'quantity': 'Adet',
+        'purchase_link': 'Link',
+        'unit_price': 'Birim Fiyat',
+        'total_price': 'Toplam'
+    }
+
+    for idx in range(max_common):
+        old_item = old_items[idx] or {}
+        new_item = new_items[idx] or {}
+        changes = []
+        for key, label in item_field_labels.items():
+            old_val = _normalize_snapshot_value(old_item.get(key))
+            new_val = _normalize_snapshot_value(new_item.get(key))
+            if old_val != new_val:
+                changes.append({
+                    'field': key,
+                    'label': label,
+                    'old': old_val,
+                    'new': new_val
+                })
+        if changes:
+            updated_items.append({
+                'index': idx + 1,
+                'old_name': old_item.get('name') or '-',
+                'new_name': new_item.get('name') or '-',
+                'changes': changes
+            })
+
+    removed_items = old_items[max_common:] if len(old_items) > max_common else []
+    added_items = new_items[max_common:] if len(new_items) > max_common else []
+
+    return {
+        'changed_fields': changed_fields,
+        'updated_items': updated_items,
+        'removed_items': removed_items,
+        'added_items': added_items,
+        'has_changes': bool(changed_fields or updated_items or removed_items or added_items)
+    }
+
+
+def build_request_revision_diffs(requests_list):
+    """
+    Admin ekranı için tüm revision çiftlerinin diff listesini üretir.
+    """
+    diff_map = {}
+
+    for req in requests_list:
+        revisions = sorted(req.revisions or [], key=lambda r: (r.revision_no, r.id))
+        entries = []
+        for i in range(1, len(revisions)):
+            old_rev = revisions[i - 1]
+            new_rev = revisions[i]
+            diff = build_snapshot_diff(old_rev.snapshot or {}, new_rev.snapshot or {})
+            entries.append({
+                'from_revision': old_rev.revision_no,
+                'to_revision': new_rev.revision_no,
+                'from_status': old_rev.status_at_submit,
+                'to_status': new_rev.status_at_submit,
+                'from_submitted_at': old_rev.submitted_at,
+                'to_submitted_at': new_rev.submitted_at,
+                'diff': diff
+            })
+        diff_map[req.id] = entries
+
+    return diff_map
 
 
 def build_request_return_url(default_endpoint: str, req_id: int):
@@ -1667,6 +1847,8 @@ def create_request():
                     # Eğer zimmet düşsün istenseydi: inventory_item.assigned_to = None
             # ------------
 
+            db.session.flush()
+            create_request_revision(req, submitted_by=current_user.id, status_at_submit='beklemede')
             db.session.commit()
             flash('İstek eklendi.', 'success')
             
@@ -1755,6 +1937,8 @@ def create_request():
             req.total_price = total_request_price if total_request_price > 0 else None
             
             db.session.add(req)
+            db.session.flush()
+            create_request_revision(req, submitted_by=current_user.id, status_at_submit='beklemede')
             db.session.commit()
             flash('İstek eklendi.', 'success')
         
@@ -1767,6 +1951,221 @@ def create_request():
     categories = sorted({(c.category or 'Diğer') for c in components})
     existing_tags = Tag.query.order_by(Tag.name).all()
     return render_template('create_request.html', current_status=status, components=components, component_types=types, component_categories=categories, existing_tags=existing_tags)
+
+
+@app.route('/istek/<int:req_id>/duzenle', methods=['GET', 'POST'])
+@login_required
+def edit_request(req_id):
+    """Reddedilmiş isteği düzenleyip yeniden gönderme."""
+    status = request.args.get('status', 'all')
+    req = Request.query.get_or_404(req_id)
+
+    if req.created_by != current_user.id:
+        abort(403)
+    if req.req_status != 'reddedildi':
+        flash('Sadece reddedilmiş istekler düzenlenebilir.', 'warning')
+        return redirect(url_for('requests', status=status))
+
+    if request.method == 'POST':
+        description = request.form.get('description', '').strip()
+        req_type = request.form.get('req_type', 'satin_alma')
+        budget = request.form.get('budget', '').strip()
+
+        req.component_id = None
+        req.serial_number = None
+        req.product_category = None
+        req.product_type = None
+        req.product_description = None
+        req.tags = None
+        req.quantity = None
+        req.purchase_link = None
+        req.unit_price = None
+        req.total_price = None
+        req.budget = None
+        req.items.delete()
+
+        if req_type in ['ariza', 'bakim']:
+            component_id = request.form.get('component_id')
+            name = ''
+            selected_component = None
+
+            if component_id and component_id.isdigit():
+                selected_component = Component.query.get(int(component_id))
+                if selected_component:
+                    name = selected_component.name
+
+            external_product_name = request.form.get('external_product_name', '').strip()
+            external_description = request.form.get('external_description', '').strip()
+
+            if external_product_name:
+                name = external_product_name
+                if not external_description:
+                    flash('Açıklama zorunlu.', 'danger')
+                    return redirect(url_for('edit_request', req_id=req.id, status=status))
+                description = external_description
+            elif not description:
+                flash('Açıklama zorunlu.', 'danger')
+                return redirect(url_for('edit_request', req_id=req.id, status=status))
+
+            if not name:
+                flash('Ürün adı zorunlu.', 'danger')
+                return redirect(url_for('edit_request', req_id=req.id, status=status))
+
+            req.req_type = req_type
+            req.name = name
+            req.description = description
+            if selected_component:
+                req.component_id = selected_component.id
+
+            serial_number = request.form.get('serial_number', '').strip()
+            if serial_number:
+                req.serial_number = serial_number
+
+        else:
+            if not budget:
+                flash('Bütçe seçimi zorunlu.', 'danger')
+                return redirect(url_for('edit_request', req_id=req.id, status=status))
+
+            if not description:
+                flash('İstek açıklaması zorunlu.', 'danger')
+                return redirect(url_for('edit_request', req_id=req.id, status=status))
+
+            item_names = request.form.getlist('item_name[]')
+            item_component_ids = request.form.getlist('item_component_id[]')
+            item_categories = request.form.getlist('item_category[]')
+            item_types = request.form.getlist('item_type[]')
+            item_descriptions = request.form.getlist('item_description[]')
+            item_tags = request.form.getlist('item_tags[]')
+            item_quantities = request.form.getlist('item_quantity[]')
+            item_links = request.form.getlist('item_link[]')
+            item_prices = request.form.getlist('item_price[]')
+
+            if not item_names or all(not n.strip() for n in item_names):
+                flash('En az bir ürün eklemelisiniz.', 'danger')
+                return redirect(url_for('edit_request', req_id=req.id, status=status))
+
+            req.req_type = req_type
+            req.name = item_names[0].strip() if item_names else 'Satın Alma İsteği'
+            req.description = description
+            req.budget = budget if budget else None
+
+            total_request_price = 0
+            for i in range(len(item_names)):
+                name = item_names[i].strip() if i < len(item_names) else ''
+                if not name:
+                    continue
+
+                component_id = item_component_ids[i] if i < len(item_component_ids) else ''
+                category = item_categories[i] if i < len(item_categories) else ''
+                item_type = item_types[i] if i < len(item_types) else ''
+                item_desc = item_descriptions[i] if i < len(item_descriptions) else ''
+                tags = item_tags[i] if i < len(item_tags) else ''
+
+                try:
+                    quantity = int(item_quantities[i]) if i < len(item_quantities) and item_quantities[i] else 1
+                except ValueError:
+                    quantity = 1
+
+                link = item_links[i] if i < len(item_links) else ''
+
+                try:
+                    unit_price = float(item_prices[i]) if i < len(item_prices) and item_prices[i] else None
+                except ValueError:
+                    unit_price = None
+
+                item_total = (unit_price * quantity) if unit_price else None
+                if item_total:
+                    total_request_price += item_total
+
+                req.items.append(RequestItem(
+                    name=name,
+                    component_id=int(component_id) if component_id and component_id.isdigit() else None,
+                    product_category=category if category else None,
+                    product_type=item_type if item_type else None,
+                    product_description=item_desc if item_desc else None,
+                    tags=tags if tags else None,
+                    quantity=quantity,
+                    purchase_link=link if link else None,
+                    unit_price=unit_price,
+                    total_price=item_total
+                ))
+
+            req.total_price = total_request_price if total_request_price > 0 else None
+
+        old_status = req.req_status
+        req.req_status = 'beklemede'
+        append_status_event_message(req, old_status, 'beklemede')
+        db.session.add(RequestMessage(
+            request_id=req.id,
+            author_user_id=current_user.id,
+            author_username_snapshot=current_user.username,
+            author_role='system',
+            message_type='status_event',
+            body='İstek kullanıcı tarafından düzenlenip yeniden gönderildi.'
+        ))
+        create_request_revision(req, submitted_by=current_user.id, status_at_submit='beklemede')
+        db.session.commit()
+        flash('İstek düzenlendi ve yeniden gönderildi.', 'success')
+        return redirect(url_for('requests', status=status))
+
+    edit_payload = {
+        'req_type': req.req_type,
+        'description': req.description or '',
+        'budget': req.budget or '',
+        'component_id': req.component_id,
+        'serial_number': req.serial_number or '',
+        'external_product_name': req.name if req.req_type in ['ariza', 'bakim'] and not req.component_id else '',
+        'external_description': req.description if req.req_type in ['ariza', 'bakim'] and not req.component_id else '',
+        'items': []
+    }
+
+    if req.req_type == 'satin_alma':
+        existing_items = req.items.order_by(RequestItem.id.asc()).all()
+        if existing_items:
+            edit_payload['items'] = [
+                {
+                    'component_id': item.component_id or '',
+                    'name': item.name or '',
+                    'category': item.product_category or '',
+                    'type': item.product_type or '',
+                    'description': item.product_description or '',
+                    'tags': item.tags or '',
+                    'quantity': item.quantity or 1,
+                    'link': item.purchase_link or '',
+                    'price': item.unit_price or 0,
+                    'isNew': not bool(item.component_id)
+                }
+                for item in existing_items
+            ]
+        elif req.name:
+            edit_payload['items'] = [{
+                'component_id': req.component_id or '',
+                'name': req.name or '',
+                'category': req.product_category or '',
+                'type': req.product_type or '',
+                'description': req.product_description or '',
+                'tags': req.tags or '',
+                'quantity': req.quantity or 1,
+                'link': req.purchase_link or '',
+                'price': req.unit_price or 0,
+                'isNew': not bool(req.component_id)
+            }]
+
+    components = Component.query.filter_by(is_deleted=False).order_by(Component.name).all()
+    types = sorted({(c.type or 'Diğer') for c in components})
+    categories = sorted({(c.category or 'Diğer') for c in components})
+    existing_tags = Tag.query.order_by(Tag.name).all()
+    return render_template(
+        'create_request.html',
+        current_status=status,
+        components=components,
+        component_types=types,
+        component_categories=categories,
+        existing_tags=existing_tags,
+        edit_mode=True,
+        edit_request=req,
+        edit_payload=edit_payload
+    )
 
 @app.route('/delete_request/<int:req_id>', methods=['POST'])
 @login_required
@@ -2084,7 +2483,7 @@ def admin_requests():
         'tamamlandi': Request.query.filter_by(req_status='tamamlandi').count()
     }
     
-    q = Request.query.options(selectinload(Request.messages))
+    q = Request.query.options(selectinload(Request.messages), selectinload(Request.revisions))
     if status and status != 'all':
         q = q.filter_by(req_status=status)
     
@@ -2116,11 +2515,13 @@ def admin_requests():
 
     requests_list = q.all()
     conversation_map = build_request_conversation_map(requests_list)
+    revision_diff_map = build_request_revision_diffs(requests_list)
     return render_template('admin/manage_requests.html', 
-                          requests=requests_list, 
-                          conversation_map=conversation_map,
-                          current_status=status, 
-                          current_type=req_type,
+                           requests=requests_list, 
+                           conversation_map=conversation_map,
+                           revision_diff_map=revision_diff_map,
+                           current_status=status, 
+                           current_type=req_type,
                           current_search=search_query,
                           current_sort=sort_by,
                           current_user_filter=user_filter,
@@ -2158,6 +2559,8 @@ def admin_set_request_status(req_id):
     old_status = req.req_status
     req.req_status = new_status
     append_status_event_message(req, old_status, new_status)
+    if new_status == 'reddedildi':
+        create_request_revision(req, submitted_by=current_user.id, status_at_submit='reddedildi')
     if admin_note:
         req.admin_note = admin_note
         append_admin_note_message(req, admin_note, current_user)
@@ -2234,6 +2637,8 @@ def admin_bulk_request_status():
         old_status = req.req_status
         req.req_status = new_status
         append_status_event_message(req, old_status, new_status)
+        if new_status == 'reddedildi':
+            create_request_revision(req, submitted_by=current_user.id, status_at_submit='reddedildi')
         if admin_note:
             req.admin_note = admin_note
             append_admin_note_message(req, admin_note, current_user)

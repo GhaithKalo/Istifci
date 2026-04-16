@@ -236,6 +236,7 @@ Ayrıca `instance/database.db` (SQLite) veya veritabanı socket/credentials içi
 - `create_admin.py`: İlk admin kullanıcı oluşturma (kullanım: `python3 scripts/create_admin.py`)
 - `fix_chars.py`: Karakter temizleme/fix scripti
 - `test_locations.py`: Lokasyon testi scripti
+- `backfill_request_revisions.py`: Eski istekler için başlangıç revision/snapshot kayıtlarını üretir
 
 Kendi ihtiyaçlarınıza göre scriptleri düzenleyebilir veya yeni CLI komutları ekleyebilirsiniz.
 
