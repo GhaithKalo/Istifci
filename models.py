@@ -279,6 +279,13 @@ class Request(db.Model):
         lazy='select',
         order_by='RequestMessage.created_at.asc(), RequestMessage.id.asc()'
     )
+    revisions = db.relationship(
+        'RequestRevision',
+        backref='request',
+        cascade='all, delete-orphan',
+        lazy='select',
+        order_by='RequestRevision.revision_no.asc()'
+    )
     
     @property
     def total_items_price(self):
@@ -355,4 +362,24 @@ class RequestMessage(db.Model):
 
     __table_args__ = (
         db.Index('ix_request_message_request_id_created_at', 'request_id', 'created_at'),
+    )
+
+
+class RequestRevision(db.Model):
+    """
+    İsteklerin revision geçmişini ve karşılaştırma için snapshot verisini tutar.
+    """
+    id = db.Column(db.Integer, primary_key=True)
+    request_id = db.Column(db.Integer, db.ForeignKey('request.id', ondelete='CASCADE'), nullable=False, index=True)
+    revision_no = db.Column(db.Integer, nullable=False)
+    submitted_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+    submitted_by = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='SET NULL'), nullable=True)
+    status_at_submit = db.Column(db.String(30), nullable=False, default='beklemede')
+    snapshot = db.Column(db.JSON, nullable=False)
+
+    user = db.relationship('User', backref=db.backref('request_revisions', lazy=True))
+
+    __table_args__ = (
+        db.UniqueConstraint('request_id', 'revision_no', name='uq_request_revision_request_revision_no'),
+        db.Index('ix_request_revision_request_id_submitted_at', 'request_id', 'submitted_at'),
     )

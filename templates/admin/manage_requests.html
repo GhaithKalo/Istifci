@@ -884,6 +884,90 @@
                         </div>
                       {% endif %}
 
+                      {% set revision_diffs = revision_diff_map.get(req.id, []) %}
+                      <hr class="my-3">
+                      <h6 class="mt-0"><i class="bi bi-arrow-left-right me-2"></i>Revizyon Farkları</h6>
+                      {% if revision_diffs %}
+                        {% for rev in revision_diffs %}
+                        <div class="border rounded p-2 mb-2 bg-light">
+                          <div class="d-flex justify-content-between align-items-center mb-2">
+                            <div>
+                              <strong>Revizyon {{ rev.from_revision }} → {{ rev.to_revision }}</strong>
+                              <span class="badge bg-secondary ms-1">{{ rev.from_status or '-' }} → {{ rev.to_status or '-' }}</span>
+                            </div>
+                            <small class="text-muted">{{ rev.to_submitted_at|tr_date(True) if rev.to_submitted_at else '' }}</small>
+                          </div>
+
+                          {% if rev.diff.has_changes %}
+                            {% if rev.diff.changed_fields %}
+                              <div class="table-responsive mb-2">
+                                <table class="table table-sm table-bordered mb-0">
+                                  <thead class="table-light">
+                                    <tr>
+                                      <th>Alan</th>
+                                      <th>Eski</th>
+                                      <th>Yeni</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {% for f in rev.diff.changed_fields %}
+                                    <tr>
+                                      <td>{{ f.label }}</td>
+                                      <td>{{ f.old if f.old != '' else '-' }}</td>
+                                      <td>{{ f.new if f.new != '' else '-' }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                  </tbody>
+                                </table>
+                              </div>
+                            {% endif %}
+
+                            {% if rev.diff.updated_items %}
+                              <div class="mb-2">
+                                <strong class="small">Güncellenen Ürün Kalemleri</strong>
+                                {% for u in rev.diff.updated_items %}
+                                <div class="border rounded p-2 mt-1 bg-white">
+                                  <div class="small mb-1"><strong>#{{ u.index }}</strong> {{ u.old_name }} → {{ u.new_name }}</div>
+                                  <ul class="small mb-0">
+                                    {% for c in u.changes %}
+                                    <li><strong>{{ c.label }}:</strong> {{ c.old if c.old != '' else '-' }} → {{ c.new if c.new != '' else '-' }}</li>
+                                    {% endfor %}
+                                  </ul>
+                                </div>
+                                {% endfor %}
+                              </div>
+                            {% endif %}
+
+                            {% if rev.diff.added_items %}
+                              <div class="mb-2">
+                                <strong class="small text-success">Eklenen Ürün Kalemleri</strong>
+                                <ul class="small mb-0">
+                                  {% for a in rev.diff.added_items %}
+                                  <li>{{ a.name }} ({{ a.quantity }} adet)</li>
+                                  {% endfor %}
+                                </ul>
+                              </div>
+                            {% endif %}
+
+                            {% if rev.diff.removed_items %}
+                              <div class="mb-2">
+                                <strong class="small text-danger">Silinen Ürün Kalemleri</strong>
+                                <ul class="small mb-0">
+                                  {% for r in rev.diff.removed_items %}
+                                  <li>{{ r.name }} ({{ r.quantity }} adet)</li>
+                                  {% endfor %}
+                                </ul>
+                              </div>
+                            {% endif %}
+                          {% else %}
+                            <div class="text-muted small">Bu revizyonda değişiklik yok.</div>
+                          {% endif %}
+                        </div>
+                        {% endfor %}
+                      {% else %}
+                        <div class="text-muted small">Henüz revision farkı yok.</div>
+                      {% endif %}
+
                       {% set conv = conversation_map.get(req.id, []) %}
                       <hr class="my-3">
                       <h6 class="mt-0"><i class="bi bi-chat-square-text me-2"></i>Konuşma</h6>

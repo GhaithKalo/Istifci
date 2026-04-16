@@ -241,14 +241,17 @@
 <div class="container my-4">
   <!-- Page Header - matches requests.html -->
   <div class="d-flex justify-content-between align-items-center mb-3">
-    <h3 class="mb-0"><i class="bi bi-plus-circle-fill me-2"></i>Yeni İstek Oluştur</h3>
+    <h3 class="mb-0">
+      <i class="bi {% if edit_mode %}bi-pencil-square{% else %}bi-plus-circle-fill{% endif %} me-2"></i>
+      {% if edit_mode %}İsteği Düzenle ve Yeniden Gönder{% else %}Yeni İstek Oluştur{% endif %}
+    </h3>
     <a href="{{ url_for('requests', status=current_status) }}" class="btn btn-outline-secondary btn-sm">
       <i class="bi bi-arrow-left me-1"></i>Geri Dön
     </a>
   </div>
 
   <div class="bg-white rounded p-3 border" style="box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
-    <form method="post" action="{{ url_for('create_request', status=current_status) }}" id="requestForm">
+    <form method="post" action="{% if edit_mode %}{{ url_for('edit_request', req_id=edit_request.id, status=current_status) }}{% else %}{{ url_for('create_request', status=current_status) }}{% endif %}" id="requestForm">
       <div id="formMessageBox" class="alert alert-danger d-none" role="alert"></div>
       <div class="alert alert-warning">
         Ürün adı ve açıklaması satıcı websitesinden alıntılanmalıdır.
@@ -553,7 +556,7 @@
       <!-- Actions -->
       <div class="d-flex gap-2 mt-3 pt-3" style="border-top: 1px solid #dee2e6;">
         <button type="submit" class="btn btn-primary" id="submitBtn">
-          <i class="bi bi-check-circle-fill me-1"></i>İstek Oluştur
+          <i class="bi bi-check-circle-fill me-1"></i>{% if edit_mode %}Kaydet ve Yeniden Gönder{% else %}İstek Oluştur{% endif %}
         </button>
         <a href="{{ url_for('requests', status=current_status) }}" class="btn btn-outline-secondary">
           <i class="bi bi-x-circle me-1"></i>İptal
@@ -579,7 +582,9 @@ document.addEventListener('DOMContentLoaded', function() {
   const descriptionSection = document.getElementById('descriptionSection');
   const descriptionLabel = document.getElementById('descriptionLabel');
   const descriptionInput = document.getElementById('descriptionInput');
-  let currentReqType = formState.req_type || 'satin_alma';
+  const editMode = {{ 'true' if edit_mode else 'false' }};
+  const editPayload = {{ (edit_payload or {})|tojson }};
+  let currentReqType = formState.req_type || (editMode && editPayload ? editPayload.req_type : '') || 'satin_alma';
   
   // Satin alma elements
   const existingProductRadio = document.getElementById('existingProduct');
@@ -1022,8 +1027,15 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
   
-  function applyRequestTypeUI(reqType) {
+  function setRequestTypeUI(reqType) {
     currentReqType = reqType;
+
+    typePills.forEach(p => {
+      p.classList.toggle('active', p.dataset.type === reqType);
+      const radio = p.querySelector('input[type="radio"]');
+      if (radio) radio.checked = p.dataset.type === reqType;
+    });
+
     if (reqType === 'satin_alma') {
       satinAlmaSection.style.display = 'block';
       arizaBakimSection.style.display = 'none';
@@ -1042,10 +1054,7 @@ document.addEventListener('DOMContentLoaded', function() {
   // Request type change handler (type pills)
   typePills.forEach(pill => {
     pill.addEventListener('click', function() {
-      typePills.forEach(p => p.classList.remove('active'));
-      this.classList.add('active');
-      this.querySelector('input[type="radio"]').checked = true;
-      applyRequestTypeUI(this.dataset.type);
+      setRequestTypeUI(this.dataset.type);
     });
   });
   
@@ -1245,32 +1254,88 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
 
-  // Initial UI sync from server form state
-  document.querySelectorAll('.mandatory-field').forEach(bindMandatoryField);
-  typePills.forEach(p => p.classList.remove('active'));
-  const activePill = Array.from(typePills).find(p => p.dataset.type === currentReqType) || typePills[0];
-  activePill.classList.add('active');
-  activePill.querySelector('input[type="radio"]').checked = true;
-  applyRequestTypeUI(currentReqType);
-  restoreItemsFromFormState();
-  toggleProjectNumberRequirement();
-  if (currentReqType !== 'satin_alma' && (formState.external_product_name || formState.external_description)) {
-    arizaExternalRadio.checked = true;
-    arizaExternalRadio.dispatchEvent(new Event('change'));
-  }
-  if (formState.component_id) {
-    const matchCard = arizaComponentGrid.querySelector(`.ariza-component-card[data-id="${formState.component_id}"]`);
-    if (matchCard) {
-      matchCard.click();
-      if (formState.serial_number) {
-        serialNumberSelect.value = formState.serial_number;
+  function preloadEditForm() {
+    if (!editMode || !editPayload || !editPayload.req_type) return;
+
+    setRequestTypeUI(editPayload.req_type);
+
+    if (editPayload.description) {
+      descriptionInput.value = editPayload.description;
+    }
+
+    if (editPayload.req_type === 'satin_alma') {
+      if (editPayload.budget) {
+        document.getElementById('budgetSelect').value = editPayload.budget;
       }
+      items = Array.isArray(editPayload.items) ? editPayload.items.map(item => {
+        const qty = parseInt(item.quantity) || 1;
+        const price = parseFloat(item.price) || 0;
+        return {
+          component_id: item.component_id || '',
+          name: item.name || '',
+          category: item.category || '',
+          type: item.type || '',
+          description: item.description || '',
+          tags: item.tags || '',
+          quantity: qty,
+          link: item.link || '',
+          price: price,
+          total: qty * price,
+          isNew: item.isNew !== false
+        };
+      }) : [];
+      renderItems();
+      return;
+    }
+
+    const isExternal = !!(editPayload.external_product_name && !editPayload.component_id);
+    if (isExternal) {
+      arizaExternalRadio.checked = true;
+      arizaExternalRadio.dispatchEvent(new Event('change'));
+      document.getElementById('externalProductName').value = editPayload.external_product_name || '';
+      document.getElementById('externalDescription').value = editPayload.external_description || '';
     } else {
-      arizaComponentIdInput.value = formState.component_id;
+      arizaExistingRadio.checked = true;
+      arizaExistingRadio.dispatchEvent(new Event('change'));
+      if (editPayload.component_id) {
+        const card = arizaComponentGrid.querySelector(`.ariza-component-card[data-id="${editPayload.component_id}"]`);
+        if (card) {
+          card.click();
+          if (editPayload.serial_number) {
+            serialNumberSelect.value = editPayload.serial_number;
+          }
+        }
+      }
     }
   }
-  if ((getTLPrice() || 0) > WET_SIGNATURE_THRESHOLD) {
-    wetSignatureWarning.classList.remove('d-none');
+
+  document.querySelectorAll('.mandatory-field').forEach(bindMandatoryField);
+  if (editMode) {
+    preloadEditForm();
+    toggleProjectNumberRequirement();
+  } else {
+    // Initial UI sync from server form state
+    setRequestTypeUI(currentReqType);
+    restoreItemsFromFormState();
+    toggleProjectNumberRequirement();
+    if (currentReqType !== 'satin_alma' && (formState.external_product_name || formState.external_description)) {
+      arizaExternalRadio.checked = true;
+      arizaExternalRadio.dispatchEvent(new Event('change'));
+    }
+    if (formState.component_id) {
+      const matchCard = arizaComponentGrid.querySelector(`.ariza-component-card[data-id="${formState.component_id}"]`);
+      if (matchCard) {
+        matchCard.click();
+        if (formState.serial_number) {
+          serialNumberSelect.value = formState.serial_number;
+        }
+      } else {
+        arizaComponentIdInput.value = formState.component_id;
+      }
+    }
+    if ((getTLPrice() || 0) > WET_SIGNATURE_THRESHOLD) {
+      wetSignatureWarning.classList.remove('d-none');
+    }
   }
   
   // Form validation

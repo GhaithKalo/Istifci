@@ -758,6 +758,14 @@
           
           {% endif %} {# End of else block for single product #}
 
+          {% if req.req_status == 'reddedildi' %}
+          <div class="detail-item" style="grid-column: 1 / -1;">
+            <a href="{{ url_for('edit_request', req_id=req.id, status=current_status) }}" class="btn btn-sm btn-outline-primary">
+              <i class="bi bi-pencil-square me-1"></i>Düzenle ve Yeniden Gönder
+            </a>
+          </div>
+          {% endif %}
+
           <!-- Konuşma -->
           {% set conv = conversation_map.get(req.id, []) %}
           <div class="detail-item" style="grid-column: 1 / -1;">
