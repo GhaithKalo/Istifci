@@ -245,16 +245,35 @@
     color: #6c757d;
     margin-bottom: 0.25rem;
   }
+  .new-request-floating {
+    position: fixed;
+    right: 1rem;
+    bottom: 4.5rem;
+    z-index: 1040;
+    border-radius: 999px;
+    box-shadow: 0 4px 16px rgba(13, 110, 253, 0.3);
+    display: none;
+  }
+  @media (max-width: 768px) {
+    .new-request-floating {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+  }
 </style>
 
 <div class="container my-4">
   <!-- Page Header - Bootstrap style like index.html -->
   <div class="d-flex justify-content-between align-items-center mb-4">
     <h3 class="mb-0"><i class="bi bi-inbox-fill me-2"></i>İsteklerim</h3>
-    <a href="{{ url_for('create_request', status=current_status) }}" class="btn btn-primary btn-sm rounded">
+    <a href="{{ url_for('create_request', status=current_status) }}" class="btn btn-primary rounded px-3 py-2 fw-semibold">
       <i class="bi bi-plus-circle me-1"></i> Yeni İstek
     </a>
   </div>
+  <a href="{{ url_for('create_request', status=current_status) }}" class="btn btn-primary new-request-floating" aria-label="Yeni İstek">
+    <i class="bi bi-plus-circle"></i> Yeni İstek
+  </a>
 
   <!-- Stats Row - Compact -->
   <div class="stats-row">
@@ -419,7 +438,7 @@
                     <th>Ürün Açıklaması</th>
                     <th>Etiketler</th>
                     <th>Adet</th>
-                    <th>Birim Fiyat</th>
+                    <th>Tahmini Birim Fiyat</th>
                     <th>Toplam</th>
                     <th>Link</th>
                   </tr>
@@ -447,7 +466,7 @@
                     <td>{{ item.tags or '-' }}</td>
                     <td>{{ item.quantity }}</td>
                     <td>{% if item.unit_price %}{{ "%.2f"|format(item.unit_price) }} ₺{% else %}-{% endif %}</td>
-                    <td class="fw-bold text-success">{% if item.total_price %}{{ "%.2f"|format(item.total_price) }} ₺{% else %}-{% endif %}</td>
+                    <td class="fw-bold text-success">{% if item.total_price %}{{ "%.2f"|format(item.total_price) }} ₺ (KDV Hariç){% else %}-{% endif %}</td>
                     <td>
                       {% if item.purchase_link %}
                         <a href="{{ item.purchase_link }}" target="_blank" class="btn btn-sm btn-outline-primary"><i class="bi bi-box-arrow-up-right"></i></a>
@@ -458,11 +477,16 @@
                 </tbody>
                 <tfoot class="table-light">
                   <tr>
-                    <td colspan="8" class="text-end fw-bold">Genel Toplam:</td>
-                    <td class="fw-bold text-primary">{{ "%.2f"|format(req.total_items_price or 0) }} ₺</td>
-                    <td></td>
-                  </tr>
-                </tfoot>
+                      <td colspan="8" class="text-end fw-bold">Genel Toplam (KDV Hariç):</td>
+                      <td class="fw-bold text-primary">{{ "%.2f"|format(req.total_items_price or 0) }} ₺</td>
+                      <td></td>
+                    </tr>
+                    <tr>
+                      <td colspan="8" class="text-end fw-bold">KDV Dahil:</td>
+                      <td class="fw-bold text-success">{{ "%.2f"|format((req.total_items_price or 0) * 1.2) }} ₺</td>
+                      <td></td>
+                    </tr>
+                  </tfoot>
               </table>
             </div>
           </div>
@@ -480,6 +504,20 @@
               <span class="badge bg-warning text-dark">{{ req.budget }}</span>
               {% endif %}
             </span>
+          </div>
+          {% endif %}
+
+          {% if req.project_number %}
+          <div class="detail-item">
+            <span class="detail-label"><i class="bi bi-upc me-1"></i>Proje Numarası</span>
+            <span class="detail-value">{{ req.project_number }}</span>
+          </div>
+          {% endif %}
+
+          {% if req.requires_wet_signature %}
+          <div class="detail-item">
+            <span class="detail-label"><i class="bi bi-exclamation-triangle me-1"></i>Uyarı</span>
+            <span class="badge bg-warning text-dark">Islak imza gerekli</span>
           </div>
           {% endif %}
           
@@ -504,7 +542,7 @@
           <!-- Açıklama (tam genişlik) -->
           {% if req.description %}
           <div class="detail-item" style="grid-column: 1 / -1;">
-            <span class="detail-label"><i class="bi bi-chat-left-text me-1"></i>İstek Açıklaması</span>
+            <span class="detail-label"><i class="bi bi-chat-left-text me-1"></i>Talep Gerekçesi</span>
             <span class="detail-value">{{ req.description }}</span>
           </div>
           {% endif %}
@@ -637,15 +675,30 @@
           <!-- Fiyat Bilgileri -->
           {% if req.unit_price %}
           <div class="detail-item">
-            <span class="detail-label"><i class="bi bi-currency-exchange me-1"></i>Birim Fiyat</span>
+            <span class="detail-label"><i class="bi bi-currency-exchange me-1"></i>Tahmini Birim Fiyat</span>
             <span class="detail-value price">{{ "%.2f"|format(req.unit_price) }} ₺</span>
           </div>
           {% endif %}
           
           {% if req.total_price %}
           <div class="detail-item">
-            <span class="detail-label"><i class="bi bi-cash-stack me-1"></i>Toplam Fiyat</span>
+            <span class="detail-label"><i class="bi bi-cash-stack me-1"></i>Genel Toplam (KDV Hariç)</span>
             <span class="detail-value price"><strong>{{ "%.2f"|format(req.total_price) }} ₺</strong></span>
+            <div class="small text-muted mt-1">KDV Dahil: <strong>{{ "%.2f"|format(req.total_price * 1.2) }} ₺</strong></div>
+          </div>
+          {% endif %}
+
+          {% if req.project_number %}
+          <div class="detail-item">
+            <span class="detail-label"><i class="bi bi-upc me-1"></i>Proje Numarası</span>
+            <span class="detail-value">{{ req.project_number }}</span>
+          </div>
+          {% endif %}
+
+          {% if req.requires_wet_signature %}
+          <div class="detail-item">
+            <span class="detail-label"><i class="bi bi-exclamation-triangle me-1"></i>Uyarı</span>
+            <span class="badge bg-warning text-dark">Islak imza gerekli</span>
           </div>
           {% endif %}
           
@@ -691,7 +744,7 @@
           
           <!-- Açıklama (tam genişlik) -->
           <div class="detail-item" style="grid-column: 1 / -1;">
-            <span class="detail-label"><i class="bi bi-chat-left-text me-1"></i>İstek Açıklaması</span>
+            <span class="detail-label"><i class="bi bi-chat-left-text me-1"></i>Talep Gerekçesi</span>
             <span class="detail-value">{{ req.description or "Açıklama eklenmemiş." }}</span>
           </div>
           

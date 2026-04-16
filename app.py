@@ -11,7 +11,7 @@ from flask_migrate import Migrate
 from werkzeug.utils import secure_filename
 from flask_wtf import CSRFProtect
 from flask_wtf.csrf import generate_csrf
-from sqlalchemy import func, or_, event, case
+from sqlalchemy import func, or_, event, case, text
 from sqlalchemy.orm import joinedload, selectinload, subqueryload
 from collections import defaultdict, Counter
 from datetime import datetime
@@ -311,6 +311,32 @@ try:
 except Exception:
     pass
 
+def ensure_request_schema_columns():
+    """Eksik istek sütunlarını geriye uyumlu şekilde ekler."""
+    try:
+        with app.app_context():
+            req_cols = {
+                row[1]
+                for row in db.session.execute(text("PRAGMA table_info('request')")).fetchall()
+            }
+            if 'project_number' not in req_cols:
+                db.session.execute(text("ALTER TABLE request ADD COLUMN project_number VARCHAR(120)"))
+            if 'requires_wet_signature' not in req_cols:
+                db.session.execute(text("ALTER TABLE request ADD COLUMN requires_wet_signature BOOLEAN DEFAULT 0"))
+
+            req_item_cols = {
+                row[1]
+                for row in db.session.execute(text("PRAGMA table_info('request_item')")).fetchall()
+            }
+            if 'requires_wet_signature' not in req_item_cols:
+                db.session.execute(text("ALTER TABLE request_item ADD COLUMN requires_wet_signature BOOLEAN DEFAULT 0"))
+
+            db.session.commit()
+    except Exception:
+        db.session.rollback()
+
+ensure_request_schema_columns()
+
 # ==============================================================================
 # FLASK-LOGIN YAPILANDIRMASI
 # ==============================================================================
@@ -356,7 +382,7 @@ def get_user_by_username(username):
 
 @app.template_filter('tr_date')
 def tr_date(value, with_time=False):
-    """Tarihleri Turkce ay adlari ile formatlar."""
+    """Tarihleri Türkçe formatlar ve relatif zaman ekler."""
     if not value:
         return ''
 
@@ -366,9 +392,47 @@ def tr_date(value, with_time=False):
     }
     month_name = month_names.get(value.month, '')
 
+    now_utc = datetime.utcnow()
+    dt_value = value
+    if getattr(dt_value, "tzinfo", None):
+        try:
+            dt_value = dt_value.astimezone(ZoneInfo("UTC")).replace(tzinfo=None)
+        except Exception:
+            dt_value = dt_value.replace(tzinfo=None)
+
+    delta_seconds = int((now_utc - dt_value).total_seconds())
+    future = delta_seconds < 0
+    delta_seconds = abs(delta_seconds)
+
+    def rel_suffix(txt: str) -> str:
+        return f"{txt} sonra" if future else f"{txt} önce"
+
+    if delta_seconds < 60:
+        relative = rel_suffix("az önce")
+    elif delta_seconds < 3600:
+        minutes = delta_seconds // 60
+        relative = rel_suffix(f"{minutes} dakika")
+    elif delta_seconds < 86400:
+        hours = delta_seconds // 3600
+        relative = rel_suffix(f"{hours} saat")
+    elif delta_seconds < 86400 * 7:
+        days = delta_seconds // 86400
+        relative = rel_suffix(f"{days} gün")
+    elif delta_seconds < 86400 * 30:
+        weeks = max(1, delta_seconds // (86400 * 7))
+        relative = rel_suffix(f"{weeks} hafta")
+    elif delta_seconds < 86400 * 365:
+        months = max(1, delta_seconds // (86400 * 30))
+        relative = rel_suffix(f"{months} ay")
+    else:
+        years = max(1, delta_seconds // (86400 * 365))
+        relative = rel_suffix(f"{years} yıl")
+
     if with_time:
-        return f"{value.day:02d} {month_name} {value.year} {value:%H:%M}"
-    return f"{value.day:02d} {month_name} {value.year}"
+        absolute = f"{value.day:02d} {month_name} {value.year} {value:%H:%M}"
+    else:
+        absolute = f"{value.day:02d} {month_name} {value.year}"
+    return f"{absolute} ({relative})"
 
 # ==============================================================================
 # ANA SAYFA VE KULLANICI İŞLEMLERİ (GİRİŞ, ÇIKIŞ, ŞİFRE DEĞİŞTİRME)
@@ -431,6 +495,48 @@ def index():
         selected_category=selected_category if selected_category else None,
         search_query=search_query
     )
+
+@app.route('/api/components/image-search')
+@login_required
+def component_image_search():
+    """Mevcut envanter görsellerinde dinamik ürün araması."""
+    q = request.args.get('q', '').strip()
+    category = request.args.get('category', '').strip()
+    comp_type = request.args.get('type', '').strip()
+    limit = min(max(request.args.get('limit', 24, type=int), 1), 60)
+
+    query = Component.query.filter(
+        Component.is_deleted == False,  # noqa: E712
+        Component.image_url.isnot(None),
+        func.trim(Component.image_url) != ''
+    )
+    if q:
+        pattern = f"%{q}%"
+        query = query.filter(
+            or_(
+                Component.name.ilike(pattern),
+                Component.type.ilike(pattern),
+                Component.category.ilike(pattern)
+            )
+        )
+    if category:
+        query = query.filter(Component.category == category)
+    if comp_type:
+        query = query.filter(Component.type == comp_type)
+
+    components = query.order_by(Component.name.asc()).limit(limit).all()
+    return jsonify({
+        "items": [
+            {
+                "id": comp.id,
+                "name": comp.name,
+                "category": comp.category or 'Diğer',
+                "type": comp.type or 'Diğer',
+                "image_url": (comp.image_url or '').strip()
+            }
+            for comp in components
+        ]
+    })
 
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -1605,141 +1711,179 @@ def requests():
 def create_request():
     """Yeni istek oluşturma sayfası."""
     status = request.args.get('status', 'all')
+    components = Component.query.filter_by(is_deleted=False).order_by(Component.name).all()
+    types = sorted({(c.type or 'Diğer') for c in components})
+    categories = sorted({(c.category or 'Diğer') for c in components})
+    existing_tags = Tag.query.order_by(Tag.name).all()
+
+    def render_create_request_form(form_state=None):
+        state = form_state or {}
+        return render_template(
+            'create_request.html',
+            current_status=status,
+            components=components,
+            component_types=types,
+            component_categories=categories,
+            existing_tags=existing_tags,
+            form_state=state
+        )
+
     if request.method == 'POST':
+        req_type = request.form.get('req_type', 'satin_alma').strip()
         description = request.form.get('description', '').strip()
-        req_type = request.form.get('req_type', 'satin_alma')
         budget = request.form.get('budget', '').strip()
-        
-        # External product fields (for ariza/bakim)
+        project_number = request.form.get('project_number', '').strip()
         external_product_name = request.form.get('external_product_name', '').strip()
         external_description = request.form.get('external_description', '').strip()
-        
-        # Arıza/bakım isteği
+        component_id = request.form.get('component_id', '').strip()
+        serial_number = request.form.get('serial_number', '').strip()
+
+        item_names = request.form.getlist('item_name[]')
+        item_component_ids = request.form.getlist('item_component_id[]')
+        item_categories = request.form.getlist('item_category[]')
+        item_types = request.form.getlist('item_type[]')
+        item_descriptions = request.form.getlist('item_description[]')
+        item_tags = request.form.getlist('item_tags[]')
+        item_quantities = request.form.getlist('item_quantity[]')
+        item_links = request.form.getlist('item_link[]')
+        item_prices = request.form.getlist('item_price[]')
+
+        form_state = {
+            'req_type': req_type,
+            'description': description,
+            'budget': budget,
+            'project_number': project_number,
+            'external_product_name': external_product_name,
+            'external_description': external_description,
+            'component_id': component_id,
+            'serial_number': serial_number,
+            'item_name': item_names,
+            'item_component_id': item_component_ids,
+            'item_category': item_categories,
+            'item_type': item_types,
+            'item_description': item_descriptions,
+            'item_tags': item_tags,
+            'item_quantity': item_quantities,
+            'item_link': item_links,
+            'item_price': item_prices
+        }
+        errors = []
+        has_wet_signature_warning = False
+
+        # Arıza/Bakım
         if req_type in ['ariza', 'bakim']:
-            component_id = request.form.get('component_id')
-            name = ''
             selected_component = None
-            
+            name = ''
             if component_id and component_id.isdigit():
                 selected_component = Component.query.get(int(component_id))
                 if selected_component:
                     name = selected_component.name
-            
-            # Envanter dışı ürün
+
             if external_product_name:
                 name = external_product_name
                 if not external_description:
-                    flash('Açıklama zorunlu.', 'danger')
-                    return redirect(url_for('create_request', status=status))
-                description = external_description
-            elif not description:
-                flash('Açıklama zorunlu.', 'danger')
-                return redirect(url_for('create_request', status=status))
-            
+                    errors.append('Açıklama zorunlu.')
+                description_to_save = external_description
+            else:
+                description_to_save = description
+                if not description_to_save:
+                    errors.append('Açıklama zorunlu.')
+
             if not name:
-                flash('Ürün adı zorunlu.', 'danger')
-                return redirect(url_for('create_request', status=status))
-            
-            req = Request(name=name, description=description, created_by=current_user.id, req_type=req_type)
+                errors.append('Ürün adı zorunlu.')
+
+            if errors:
+                for err in errors:
+                    flash(err, 'danger')
+                return render_create_request_form(form_state)
+
+            req = Request(
+                name=name,
+                description=description_to_save,
+                created_by=current_user.id,
+                req_type=req_type
+            )
             req.username = current_user.username
-            
             if selected_component:
                 req.component_id = selected_component.id
-            
-            serial_number = request.form.get('serial_number', '').strip()
             if serial_number:
                 req.serial_number = serial_number
-            
+
             db.session.add(req)
-            
-            # --- YENİ ---
-            # Eğer istek türü 'ariza' ise ve seri numarası belirtilmişse,
-            # ilgili InventoryItem'ı bul ve 'is_defective' olarak işaretle.
+
             if req_type == 'ariza' and serial_number and selected_component:
                 inventory_item = InventoryItem.query.filter_by(
-                    component_id=selected_component.id, 
+                    component_id=selected_component.id,
                     serial_number=serial_number
                 ).first()
                 if inventory_item:
                     inventory_item.is_defective = True
-                    # Opsiyonel: Eğer ürün zimmetliyse, bunu kaldırmak gerekebilir mi? 
-                    # Şimdilik zimmeti kaldırmıyoruz, sadece arızalı işaretliyoruz.
-                    # Eğer zimmet düşsün istenseydi: inventory_item.assigned_to = None
-            # ------------
 
             db.session.commit()
             flash('İstek eklendi.', 'success')
-            
-        # Satın alma isteği - birden fazla ürün desteği
+
+        # Satın Alma
         else:
             if not budget:
-                flash('Bütçe seçimi zorunlu.', 'danger')
-                return redirect(url_for('create_request', status=status))
-
+                errors.append('Bütçe seçimi zorunlu.')
+            if budget == 'TTO' and not project_number:
+                errors.append('Proje Numarası zorunlu.')
             if not description:
-                flash('İstek açıklaması zorunlu.', 'danger')
-                return redirect(url_for('create_request', status=status))
-
-            # Ürün bilgilerini al
-            item_names = request.form.getlist('item_name[]')
-            item_component_ids = request.form.getlist('item_component_id[]')
-            item_categories = request.form.getlist('item_category[]')
-            item_types = request.form.getlist('item_type[]')
-            item_descriptions = request.form.getlist('item_description[]')
-            item_tags = request.form.getlist('item_tags[]')
-            item_quantities = request.form.getlist('item_quantity[]')
-            item_links = request.form.getlist('item_link[]')
-            item_prices = request.form.getlist('item_price[]')
-            
+                errors.append('Talep Gerekçesi zorunlu.')
             if not item_names or all(not n.strip() for n in item_names):
-                flash('En az bir ürün eklemelisiniz.', 'danger')
-                return redirect(url_for('create_request', status=status))
-            
-            # Ana istek kaydı
+                errors.append('En az bir ürün eklemelisiniz.')
+
+            if errors:
+                for err in errors:
+                    flash(err, 'danger')
+                return render_create_request_form(form_state)
+
             first_name = item_names[0].strip() if item_names else 'Satın Alma İsteği'
             req = Request(
                 name=first_name,
                 description=description,
                 created_by=current_user.id,
                 req_type=req_type,
-                budget=budget if budget else None
+                budget=budget,
+                project_number=project_number if budget == 'TTO' else None
             )
             req.username = current_user.username
-            
-            # Toplam fiyat hesaplama
-            total_request_price = 0
-            
-            # Her ürün için RequestItem oluştur
+
+            total_request_price = 0.0
             for i in range(len(item_names)):
                 name = item_names[i].strip() if i < len(item_names) else ''
                 if not name:
                     continue
-                
-                component_id = item_component_ids[i] if i < len(item_component_ids) else ''
+
+                component_id_raw = item_component_ids[i] if i < len(item_component_ids) else ''
                 category = item_categories[i] if i < len(item_categories) else ''
                 item_type = item_types[i] if i < len(item_types) else ''
                 item_desc = item_descriptions[i] if i < len(item_descriptions) else ''
                 tags = item_tags[i] if i < len(item_tags) else ''
-                
+                link = item_links[i] if i < len(item_links) else ''
+
                 try:
                     quantity = int(item_quantities[i]) if i < len(item_quantities) and item_quantities[i] else 1
                 except ValueError:
                     quantity = 1
-                
-                link = item_links[i] if i < len(item_links) else ''
-                
+                quantity = max(quantity, 1)
+
                 try:
                     unit_price = float(item_prices[i]) if i < len(item_prices) and item_prices[i] else None
                 except ValueError:
                     unit_price = None
-                
+
+                wet_signature_for_item = bool(unit_price and unit_price > 100000)
+                if wet_signature_for_item:
+                    has_wet_signature_warning = True
+
                 item_total = (unit_price * quantity) if unit_price else None
                 if item_total:
                     total_request_price += item_total
-                
+
                 request_item = RequestItem(
                     name=name,
-                    component_id=int(component_id) if component_id and component_id.isdigit() else None,
+                    component_id=int(component_id_raw) if component_id_raw and component_id_raw.isdigit() else None,
                     product_category=category if category else None,
                     product_type=item_type if item_type else None,
                     product_description=item_desc if item_desc else None,
@@ -1747,26 +1891,42 @@ def create_request():
                     quantity=quantity,
                     purchase_link=link if link else None,
                     unit_price=unit_price,
-                    total_price=item_total
+                    total_price=item_total,
+                    requires_wet_signature=wet_signature_for_item
                 )
                 req.items.append(request_item)
-            
-            # Ana istek toplam fiyatını güncelle
+
             req.total_price = total_request_price if total_request_price > 0 else None
-            
+            req.requires_wet_signature = has_wet_signature_warning
+
             db.session.add(req)
             db.session.commit()
             flash('İstek eklendi.', 'success')
+            if has_wet_signature_warning:
+                flash('Islak imza gerekli', 'warning')
         
         if status and status != 'all':
             return redirect(url_for('requests', status=status))
         return redirect(url_for('requests'))
-
-    components = Component.query.filter_by(is_deleted=False).order_by(Component.name).all()
-    types = sorted({(c.type or 'Diğer') for c in components})
-    categories = sorted({(c.category or 'Diğer') for c in components})
-    existing_tags = Tag.query.order_by(Tag.name).all()
-    return render_template('create_request.html', current_status=status, components=components, component_types=types, component_categories=categories, existing_tags=existing_tags)
+    return render_create_request_form({
+        'req_type': 'satin_alma',
+        'description': '',
+        'budget': '',
+        'project_number': '',
+        'external_product_name': '',
+        'external_description': '',
+        'component_id': '',
+        'serial_number': '',
+        'item_name': [],
+        'item_component_id': [],
+        'item_category': [],
+        'item_type': [],
+        'item_description': [],
+        'item_tags': [],
+        'item_quantity': [],
+        'item_link': [],
+        'item_price': []
+    })
 
 @app.route('/delete_request/<int:req_id>', methods=['POST'])
 @login_required
