@@ -595,7 +595,7 @@
               </th>
               <th style="width: 40px;"></th>
               <th style="width: 50px;">ID</th>
-              <th>Ürün/İstek</th>
+              <th>İstek Açıklaması</th>
               <th>Tür</th>
               <th>Oluşturan</th>
               <th>Tarih</th>
@@ -614,9 +614,10 @@
               </td>
               <td><span class="id-badge">#{{ req.id }}</span></td>
               <td>
-                <strong class="text-dark">{{ req.name }}</strong>
                 {% if req.description %}
-                  <br><small class="text-muted">{{ req.description[:40] }}{% if req.description|length > 40 %}...{% endif %}</small>
+                  <strong class="text-dark">{{ req.description[:60] }}{% if req.description|length > 60 %}...{% endif %}</strong>
+                {% else %}
+                  <small class="text-muted">Açıklama girilmedi</small>
                 {% endif %}
               </td>
               <td>
