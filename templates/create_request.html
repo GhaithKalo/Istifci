@@ -145,6 +145,20 @@
     padding: 0.15rem;
     line-height: 1;
   }
+  .product-item .edit-item {
+    background: none;
+    border: none;
+    color: #0d6efd;
+    font-size: 1rem;
+    cursor: pointer;
+    padding: 0.15rem;
+    line-height: 1;
+  }
+  .product-item .item-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
   .product-item .item-details {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
@@ -253,9 +267,6 @@
   <div class="bg-white rounded p-3 border" style="box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
     <form method="post" action="{% if edit_mode %}{{ url_for('edit_request', req_id=edit_request.id, status=current_status) }}{% else %}{{ url_for('create_request', status=current_status) }}{% endif %}" id="requestForm">
       <div id="formMessageBox" class="alert alert-danger d-none" role="alert"></div>
-      <div class="alert alert-warning">
-        Ürün adı ve açıklaması satıcı websitesinden alıntılanmalıdır.
-      </div>
       
       <!-- Request Type -->
       <div class="mb-3">
@@ -325,7 +336,7 @@
             </div>
             
             <div class="component-picker" id="componentPicker">
-              <div class="small text-muted mb-2" id="componentSearchHint">Arama yaptıkça mevcut envanter görselleri listelenir.</div>
+              <div class="small text-muted mb-2" id="componentSearchHint">Arama yaptıkça mevcut envanter ürünleri listelenir.</div>
               <div class="component-grid" id="componentGrid">
               </div>
               <div class="no-results" id="noResults" style="display:none;text-align:center;padding:2rem;color:#6c757d;">
@@ -366,10 +377,12 @@
               <div class="mb-3">
                 <label class="form-label fw-bold">Ürün Adı <span class="text-danger">*</span></label>
                 <input type="text" id="newProductName" class="form-control mandatory-field" maxlength="120" placeholder="Ürün adını yazın">
+                <small class="text-muted"><i class="bi bi-info-circle me-1"></i>Ürün adı ve açıklaması satıcı web sitesinden alıntılanmalıdır.</small>
               </div>
               <div class="mb-3">
                 <label class="form-label fw-bold">Ürün Açıklaması <span class="text-danger">*</span></label>
                 <textarea id="newProductDesc" class="form-control mandatory-field" rows="2" placeholder="Ürün hakkında detay..."></textarea>
+                <small class="text-muted"><i class="bi bi-info-circle me-1"></i>Ürün adı ve açıklaması satıcı web sitesinden alıntılanmalıdır.</small>
               </div>
             <div class="mb-3">
               <label class="form-label">Etiketler</label>
@@ -414,6 +427,9 @@
           
           <button type="button" id="addItemBtn" class="btn btn-success w-100">
             <i class="bi bi-plus-lg me-1"></i>Ürünü Listeye Ekle
+          </button>
+          <button type="button" id="cancelEditBtn" class="btn btn-outline-secondary w-100 mt-2 d-none">
+            <i class="bi bi-x-circle me-1"></i>Düzenlemeyi İptal Et
           </button>
         </div>
         
@@ -605,6 +621,7 @@ document.addEventListener('DOMContentLoaded', function() {
   const summarySection = document.getElementById('summarySection');
   const hiddenItemsContainer = document.getElementById('hiddenItemsContainer');
   const addItemBtn = document.getElementById('addItemBtn');
+  const cancelEditBtn = document.getElementById('cancelEditBtn');
   const formMessageBox = document.getElementById('formMessageBox');
   const projectNumberWrap = document.getElementById('projectNumberWrap');
   const projectNumberInput = document.getElementById('projectNumberInput');
@@ -640,6 +657,7 @@ document.addEventListener('DOMContentLoaded', function() {
   let items = [];
   let selectedComponent = null;
   let isNewProduct = true;
+  let editingIndex = null;
 
   function showFormMessage(message) {
     formMessageBox.textContent = message;
@@ -708,6 +726,7 @@ document.addEventListener('DOMContentLoaded', function() {
       existingProductForm.style.display = 'block';
       newProductForm.classList.remove('active');
       isNewProduct = false;
+      triggerImageComponentSearch();
     }
   });
   
@@ -759,11 +778,6 @@ document.addEventListener('DOMContentLoaded', function() {
     componentGrid.innerHTML = '';
     noResults.style.display = 'none';
 
-    if (!q && !category && !type) {
-      noResults.style.display = 'block';
-      return;
-    }
-
     try {
       const params = new URLSearchParams({ q, category, type, limit: '24' });
       const resp = await fetch(`{{ url_for('component_image_search') }}?${params.toString()}`);
@@ -776,17 +790,23 @@ document.addEventListener('DOMContentLoaded', function() {
         return;
       }
 
-      componentGrid.innerHTML = results.map(comp => `
+      componentGrid.innerHTML = results.map(comp => {
+        const imageUrl = (comp.image_url || '').trim();
+        const imageMarkup = imageUrl
+          ? `<img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(comp.name)}" loading="lazy">`
+          : '<div class="placeholder-img"><i class="bi bi-image"></i></div>';
+        return `
         <div class="component-card"
              data-id="${comp.id}"
              data-name="${escapeHtml(comp.name)}"
              data-category="${escapeHtml(comp.category || '')}"
              data-type="${escapeHtml(comp.type || '')}"
-             data-image="${escapeHtml(comp.image_url || '')}">
-          <img src="${escapeHtml(comp.image_url || '')}" alt="${escapeHtml(comp.name)}" loading="lazy">
+             data-image="${escapeHtml(imageUrl)}">
+          ${imageMarkup}
           <div class="comp-name">${escapeHtml(comp.name)}</div>
         </div>
-      `).join('');
+      `;
+      }).join('');
 
       componentGrid.querySelectorAll('.component-card').forEach(card => {
         card.addEventListener('click', function() {
@@ -919,14 +939,35 @@ document.addEventListener('DOMContentLoaded', function() {
     itemData.link = link;
     itemData.price = price;
     itemData.total = qty * price;
-    
-    items.push(itemData);
+
+    if (editingIndex !== null) {
+      items[editingIndex] = itemData;
+    } else {
+      items.push(itemData);
+    }
     renderItems();
     resetItemForm();
   });
+
+  cancelEditBtn.addEventListener('click', function() {
+    resetItemForm();
+  });
+
+  function setEditingMode(index) {
+    editingIndex = index;
+    addItemBtn.innerHTML = '<i class="bi bi-check2-circle me-1"></i>Ürünü Güncelle';
+    cancelEditBtn.classList.remove('d-none');
+  }
+
+  function clearEditingMode() {
+    editingIndex = null;
+    addItemBtn.innerHTML = '<i class="bi bi-plus-lg me-1"></i>Ürünü Listeye Ekle';
+    cancelEditBtn.classList.add('d-none');
+  }
   
   // Reset item form
   function resetItemForm() {
+    clearEditingMode();
     // Clear existing product selection
     componentGrid.querySelectorAll('.component-card').forEach(c => c.classList.remove('selected'));
     selectedComponent = null;
@@ -982,7 +1023,10 @@ document.addEventListener('DOMContentLoaded', function() {
           <div class="item-header">
             <span class="item-number">${index + 1}</span>
             <span class="item-name">${item.name}${item.isNew ? ' <span class="badge bg-info">Yeni</span>' : ''}</span>
-            <button type="button" class="remove-item" data-index="${index}"><i class="bi bi-x-circle"></i></button>
+            <div class="item-actions">
+              <button type="button" class="edit-item" data-index="${index}" title="Düzenle"><i class="bi bi-pencil-square"></i></button>
+              <button type="button" class="remove-item" data-index="${index}" title="Sil"><i class="bi bi-x-circle"></i></button>
+            </div>
           </div>
           <div class="item-details">
             <div><span class="detail-label">Kategori:</span> ${item.category || '-'}</div>
@@ -1021,8 +1065,82 @@ document.addEventListener('DOMContentLoaded', function() {
     productItemsList.querySelectorAll('.remove-item').forEach(btn => {
       btn.addEventListener('click', function() {
         const idx = parseInt(this.dataset.index);
+        if (editingIndex !== null) {
+          if (editingIndex === idx) {
+            resetItemForm();
+          } else if (editingIndex > idx) {
+            editingIndex -= 1;
+          }
+        }
         items.splice(idx, 1);
         renderItems();
+      });
+    });
+    productItemsList.querySelectorAll('.edit-item').forEach(btn => {
+      btn.addEventListener('click', function() {
+        const idx = parseInt(this.dataset.index);
+        const item = items[idx];
+        if (!item) return;
+
+        clearFormMessage();
+        setEditingMode(idx);
+
+        if (item.isNew) {
+          newProductRadio.checked = true;
+          newProductRadio.dispatchEvent(new Event('change'));
+          newProductName.value = item.name || '';
+          newProductDesc.value = item.description || '';
+          newProductCategory.value = item.category || '';
+          categoryButtons.forEach(b => {
+            b.classList.remove('active', 'btn-primary', 'btn-secondary');
+            b.classList.add(b.dataset.category === 'sarf' ? 'btn-outline-secondary' : 'btn-outline-primary');
+            if (b.dataset.category === item.category) {
+              b.classList.remove('btn-outline-primary', 'btn-outline-secondary');
+              b.classList.add('active', b.dataset.category === 'sarf' ? 'btn-secondary' : 'btn-primary');
+            }
+          });
+          if (item.type) {
+            if (!typeSelectize.options[item.type]) {
+              typeSelectize.addOption({ value: item.type, text: item.type });
+            }
+            typeSelectize.setValue(item.type, true);
+          } else {
+            typeSelectize.clear();
+          }
+          tagsSelectize.clear(true);
+          const tagValues = (item.tags || '').split(',').map(t => t.trim()).filter(Boolean);
+          tagValues.forEach(tag => {
+            if (!tagsSelectize.options[tag]) {
+              tagsSelectize.addOption({ value: tag, text: tag });
+            }
+          });
+          tagsSelectize.setValue(tagValues, true);
+        } else {
+          existingProductRadio.checked = true;
+          existingProductRadio.dispatchEvent(new Event('change'));
+          selectedComponent = {
+            id: item.component_id,
+            name: item.name,
+            category: item.category || '',
+            type: item.type || ''
+          };
+          componentGrid.querySelectorAll('.component-card').forEach(c => {
+            c.classList.toggle('selected', c.dataset.id === String(item.component_id || ''));
+          });
+          selectedProductName.textContent = item.name || '';
+          selectedProductPreview.style.display = 'block';
+        }
+
+        itemQuantity.value = item.quantity || 1;
+        itemLink.value = item.link || '';
+        itemPrice.value = item.price || '';
+        currentCurrency = 'TRY';
+        currencyBtn.textContent = '\u20ba';
+        currencyMenu.querySelectorAll('.dropdown-item').forEach(i => i.classList.remove('active'));
+        currencyMenu.querySelector('[data-currency="TRY"]').classList.add('active');
+        conversionInfo.style.display = 'none';
+        wetSignatureWarning.classList.toggle('d-none', !(getTLPrice() > WET_SIGNATURE_THRESHOLD));
+        document.querySelector('.add-product-section').scrollIntoView({ behavior: 'smooth', block: 'center' });
       });
     });
   }
@@ -1266,6 +1384,9 @@ document.addEventListener('DOMContentLoaded', function() {
     if (editPayload.req_type === 'satin_alma') {
       if (editPayload.budget) {
         document.getElementById('budgetSelect').value = editPayload.budget;
+      }
+      if (editPayload.project_number) {
+        projectNumberInput.value = editPayload.project_number;
       }
       items = Array.isArray(editPayload.items) ? editPayload.items.map(item => {
         const qty = parseInt(item.quantity) || 1;

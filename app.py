@@ -694,11 +694,7 @@ def component_image_search():
     comp_type = request.args.get('type', '').strip()
     limit = min(max(request.args.get('limit', 24, type=int), 1), 60)
 
-    query = Component.query.filter(
-        Component.is_deleted == False,  # noqa: E712
-        Component.image_url.isnot(None),
-        func.trim(Component.image_url) != ''
-    )
+    query = Component.query.filter(Component.is_deleted == False)  # noqa: E712
     if q:
         pattern = f"%{q}%"
         query = query.filter(
@@ -2095,8 +2091,6 @@ def create_request():
             create_request_revision(req, submitted_by=current_user.id, status_at_submit='beklemede')
             db.session.commit()
             flash('İstek eklendi.', 'success')
-            if has_wet_signature_warning:
-                flash('Islak imza gerekli', 'warning')
         
         if status and status != 'all':
             return redirect(url_for('requests', status=status))
@@ -2135,10 +2129,153 @@ def edit_request(req_id):
         flash('Sadece reddedilmiş istekler düzenlenebilir.', 'warning')
         return redirect(url_for('requests', status=status))
 
+    components = Component.query.filter_by(is_deleted=False).order_by(Component.name).all()
+    types = sorted({(c.type or 'Diğer') for c in components})
+    categories = sorted({(c.category or 'Diğer') for c in components})
+    existing_tags = Tag.query.order_by(Tag.name).all()
+
+    def build_edit_payload_from_request():
+        payload = {
+            'req_type': req.req_type,
+            'description': req.description or '',
+            'budget': req.budget or '',
+            'project_number': req.project_number or '',
+            'component_id': req.component_id,
+            'serial_number': req.serial_number or '',
+            'external_product_name': req.name if req.req_type in ['ariza', 'bakim'] and not req.component_id else '',
+            'external_description': req.description if req.req_type in ['ariza', 'bakim'] and not req.component_id else '',
+            'items': []
+        }
+
+        if req.req_type == 'satin_alma':
+            existing_items = req.items.order_by(RequestItem.id.asc()).all()
+            if existing_items:
+                payload['items'] = [
+                    {
+                        'component_id': item.component_id or '',
+                        'name': item.name or '',
+                        'category': item.product_category or '',
+                        'type': item.product_type or '',
+                        'description': item.product_description or '',
+                        'tags': item.tags or '',
+                        'quantity': item.quantity or 1,
+                        'link': item.purchase_link or '',
+                        'price': item.unit_price or 0,
+                        'isNew': not bool(item.component_id)
+                    }
+                    for item in existing_items
+                ]
+            elif req.name:
+                payload['items'] = [{
+                    'component_id': req.component_id or '',
+                    'name': req.name or '',
+                    'category': req.product_category or '',
+                    'type': req.product_type or '',
+                    'description': req.product_description or '',
+                    'tags': req.tags or '',
+                    'quantity': req.quantity or 1,
+                    'link': req.purchase_link or '',
+                    'price': req.unit_price or 0,
+                    'isNew': not bool(req.component_id)
+                }]
+        return payload
+
+    def build_edit_payload_from_form_state(state):
+        payload = {
+            'req_type': state.get('req_type', req.req_type),
+            'description': state.get('description', ''),
+            'budget': state.get('budget', ''),
+            'project_number': state.get('project_number', ''),
+            'component_id': state.get('component_id', ''),
+            'serial_number': state.get('serial_number', ''),
+            'external_product_name': state.get('external_product_name', ''),
+            'external_description': state.get('external_description', ''),
+            'items': []
+        }
+
+        if payload['req_type'] == 'satin_alma':
+            names = state.get('item_name', []) or []
+            component_ids = state.get('item_component_id', []) or []
+            categories_state = state.get('item_category', []) or []
+            types_state = state.get('item_type', []) or []
+            descriptions = state.get('item_description', []) or []
+            tags = state.get('item_tags', []) or []
+            quantities = state.get('item_quantity', []) or []
+            links = state.get('item_link', []) or []
+            prices = state.get('item_price', []) or []
+
+            for i, name in enumerate(names):
+                item_name = (name or '').strip()
+                if not item_name:
+                    continue
+                payload['items'].append({
+                    'component_id': component_ids[i] if i < len(component_ids) else '',
+                    'name': item_name,
+                    'category': categories_state[i] if i < len(categories_state) else '',
+                    'type': types_state[i] if i < len(types_state) else '',
+                    'description': descriptions[i] if i < len(descriptions) else '',
+                    'tags': tags[i] if i < len(tags) else '',
+                    'quantity': quantities[i] if i < len(quantities) else 1,
+                    'link': links[i] if i < len(links) else '',
+                    'price': prices[i] if i < len(prices) else 0,
+                    'isNew': not bool((component_ids[i] if i < len(component_ids) else '').strip())
+                })
+        return payload
+
+    def render_edit_request_form(form_state=None, payload_override=None):
+        payload = payload_override if payload_override is not None else build_edit_payload_from_request()
+        return render_template(
+            'create_request.html',
+            current_status=status,
+            components=components,
+            component_types=types,
+            component_categories=categories,
+            existing_tags=existing_tags,
+            form_state=form_state or {},
+            edit_mode=True,
+            edit_request=req,
+            edit_payload=payload
+        )
+
     if request.method == 'POST':
         description = request.form.get('description', '').strip()
         req_type = request.form.get('req_type', 'satin_alma')
         budget = request.form.get('budget', '').strip()
+        project_number = request.form.get('project_number', '').strip()
+        external_product_name = request.form.get('external_product_name', '').strip()
+        external_description = request.form.get('external_description', '').strip()
+        component_id = request.form.get('component_id', '').strip()
+        serial_number = request.form.get('serial_number', '').strip()
+
+        item_names = request.form.getlist('item_name[]')
+        item_component_ids = request.form.getlist('item_component_id[]')
+        item_categories = request.form.getlist('item_category[]')
+        item_types = request.form.getlist('item_type[]')
+        item_descriptions = request.form.getlist('item_description[]')
+        item_tags = request.form.getlist('item_tags[]')
+        item_quantities = request.form.getlist('item_quantity[]')
+        item_links = request.form.getlist('item_link[]')
+        item_prices = request.form.getlist('item_price[]')
+
+        form_state = {
+            'req_type': req_type,
+            'description': description,
+            'budget': budget,
+            'project_number': project_number,
+            'external_product_name': external_product_name,
+            'external_description': external_description,
+            'component_id': component_id,
+            'serial_number': serial_number,
+            'item_name': item_names,
+            'item_component_id': item_component_ids,
+            'item_category': item_categories,
+            'item_type': item_types,
+            'item_description': item_descriptions,
+            'item_tags': item_tags,
+            'item_quantity': item_quantities,
+            'item_link': item_links,
+            'item_price': item_prices
+        }
 
         req.component_id = None
         req.serial_number = None
@@ -2151,11 +2288,12 @@ def edit_request(req_id):
         req.unit_price = None
         req.total_price = None
         req.budget = None
+        req.project_number = None
+        req.requires_wet_signature = False
         for existing_item in req.items.all():
             db.session.delete(existing_item)
 
         if req_type in ['ariza', 'bakim']:
-            component_id = request.form.get('component_id')
             name = ''
             selected_component = None
 
@@ -2164,22 +2302,19 @@ def edit_request(req_id):
                 if selected_component:
                     name = selected_component.name
 
-            external_product_name = request.form.get('external_product_name', '').strip()
-            external_description = request.form.get('external_description', '').strip()
-
             if external_product_name:
                 name = external_product_name
                 if not external_description:
                     flash('Açıklama zorunlu.', 'danger')
-                    return redirect(url_for('edit_request', req_id=req.id, status=status))
+                    return render_edit_request_form(form_state, build_edit_payload_from_form_state(form_state))
                 description = external_description
             elif not description:
                 flash('Açıklama zorunlu.', 'danger')
-                return redirect(url_for('edit_request', req_id=req.id, status=status))
+                return render_edit_request_form(form_state, build_edit_payload_from_form_state(form_state))
 
             if not name:
                 flash('Ürün adı zorunlu.', 'danger')
-                return redirect(url_for('edit_request', req_id=req.id, status=status))
+                return render_edit_request_form(form_state, build_edit_payload_from_form_state(form_state))
 
             req.req_type = req_type
             req.name = name
@@ -2187,39 +2322,33 @@ def edit_request(req_id):
             if selected_component:
                 req.component_id = selected_component.id
 
-            serial_number = request.form.get('serial_number', '').strip()
             if serial_number:
                 req.serial_number = serial_number
 
         else:
             if not budget:
                 flash('Bütçe seçimi zorunlu.', 'danger')
-                return redirect(url_for('edit_request', req_id=req.id, status=status))
+                return render_edit_request_form(form_state, build_edit_payload_from_form_state(form_state))
+            if budget == 'TTO' and not project_number:
+                flash('Proje Numarası zorunlu.', 'danger')
+                return render_edit_request_form(form_state, build_edit_payload_from_form_state(form_state))
 
             if not description:
                 flash('İstek açıklaması zorunlu.', 'danger')
-                return redirect(url_for('edit_request', req_id=req.id, status=status))
-
-            item_names = request.form.getlist('item_name[]')
-            item_component_ids = request.form.getlist('item_component_id[]')
-            item_categories = request.form.getlist('item_category[]')
-            item_types = request.form.getlist('item_type[]')
-            item_descriptions = request.form.getlist('item_description[]')
-            item_tags = request.form.getlist('item_tags[]')
-            item_quantities = request.form.getlist('item_quantity[]')
-            item_links = request.form.getlist('item_link[]')
-            item_prices = request.form.getlist('item_price[]')
+                return render_edit_request_form(form_state, build_edit_payload_from_form_state(form_state))
 
             if not item_names or all(not n.strip() for n in item_names):
                 flash('En az bir ürün eklemelisiniz.', 'danger')
-                return redirect(url_for('edit_request', req_id=req.id, status=status))
+                return render_edit_request_form(form_state, build_edit_payload_from_form_state(form_state))
 
             req.req_type = req_type
             req.name = item_names[0].strip() if item_names else 'Satın Alma İsteği'
             req.description = description
             req.budget = budget if budget else None
+            req.project_number = project_number if budget == 'TTO' else None
 
             total_request_price = 0
+            has_wet_signature_warning = False
             for i in range(len(item_names)):
                 name = item_names[i].strip() if i < len(item_names) else ''
                 if not name:
@@ -2243,6 +2372,9 @@ def edit_request(req_id):
                 except ValueError:
                     unit_price = None
 
+                wet_signature_for_item = bool(unit_price and unit_price > WET_SIGNATURE_PRICE_THRESHOLD)
+                if wet_signature_for_item:
+                    has_wet_signature_warning = True
                 item_total = (unit_price * quantity) if unit_price else None
                 if item_total:
                     total_request_price += item_total
@@ -2257,10 +2389,12 @@ def edit_request(req_id):
                     quantity=quantity,
                     purchase_link=link if link else None,
                     unit_price=unit_price,
-                    total_price=item_total
+                    total_price=item_total,
+                    requires_wet_signature=wet_signature_for_item
                 ))
 
             req.total_price = total_request_price if total_request_price > 0 else None
+            req.requires_wet_signature = has_wet_signature_warning
 
         old_status = req.req_status
         req.req_status = 'beklemede'
@@ -2278,64 +2412,7 @@ def edit_request(req_id):
         flash('İstek düzenlendi ve yeniden gönderildi.', 'success')
         return redirect(url_for('requests', status=status))
 
-    edit_payload = {
-        'req_type': req.req_type,
-        'description': req.description or '',
-        'budget': req.budget or '',
-        'component_id': req.component_id,
-        'serial_number': req.serial_number or '',
-        'external_product_name': req.name if req.req_type in ['ariza', 'bakim'] and not req.component_id else '',
-        'external_description': req.description if req.req_type in ['ariza', 'bakim'] and not req.component_id else '',
-        'items': []
-    }
-
-    if req.req_type == 'satin_alma':
-        existing_items = req.items.order_by(RequestItem.id.asc()).all()
-        if existing_items:
-            edit_payload['items'] = [
-                {
-                    'component_id': item.component_id or '',
-                    'name': item.name or '',
-                    'category': item.product_category or '',
-                    'type': item.product_type or '',
-                    'description': item.product_description or '',
-                    'tags': item.tags or '',
-                    'quantity': item.quantity or 1,
-                    'link': item.purchase_link or '',
-                    'price': item.unit_price or 0,
-                    'isNew': not bool(item.component_id)
-                }
-                for item in existing_items
-            ]
-        elif req.name:
-            edit_payload['items'] = [{
-                'component_id': req.component_id or '',
-                'name': req.name or '',
-                'category': req.product_category or '',
-                'type': req.product_type or '',
-                'description': req.product_description or '',
-                'tags': req.tags or '',
-                'quantity': req.quantity or 1,
-                'link': req.purchase_link or '',
-                'price': req.unit_price or 0,
-                'isNew': not bool(req.component_id)
-            }]
-
-    components = Component.query.filter_by(is_deleted=False).order_by(Component.name).all()
-    types = sorted({(c.type or 'Diğer') for c in components})
-    categories = sorted({(c.category or 'Diğer') for c in components})
-    existing_tags = Tag.query.order_by(Tag.name).all()
-    return render_template(
-        'create_request.html',
-        current_status=status,
-        components=components,
-        component_types=types,
-        component_categories=categories,
-        existing_tags=existing_tags,
-        edit_mode=True,
-        edit_request=req,
-        edit_payload=edit_payload
-    )
+    return render_edit_request_form()
 
 @app.route('/delete_request/<int:req_id>', methods=['POST'])
 @login_required
