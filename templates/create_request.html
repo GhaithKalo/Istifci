@@ -320,7 +320,6 @@
             {% set pt_options = ['Nalbur', 'Yazılım', 'Elektronik', 'Kırtasiye', 'Mobilya'] %}
             {% for pt in pt_options %}
             <label class="purchase-type-pill {% if fs.get('purchase_type') == pt %}active{% endif %}" data-pt="{{ pt }}">
-              <input type="radio" name="purchase_type" value="{{ pt }}" {% if fs.get('purchase_type') == pt %}checked{% endif %} style="display:none;">
               {{ pt }}
             </label>
             {% endfor %}
@@ -719,8 +718,6 @@ document.addEventListener('DOMContentLoaded', function() {
       purchaseTypePills.forEach(p => p.classList.remove('active'));
       this.classList.add('active');
       purchaseTypeHidden.value = this.dataset.pt;
-      const radio = this.querySelector('input[type="radio"]');
-      if (radio) radio.checked = true;
     });
   });
   // Product source toggle (satin alma)

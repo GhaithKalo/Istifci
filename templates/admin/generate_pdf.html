@@ -79,7 +79,7 @@
         <h5><i class="bi bi-eye me-2"></i>İstek Bilgileri (Otomatik Doldurulacak)</h5>
         
         <div class="preview-item">
-          <span class="preview-label">Ürün Adı</span>
+          <span class="preview-label">Ürün Cinsi</span>
           <span class="preview-value">{{ preview.name }}</span>
         </div>
         
@@ -92,7 +92,7 @@
         
         {% if preview.product_description %}
         <div class="preview-item">
-          <span class="preview-label">Ürün Açıklaması</span>
+          <span class="preview-label">Ürün Özellikleri</span>
           <span class="preview-value">{{ preview.product_description[:50] }}{% if preview.product_description|length > 50 %}...{% endif %}</span>
         </div>
         {% endif %}
@@ -104,7 +104,7 @@
         
         {% if preview.unit_price %}
         <div class="preview-item">
-          <span class="preview-label">Birim Fiyat</span>
+          <span class="preview-label">KDV Hariç Birim Fiyat</span>
           <span class="preview-value">{{ "%.2f"|format(preview.unit_price) }} ₺</span>
         </div>
         {% endif %}

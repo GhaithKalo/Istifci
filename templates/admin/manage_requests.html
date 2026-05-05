@@ -680,13 +680,12 @@
                               <thead class="table-light">
                                 <tr>
                                   <th>#</th>
-                                  <th>Ürün</th>
-                                  <th>Kategori</th>
-                                  <th>Ürün Türü</th>
-                                  <th>Ürün Açıklaması</th>
-                                  <th>Etiketler</th>
+                                  <th>Ürün Cinsi</th>
+                                  <th>Ürün Özellikleri</th>
+                                  <th>Ürün Markası</th>
+                                  <th>Ürün Modeli</th>
                                   <th>Adet</th>
-                                  <th>Tahmini Birim Fiyat</th>
+                                  <th>KDV Hariç Birim Fiyat</th>
                                   <th>Toplam (KDV Hariç)</th>
                                   <th>Link</th>
                                   {% if req.req_status in ['kabul', 'tamamlandi'] %}
@@ -712,8 +711,6 @@
                                       <br><small class="text-muted">{{ item.component.code }}</small>
                                     {% endif %}
                                   </td>
-                                  <td>{{ item.product_category or '-' }}</td>
-                                  <td>{{ item.product_type or '-' }}</td>
                                   <td>
                                     {% if item.product_description %}
                                       <span class="copyable" onclick="copyText(this, {{ item.product_description|tojson }}, event)">
@@ -722,14 +719,8 @@
                                       </span>
                                     {% else %}-{% endif %}
                                   </td>
-                                  <td>
-                                    {% if item.tags %}
-                                      <span class="copyable" onclick="copyText(this, {{ item.tags|tojson }}, event)">
-                                        {{ item.tags }}
-                                        <i class="bi bi-clipboard ms-1 small text-muted"></i>
-                                      </span>
-                                    {% else %}-{% endif %}
-                                  </td>
+                                  <td>{{ item.brand or '-' }}</td>
+                                  <td>{{ item.model_name or '-' }}</td>
                                   <td>{{ item.quantity }}</td>
                                   <td>
                                     {% if item.unit_price %}
@@ -771,7 +762,7 @@
                                       </a>
                                     {% else %}
                                       <!-- Yeni ürün - envantere ekle -->
-                                      <a href="{{ url_for('add_component') }}?request_item_id={{ item.id }}&name={{ item.name|urlencode }}&category={{ item.product_category or '' }}&type={{ item.product_type or '' }}&description={{ item.product_description or '' }}&tags={{ item.tags or '' }}&quantity={{ item.quantity }}" class="btn btn-sm btn-outline-success" onclick="event.stopPropagation();" title="Envantere Ekle">
+                                      <a href="{{ url_for('add_component') }}?request_item_id={{ item.id }}&name={{ item.name|urlencode }}&description={{ item.product_description or '' }}&quantity={{ item.quantity }}" class="btn btn-sm btn-outline-success" onclick="event.stopPropagation();" title="Envantere Ekle">
                                         <i class="bi bi-plus-lg"></i>
                                       </a>
                                     {% endif %}
@@ -782,7 +773,7 @@
                               </tbody>
                               <tfoot class="table-light">
                                 <tr>
-                                  <td colspan="{% if req.req_status in ['kabul', 'tamamlandi'] %}9{% else %}8{% endif %}" class="text-end fw-bold">Genel Toplam (KDV Hariç):</td>
+                                  <td colspan="{% if req.req_status in ['kabul', 'tamamlandi'] %}8{% else %}7{% endif %}" class="text-end fw-bold">Genel Toplam (KDV Hariç):</td>
                                   <td class="fw-bold text-primary">
                                     <span class="copyable" onclick="copyText(this, '{{ "%.2f"|format(req.total_items_price or 0) }}', event)">
                                       {{ "%.2f"|format(req.total_items_price or 0) }} ₺
@@ -795,7 +786,7 @@
                                   {% endif %}
                                 </tr>
                                 <tr>
-                                  <td colspan="{% if req.req_status in ['kabul', 'tamamlandi'] %}9{% else %}8{% endif %}" class="text-end fw-bold">KDV Dahil:</td>
+                                  <td colspan="{% if req.req_status in ['kabul', 'tamamlandi'] %}8{% else %}7{% endif %}" class="text-end fw-bold">KDV Dahil:</td>
                                   <td class="fw-bold text-success">{{ "%.2f"|format((req.total_items_price or 0) * 1.2) }} ₺</td>
                                   <td></td>
                                   {% if req.req_status in ['kabul', 'tamamlandi'] %}
@@ -809,7 +800,7 @@
                         {% if req.budget %}
                           <p class="mb-2"><strong>Bütçe:</strong> 
                             {% if req.budget == 'TTO' %}
-                            <span class="badge bg-primary">TTO</span>
+                            <span class="badge bg-primary">TTO</span>{% if req.tto_subtype %} <span class="badge bg-info text-dark">{{ req.tto_subtype }}</span>{% endif %}
                             {% elif req.budget == 'Merkez' %}
                             <span class="badge bg-success">Merkez</span>
                             {% else %}
@@ -834,17 +825,11 @@
                           </div>
                           <div class="col-md-6">
                             {% if req.req_type == 'satin_alma' %}
-                              {% if req.product_category %}
-                                <p class="mb-2"><strong>Kategori:</strong> <span class="copyable" onclick="copyText(this, '{{ req.product_category }}', event)">{{ req.product_category }} <i class="bi bi-clipboard ms-1 small text-muted"></i></span></p>
-                              {% endif %}
-                              {% if req.product_type %}
-                                <p class="mb-2"><strong>Ürün Türü:</strong> <span class="copyable" onclick="copyText(this, '{{ req.product_type }}', event)">{{ req.product_type }} <i class="bi bi-clipboard ms-1 small text-muted"></i></span></p>
-                              {% endif %}
                               {% if req.quantity %}
                                 <p class="mb-2"><strong>Adet:</strong> <span class="copyable" onclick="copyText(this, '{{ req.quantity }}', event)">{{ req.quantity }} <i class="bi bi-clipboard ms-1 small text-muted"></i></span></p>
                               {% endif %}
                               {% if req.unit_price %}
-                                <p class="mb-2"><strong>Tahmini Birim Fiyat:</strong> <span class="copyable" onclick="copyText(this, '{{ "%.2f"|format(req.unit_price) }}', event)">{{ "%.2f"|format(req.unit_price) }} ₺ <i class="bi bi-clipboard ms-1 small text-muted"></i></span></p>
+                                <p class="mb-2"><strong>KDV Hariç Birim Fiyat:</strong> <span class="copyable" onclick="copyText(this, '{{ "%.2f"|format(req.unit_price) }}', event)">{{ "%.2f"|format(req.unit_price) }} ₺ <i class="bi bi-clipboard ms-1 small text-muted"></i></span></p>
                               {% endif %}
                               {% if req.total_price %}
                                 <p class="mb-2"><strong>Genel Toplam (KDV Hariç):</strong> <span class="copyable text-success fw-bold" onclick="copyText(this, '{{ "%.2f"|format(req.total_price) }}', event)">{{ "%.2f"|format(req.total_price) }} ₺ <i class="bi bi-clipboard ms-1 small text-muted"></i></span></p>
@@ -853,7 +838,7 @@
                               {% if req.budget %}
                                 <p class="mb-2"><strong>Bütçe:</strong> 
                                   {% if req.budget == 'TTO' %}
-                                  <span class="badge bg-primary">TTO</span>
+                                  <span class="badge bg-primary">TTO</span>{% if req.tto_subtype %} <span class="badge bg-info text-dark">{{ req.tto_subtype }}</span>{% endif %}
                                   {% elif req.budget == 'Merkez' %}
                                   <span class="badge bg-success">Merkez</span>
                                   {% else %}
@@ -870,11 +855,8 @@
                               {% if req.purchase_link %}
                                 <p class="mb-2"><strong>Satın Alma Linki:</strong> <a href="{{ req.purchase_link }}" target="_blank" class="btn btn-sm btn-outline-primary"><i class="bi bi-box-arrow-up-right me-1"></i>Linke Git</a> <button type="button" class="btn btn-sm btn-outline-secondary" onclick="copyText(this, '{{ req.purchase_link }}', event)"><i class="bi bi-clipboard"></i></button></p>
                               {% endif %}
-                              {% if req.tags %}
-                                <p class="mb-2"><strong>Etiketler:</strong> <span class="copyable" onclick="copyText(this, '{{ req.tags }}', event)">{{ req.tags }} <i class="bi bi-clipboard ms-1 small text-muted"></i></span></p>
-                              {% endif %}
                               {% if req.product_description %}
-                                <p class="mb-2"><strong>Ürün Açıklaması:</strong> <span class="copyable" onclick="copyText(this, {{ req.product_description|tojson }}, event)">{{ req.product_description }} <i class="bi bi-clipboard ms-1 small text-muted"></i></span></p>
+                                <p class="mb-2"><strong>Ürün Özellikleri:</strong> <span class="copyable" onclick="copyText(this, {{ req.product_description|tojson }}, event)">{{ req.product_description }} <i class="bi bi-clipboard ms-1 small text-muted"></i></span></p>
                               {% endif %}
                             {% elif req.req_type in ['ariza', 'bakim'] %}
                               {% if req.serial_number %}
@@ -1064,7 +1046,7 @@
                           </a>
                         {% else %}
                           <!-- Yeni ürün - envantere ekle -->
-                          <a href="{{ url_for('add_component') }}?from_request={{ req.id }}&name={{ req.name|urlencode }}&category={{ req.product_category or '' }}&type={{ req.product_type or '' }}&description={{ req.product_description or '' }}&tags={{ req.tags or '' }}&quantity={{ req.quantity or 1 }}" class="btn btn-action inventory w-100" onclick="event.stopPropagation();">
+                          <a href="{{ url_for('add_component') }}?from_request={{ req.id }}&name={{ req.name|urlencode }}&description={{ req.product_description or '' }}&quantity={{ req.quantity or 1 }}" class="btn btn-action inventory w-100" onclick="event.stopPropagation();">
                             <i class="bi bi-plus-lg me-2"></i>Envantere Ekle
                           </a>
                         {% endif %}
@@ -1162,10 +1144,7 @@
         <form id="addProductForm" method="get" action="{{ url_for('add_component') }}" style="display: none;">
           <input type="hidden" name="from_request" id="fromRequestId" value="">
           <input type="hidden" name="name" id="addProductName" value="">
-          <input type="hidden" name="category" id="addProductCategory" value="">
-          <input type="hidden" name="type" id="addProductType" value="">
           <input type="hidden" name="description" id="addProductDescription" value="">
-          <input type="hidden" name="tags" id="addProductTags" value="">
           <input type="hidden" name="quantity" id="addProductQuantity" value="">
         </form>
         <!-- Hidden value for component_id (existing product) -->
@@ -1373,7 +1352,7 @@ function openStatusModal(reqId, status, actionText) {
 }
 
 // Satın alma istekleri için tamamlama modalı
-function openCompleteModal(reqId, name, category, type, description, tags, quantity, componentId) {
+function openCompleteModal(reqId, name, description, quantity, componentId) {
   const completeForm = document.getElementById('completeForm');
   const productNameEl = document.getElementById('completeProductName');
   const addProductForm = document.getElementById('addProductForm');
@@ -1397,10 +1376,7 @@ function openCompleteModal(reqId, name, category, type, description, tags, quant
   // Ürün ekleme formu için hidden inputları doldur
   document.getElementById('fromRequestId').value = reqId;
   document.getElementById('addProductName').value = name;
-  document.getElementById('addProductCategory').value = category;
-  document.getElementById('addProductType').value = type;
   document.getElementById('addProductDescription').value = description;
-  document.getElementById('addProductTags').value = tags;
   document.getElementById('addProductQuantity').value = quantity;
   
   // Admin notunu temizle
