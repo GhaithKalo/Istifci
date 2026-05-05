@@ -762,7 +762,7 @@
                                       </a>
                                     {% else %}
                                       <!-- Yeni ürün - envantere ekle -->
-                                      <a href="{{ url_for('add_component') }}?request_item_id={{ item.id }}&name={{ item.name|urlencode }}&description={{ item.product_description or '' }}&quantity={{ item.quantity }}" class="btn btn-sm btn-outline-success" onclick="event.stopPropagation();" title="Envantere Ekle">
+                                      <a href="{{ url_for('add_component') }}?request_item_id={{ item.id }}&name={{ item.name|urlencode }}&description={{ item.product_description or '' }}&brand={{ item.brand or '' }}&model={{ item.model_name or '' }}&quantity={{ item.quantity }}" class="btn btn-sm btn-outline-success" onclick="event.stopPropagation();" title="Envantere Ekle">
                                         <i class="bi bi-plus-lg"></i>
                                       </a>
                                     {% endif %}
@@ -1046,7 +1046,7 @@
                           </a>
                         {% else %}
                           <!-- Yeni ürün - envantere ekle -->
-                          <a href="{{ url_for('add_component') }}?from_request={{ req.id }}&name={{ req.name|urlencode }}&description={{ req.product_description or '' }}&quantity={{ req.quantity or 1 }}" class="btn btn-action inventory w-100" onclick="event.stopPropagation();">
+                          <a href="{{ url_for('add_component') }}?from_request={{ req.id }}&name={{ req.name|urlencode }}&description={{ req.product_description or '' }}&brand={{ req.brand or '' }}&model={{ req.product_type or '' }}&quantity={{ req.quantity or 1 }}" class="btn btn-action inventory w-100" onclick="event.stopPropagation();">
                             <i class="bi bi-plus-lg me-2"></i>Envantere Ekle
                           </a>
                         {% endif %}
