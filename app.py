@@ -91,8 +91,8 @@ def build_purchase_request_code(budget: str, tto_subtype: str, project_number: s
     project_part = normalize_request_code_part(project_number)
     if not project_part:
         project_part = 'NOPROJE'
-    normal_id = str(sequence).zfill(3)
-    return f"{header}-{project_part}-{normal_id}"
+    padded_sequence = str(sequence).zfill(3)
+    return f"{header}-{project_part}-{padded_sequence}"
 
 
 def status_label(status: str) -> str:
