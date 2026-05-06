@@ -108,7 +108,7 @@ def build_purchase_request_code(budget: str | None, tto_subtype: str | None, pro
     if budget == 'TTO':
         project_part = normalize_request_code_part(project_number) or DEFAULT_PROJECT_CODE
         return f"{project_part}-{padded_sequence}"
-    header = tto_subtype if budget == 'TTO' and tto_subtype else budget
+    header = budget
     header = normalize_request_code_part(header) or DEFAULT_BUDGET_CODE
     project_part = normalize_request_code_part(project_number) or DEFAULT_PROJECT_CODE
     return f"{header}-{project_part}-{padded_sequence}"
