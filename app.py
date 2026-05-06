@@ -98,6 +98,13 @@ def build_purchase_request_code(budget: Optional[str], tto_subtype: Optional[str
     return f"{header}-{project_part}-{padded_sequence}"
 
 
+def assign_request_code(req: Request) -> None:
+    if not req or req.req_type != 'satin_alma':
+        req.request_code = None
+        return
+    req.request_code = build_purchase_request_code(req.budget, req.tto_subtype, req.project_number, req.id)
+
+
 def status_label(status: str) -> str:
     labels = {
         'beklemede': 'Beklemede',
@@ -2122,8 +2129,7 @@ def create_request():
 
             db.session.add(req)
             db.session.flush()
-            if req.req_type == 'satin_alma':
-                req.request_code = build_purchase_request_code(req.budget, req.tto_subtype, req.project_number, req.id)
+            assign_request_code(req)
             create_request_revision(req, submitted_by=current_user.id, status_at_submit='beklemede')
             db.session.commit()
             flash('İstek eklendi.', 'success')
@@ -2440,10 +2446,7 @@ def edit_request(req_id):
             req.total_price = total_request_price if total_request_price > 0 else None
             req.requires_wet_signature = has_wet_signature_warning
 
-        if req.req_type == 'satin_alma':
-            req.request_code = build_purchase_request_code(req.budget, req.tto_subtype, req.project_number, req.id)
-        else:
-            req.request_code = None
+        assign_request_code(req)
 
         old_status = req.req_status
         req.req_status = 'beklemede'
