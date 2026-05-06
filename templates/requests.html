@@ -422,6 +422,12 @@
       <!-- Expandable Details Panel -->
       <div class="request-details" id="details-{{ req.id }}" onclick="event.stopPropagation();">
         <div class="detail-grid">
+          {% if req.req_type == 'satin_alma' and req.request_code %}
+          <div class="detail-item">
+            <span class="detail-label"><i class="bi bi-hash me-1"></i>Talep ID</span>
+            <span class="detail-value">{{ req.request_code }}</span>
+          </div>
+          {% endif %}
           
           {% if req.req_type == 'satin_alma' and req.items.count() > 0 %}
           <!-- Birden fazla ürün varsa -->

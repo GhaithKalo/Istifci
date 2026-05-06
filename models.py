@@ -257,6 +257,7 @@ class Request(db.Model):
     tto_subtype = db.Column(db.String(50), nullable=True)  # TTO alt türü: 'BAP', 'Tübitak', 'Tuseb', 'USI'
     project_number = db.Column(db.String(120), nullable=True)  # TTO bütçeli talepler için proje numarası
     requires_wet_signature = db.Column(db.Boolean, default=False, nullable=False)  # Bilgilendirici ıslak imza uyarısı
+    request_code = db.Column(db.String(120), unique=True, nullable=True, index=True)  # Satın alma talebi için Talep ID
 
     # Admin notu (kabul/red sırasında eklenen not)
     admin_note = db.Column(db.Text, nullable=True)

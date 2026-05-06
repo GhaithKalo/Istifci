@@ -16,7 +16,7 @@ from sqlalchemy.orm import joinedload, selectinload, subqueryload
 from collections import defaultdict, Counter
 from datetime import datetime
 from zoneinfo import ZoneInfo # Python 3.9+
-import os, re, logging, sys
+import os, re, logging, sys, unicodedata
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -73,6 +73,45 @@ REQUEST_MESSAGE_ALLOWED_EXTENSIONS = {
     'zip', 'rar'
 }
 WET_SIGNATURE_PRICE_THRESHOLD = 100000
+DEFAULT_BUDGET_CODE = 'GENEL'
+DEFAULT_PROJECT_CODE = 'NOPROJE'
+
+
+def normalize_request_code_part(value: str | None) -> str:
+    if not value:
+        return ''
+    cleaned = re.sub(r'\s+', '', value.strip())
+    if not cleaned:
+        return ''
+    normalized = unicodedata.normalize('NFKD', cleaned).encode('ascii', 'ignore').decode('ascii')
+    return normalized.upper()
+
+
+def build_purchase_request_code(budget: str | None, tto_subtype: str | None, project_number: str | None, sequence: int) -> str:
+    """
+    Talep ID formatı: [BÜTÇE ÜST BAŞLIĞI]-[PROJE NO]-[SIRALI ID].
+    Örnek: BAP-202614-001, TUBITAK-123G456-015.
+    Parametreler:
+        budget: Formdaki bütçe seçimi.
+        tto_subtype: TTO bütçe alt türü (varsa).
+        project_number: Proje numarası (varsa).
+        sequence: Ardışık sıra numarası.
+    Döndürür:
+        Talep ID metni.
+    """
+    header = tto_subtype if budget == 'TTO' and tto_subtype else budget
+    header = normalize_request_code_part(header) or DEFAULT_BUDGET_CODE
+    project_part = normalize_request_code_part(project_number)
+    if not project_part:
+        project_part = DEFAULT_PROJECT_CODE
+    padded_sequence = str(sequence).zfill(3)
+    return f"{header}-{project_part}-{padded_sequence}"
+
+
+def assign_request_code(req: Request) -> None:
+    if not req or req.req_type != 'satin_alma' or not req.id:
+        return
+    req.request_code = build_purchase_request_code(req.budget, req.tto_subtype, req.project_number, req.id)
 
 
 def status_label(status: str) -> str:
@@ -190,6 +229,7 @@ def build_request_snapshot(req) -> dict:
 
     return {
         'req_type': req.req_type or '',
+        'request_code': req.request_code or '',
         'name': req.name or '',
         'description': req.description or '',
         'component_id': req.component_id,
@@ -242,6 +282,7 @@ def build_snapshot_diff(old_snapshot: dict, new_snapshot: dict) -> dict:
 
     field_labels = {
         'req_type': 'İstek Türü',
+        'request_code': 'Talep ID',
         'name': 'Ürün/İstek Adı',
         'description': 'Açıklama',
         'component_id': 'Bileşen ID',
@@ -1869,7 +1910,8 @@ def requests():
         base_q = base_q.filter(
             db.or_(
                 Request.name.ilike(search_pattern),
-                Request.description.ilike(search_pattern)
+                Request.description.ilike(search_pattern),
+                Request.request_code.ilike(search_pattern)
             )
         )
 
@@ -2096,6 +2138,7 @@ def create_request():
 
             db.session.add(req)
             db.session.flush()
+            assign_request_code(req)
             create_request_revision(req, submitted_by=current_user.id, status_at_submit='beklemede')
             db.session.commit()
             flash('İstek eklendi.', 'success')
@@ -2411,6 +2454,8 @@ def edit_request(req_id):
 
             req.total_price = total_request_price if total_request_price > 0 else None
             req.requires_wet_signature = has_wet_signature_warning
+
+        assign_request_code(req)
 
         old_status = req.req_status
         req.req_status = 'beklemede'
@@ -2764,7 +2809,8 @@ def admin_requests():
                 Request.name.ilike(f'%{search_query}%'),
                 Request.description.ilike(f'%{search_query}%'),
                 Request.username.ilike(f'%{search_query}%'),
-                Request.serial_number.ilike(f'%{search_query}%')
+                Request.serial_number.ilike(f'%{search_query}%'),
+                Request.request_code.ilike(f'%{search_query}%')
             )
         )
     
