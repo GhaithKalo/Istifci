@@ -12,6 +12,7 @@ from werkzeug.utils import secure_filename
 from flask_wtf import CSRFProtect
 from flask_wtf.csrf import generate_csrf
 from sqlalchemy import func, or_, event, case, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload, selectinload, subqueryload
 from collections import defaultdict, Counter
 from datetime import datetime
@@ -43,7 +44,7 @@ LDAP_GROUP_MEMBER_ATTR = os.environ.get('LDAP_GROUP_MEMBER_ATTR', 'memberUid')
 from ldap3 import Server, Connection, ALL, SUBTREE
 
 # Proje içi modüller
-from models import db, User, Component, BorrowLog, Project, ProjectItem, Tag, Request, InventoryItem, RequestItem, RequestMessage, RequestRevision
+from models import db, User, Component, BorrowLog, Project, ProjectItem, Tag, Request, InventoryItem, RequestItem, RequestMessage, RequestRevision, SequenceTracker
 
 # ==============================================================================
 # YARDIMCI FONKSİYONLAR
@@ -75,6 +76,7 @@ REQUEST_MESSAGE_ALLOWED_EXTENSIONS = {
 WET_SIGNATURE_PRICE_THRESHOLD = 100000
 DEFAULT_BUDGET_CODE = 'GENEL'
 DEFAULT_PROJECT_CODE = 'NOPROJE'
+LOCAL_TIMEZONE = ZoneInfo("Europe/Istanbul")
 
 
 def normalize_request_code_part(value: str | None) -> str:
@@ -85,6 +87,10 @@ def normalize_request_code_part(value: str | None) -> str:
         return ''
     normalized = unicodedata.normalize('NFKD', cleaned).encode('ascii', 'ignore').decode('ascii')
     return normalized.upper()
+
+
+def get_current_local_time() -> datetime:
+    return datetime.now(LOCAL_TIMEZONE)
 
 
 def build_purchase_request_code(budget: str | None, tto_subtype: str | None, project_number: str | None, sequence: int) -> str:
@@ -103,7 +109,7 @@ def build_purchase_request_code(budget: str | None, tto_subtype: str | None, pro
     """
     padded_sequence = str(sequence).zfill(3)
     if budget == 'Merkez':
-        year = datetime.now().year
+        year = get_current_local_time().year
         return f"{year}-Merkez-{padded_sequence}"
     if budget == 'TTO':
         project_part = normalize_request_code_part(project_number) or DEFAULT_PROJECT_CODE
@@ -114,30 +120,79 @@ def build_purchase_request_code(budget: str | None, tto_subtype: str | None, pro
     return f"{header}-{project_part}-{padded_sequence}"
 
 
-def get_next_request_sequence(budget: str | None) -> int:
-    budget_filter = Request.budget.is_(None) if budget is None else Request.budget == budget
-    existing_count = (
-        db.session.query(func.count(Request.id))
-        .filter(
-            Request.req_type == 'satin_alma',
-            Request.request_code.isnot(None),
-            budget_filter
-        )
-        .scalar()
+def get_sequence_tracker_year(budget: str | None) -> int:
+    if budget == 'Merkez':
+        return get_current_local_time().year
+    return 0
+
+
+def get_existing_sequence_value(budget: str, year: int) -> int:
+    query = Request.query.filter(
+        Request.req_type == 'satin_alma',
+        Request.request_code.isnot(None),
+        Request.budget == budget
     )
-    return (existing_count or 0) + 1
+    if budget == 'Merkez':
+        query = query.filter(Request.request_code.like(f"{year}-Merkez-%"))
+    max_value = 0
+    for (code,) in query.with_entities(Request.request_code).all():
+        if not code:
+            continue
+        match = re.search(r'(\d+)$', code)
+        if match:
+            max_value = max(max_value, int(match.group(1)))
+    return max_value
+
+
+def get_next_request_sequence(budget: str) -> int:
+    tracker_year = get_sequence_tracker_year(budget)
+    tracker = (
+        SequenceTracker.query
+        .filter_by(budget_type=budget, year=tracker_year)
+        .with_for_update()
+        .first()
+    )
+    if not tracker:
+        tracker = SequenceTracker(
+            budget_type=budget,
+            year=tracker_year,
+            last_value=get_existing_sequence_value(budget, tracker_year)
+        )
+        db.session.add(tracker)
+        db.session.flush()
+    tracker.last_value += 1
+    return tracker.last_value
 
 
 def assign_request_code(req: Request) -> None:
-    if not req or req.req_type != 'satin_alma' or not req.id:
+    if not req or req.req_type != 'satin_alma':
         return
     if req.request_code:
         return
     if req.budget in {'Merkez', 'TTO'}:
         sequence = get_next_request_sequence(req.budget)
     else:
+        if not req.id:
+            return
         sequence = req.id
     req.request_code = build_purchase_request_code(req.budget, req.tto_subtype, req.project_number, sequence)
+
+
+def assign_request_code_with_retry(req: Request, max_retries: int = 3) -> None:
+    if not req or req.req_type != 'satin_alma' or req.request_code:
+        return
+    for attempt in range(max_retries):
+        try:
+            with db.session.begin_nested():
+                assign_request_code(req)
+                db.session.flush()
+            return
+        except IntegrityError:
+            db.session.rollback()
+            req.request_code = None
+            db.session.add(req)
+            if attempt == max_retries - 1:
+                raise
 
 
 def status_label(status: str) -> str:
@@ -613,13 +668,12 @@ def inject_csrf_token():
 @app.context_processor
 def inject_timezone():
     """Tarih/saat gösterimleri için zaman dilimini şablonlara ekler."""
-    return dict(tz=ZoneInfo("Europe/Istanbul"))
+    return dict(tz=LOCAL_TIMEZONE)
 
 @app.context_processor
 def inject_datetime():
     """Template'lerde datetime.now() kullanabilmek için."""
-    from datetime import datetime
-    return dict(now=datetime.now)
+    return dict(now=get_current_local_time)
 
 # `utility_processor` fonksiyonunu context processor olarak kaydet
 app.context_processor(utility_processor)
@@ -2164,7 +2218,7 @@ def create_request():
 
             db.session.add(req)
             db.session.flush()
-            assign_request_code(req)
+            assign_request_code_with_retry(req)
             create_request_revision(req, submitted_by=current_user.id, status_at_submit='beklemede')
             db.session.commit()
             flash('İstek eklendi.', 'success')
@@ -2481,7 +2535,7 @@ def edit_request(req_id):
             req.total_price = total_request_price if total_request_price > 0 else None
             req.requires_wet_signature = has_wet_signature_warning
 
-        assign_request_code(req)
+        assign_request_code_with_retry(req)
 
         old_status = req.req_status
         req.req_status = 'beklemede'

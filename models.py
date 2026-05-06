@@ -305,6 +305,21 @@ class Request(db.Model):
         return self.items.count()
 
 
+class SequenceTracker(db.Model):
+    """
+    Talep ID için bütçe bazlı sıra numarası takibi.
+    Merkez için yıl bazlı, TTO için sabit yıl değeri (0) kullanılır.
+    """
+    id = db.Column(db.Integer, primary_key=True)
+    budget_type = db.Column(db.String(50), nullable=False)
+    year = db.Column(db.Integer, nullable=False, default=0)
+    last_value = db.Column(db.Integer, nullable=False, default=0)
+
+    __table_args__ = (
+        db.UniqueConstraint('budget_type', 'year', name='uq_sequence_tracker_budget_year'),
+    )
+
+
 class RequestItem(db.Model):
     """
     Bir satın alma isteğindeki her bir ürün kalemini temsil eder.
