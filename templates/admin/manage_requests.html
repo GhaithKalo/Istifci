@@ -594,7 +594,7 @@
                 <input type="checkbox" class="bulk-checkbox" id="selectAllCheckbox" title="Tümünü Seç" onclick="toggleSelectAll(this)">
               </th>
               <th style="width: 40px;"></th>
-              <th style="width: 50px;">ID</th>
+              <th style="width: 50px;">Talep ID</th>
               <th>İstek Açıklaması</th>
               <th>Tür</th>
               <th>Oluşturan</th>
@@ -612,7 +612,15 @@
               <td class="text-center">
                 <i class="bi bi-chevron-right expand-icon" id="icon-{{ req.id }}"></i>
               </td>
-              <td><span class="id-badge">#{{ req.id }}</span></td>
+              <td>
+                <span class="id-badge">
+                  {% if req.req_type == 'satin_alma' and req.request_code %}
+                    {{ req.request_code }}
+                  {% else %}
+                    #{{ req.id }}
+                  {% endif %}
+                </span>
+              </td>
               <td>
                 {% if req.description %}
                   <strong class="text-dark">{{ req.description[:60] }}{% if req.description|length > 60 %}...{% endif %}</strong>
@@ -666,7 +674,10 @@
                   <div class="col-md-8">
                     <div class="detail-card">
                       <h6><i class="bi bi-info-circle me-2"></i>İstek Detayları</h6>
-                      
+                      {% if req.req_type == 'satin_alma' and req.request_code %}
+                        <p class="mb-2"><strong>Talep ID:</strong> <span class="copyable" onclick="copyText(this, '{{ req.request_code }}', event)">{{ req.request_code }} <i class="bi bi-clipboard ms-1 small text-muted"></i></span></p>
+                      {% endif %}
+                       
                       {% if req.description %}
                         <p class="mb-2"><strong>Açıklama:</strong> <span class="copyable" onclick="copyText(this, {{ req.description|tojson }}, event)">{{ req.description }} <i class="bi bi-clipboard ms-1 small text-muted"></i></span></p>
                       {% endif %}
