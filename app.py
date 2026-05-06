@@ -89,8 +89,10 @@ def normalize_request_code_part(value: str | None) -> str:
 
 def build_purchase_request_code(budget: str | None, tto_subtype: str | None, project_number: str | None, sequence: int) -> str:
     """
-    Talep ID formatı: [BÜTÇE ÜST BAŞLIĞI]-[PROJE NO]-[SIRALI ID].
-    Örnek: BAP-202614-001, TUBITAK-123G456-015.
+    Talep ID formatı:
+        - TTO bütçesi: [PROJE NO]-[SIRALI ID].
+        - Merkez bütçesi: [YIL]-Merkez-[SIRALI ID].
+        - Diğer bütçeler: [BÜTÇE]-[PROJE NO]-[SIRALI ID].
     Parametreler:
         budget: Formdaki bütçe seçimi.
         tto_subtype: TTO bütçe alt türü (varsa).
@@ -99,19 +101,43 @@ def build_purchase_request_code(budget: str | None, tto_subtype: str | None, pro
     Döndürür:
         Talep ID metni.
     """
+    padded_sequence = str(sequence).zfill(3)
+    if budget == 'Merkez':
+        year = datetime.now().year
+        return f"{year}-Merkez-{padded_sequence}"
+    if budget == 'TTO':
+        project_part = normalize_request_code_part(project_number) or DEFAULT_PROJECT_CODE
+        return f"{project_part}-{padded_sequence}"
     header = tto_subtype if budget == 'TTO' and tto_subtype else budget
     header = normalize_request_code_part(header) or DEFAULT_BUDGET_CODE
-    project_part = normalize_request_code_part(project_number)
-    if not project_part:
-        project_part = DEFAULT_PROJECT_CODE
-    padded_sequence = str(sequence).zfill(3)
+    project_part = normalize_request_code_part(project_number) or DEFAULT_PROJECT_CODE
     return f"{header}-{project_part}-{padded_sequence}"
+
+
+def get_next_request_sequence(budget: str | None) -> int:
+    budget_filter = Request.budget.is_(None) if budget is None else Request.budget == budget
+    existing_count = (
+        db.session.query(func.count(Request.id))
+        .filter(
+            Request.req_type == 'satin_alma',
+            Request.request_code.isnot(None),
+            budget_filter
+        )
+        .scalar()
+    )
+    return (existing_count or 0) + 1
 
 
 def assign_request_code(req: Request) -> None:
     if not req or req.req_type != 'satin_alma' or not req.id:
         return
-    req.request_code = build_purchase_request_code(req.budget, req.tto_subtype, req.project_number, req.id)
+    if req.request_code:
+        return
+    if req.budget in {'Merkez', 'TTO'}:
+        sequence = get_next_request_sequence(req.budget)
+    else:
+        sequence = req.id
+    req.request_code = build_purchase_request_code(req.budget, req.tto_subtype, req.project_number, sequence)
 
 
 def status_label(status: str) -> str:
