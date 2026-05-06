@@ -4,7 +4,6 @@
 # GEREKLİ KÜTÜPHANELERİN VE MODÜLLERİN YÜKLENMESİ
 # ==============================================================================
 import uuid
-from typing import Optional
 from flask import Flask, render_template, request, redirect, url_for, flash, abort, g, send_file, jsonify
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -78,7 +77,7 @@ DEFAULT_BUDGET_CODE = 'GENEL'
 DEFAULT_PROJECT_CODE = 'NOPROJE'
 
 
-def normalize_request_code_part(value: Optional[str]) -> str:
+def normalize_request_code_part(value: str | None) -> str:
     if not value:
         return ''
     cleaned = re.sub(r'\s+', '', value.strip())
@@ -88,10 +87,17 @@ def normalize_request_code_part(value: Optional[str]) -> str:
     return normalized.upper()
 
 
-def build_purchase_request_code(budget: Optional[str], tto_subtype: Optional[str], project_number: Optional[str], sequence: int) -> str:
+def build_purchase_request_code(budget: str | None, tto_subtype: str | None, project_number: str | None, sequence: int) -> str:
     """
     Talep ID formatı: [BÜTÇE ÜST BAŞLIĞI]-[PROJE NO]-[SIRALI ID].
     Örnek: BAP-202614-001, TUBITAK-123G456-015.
+    Parametreler:
+        budget: Formdaki bütçe seçimi.
+        tto_subtype: TTO bütçe alt türü (varsa).
+        project_number: Proje numarası (varsa).
+        sequence: Ardışık sıra numarası.
+    Döndürür:
+        Talep ID metni.
     """
     header = tto_subtype if budget == 'TTO' and tto_subtype else budget
     header = normalize_request_code_part(header) or DEFAULT_BUDGET_CODE
@@ -103,7 +109,7 @@ def build_purchase_request_code(budget: Optional[str], tto_subtype: Optional[str
 
 
 def assign_request_code(req: Request) -> None:
-    if not req or req.req_type != 'satin_alma':
+    if not req or req.req_type != 'satin_alma' or not req.id:
         return
     req.request_code = build_purchase_request_code(req.budget, req.tto_subtype, req.project_number, req.id)
 
