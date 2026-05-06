@@ -177,7 +177,13 @@ def assign_request_code(req: Request) -> None:
 
 
 def is_retryable_request_code_error(error: IntegrityError) -> bool:
-    message = str(getattr(error, 'orig', error)).lower()
+    orig = getattr(error, 'orig', None)
+    constraint_name = getattr(getattr(orig, 'diag', None), 'constraint_name', None)
+    if constraint_name:
+        lowered = constraint_name.lower()
+        if 'request_code' in lowered or 'sequence_tracker' in lowered:
+            return True
+    message = str(orig or error).lower()
     return any(token in message for token in (
         'request_code',
         'sequence_tracker',
