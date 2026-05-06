@@ -136,8 +136,6 @@ def get_existing_sequence_value(budget: str, year: int) -> int:
         query = query.filter(Request.request_code.like(f"{year}-Merkez-%"))
     max_value = 0
     for (code,) in query.with_entities(Request.request_code).all():
-        if not code:
-            continue
         match = re.search(r'(\d+)$', code)
         if match:
             max_value = max(max_value, int(match.group(1)))
@@ -178,6 +176,15 @@ def assign_request_code(req: Request) -> None:
     req.request_code = build_purchase_request_code(req.budget, req.tto_subtype, req.project_number, sequence)
 
 
+def is_retryable_request_code_error(error: IntegrityError) -> bool:
+    message = str(getattr(error, 'orig', error)).lower()
+    return any(token in message for token in (
+        'request_code',
+        'sequence_tracker',
+        'uq_sequence_tracker_budget_year'
+    ))
+
+
 def assign_request_code_with_retry(req: Request, max_retries: int = 3) -> None:
     if not req or req.req_type != 'satin_alma' or req.request_code:
         return
@@ -187,10 +194,11 @@ def assign_request_code_with_retry(req: Request, max_retries: int = 3) -> None:
                 assign_request_code(req)
                 db.session.flush()
             return
-        except IntegrityError:
+        except IntegrityError as err:
             db.session.rollback()
-            req.request_code = None
             db.session.add(req)
+            if not is_retryable_request_code_error(err):
+                raise
             if attempt == max_retries - 1:
                 raise
 

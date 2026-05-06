@@ -308,7 +308,7 @@ class Request(db.Model):
 class SequenceTracker(db.Model):
     """
     Talep ID için bütçe bazlı sıra numarası takibi.
-    Merkez için yıl bazlı, TTO için sabit yıl değeri (0) kullanılır.
+    Merkez için yıl bazlı, diğer bütçeler için sabit yıl değeri (0) kullanılır.
     """
     id = db.Column(db.Integer, primary_key=True)
     budget_type = db.Column(db.String(50), nullable=False)
