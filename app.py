@@ -89,6 +89,10 @@ def normalize_request_code_part(value: Optional[str]) -> str:
 
 
 def build_purchase_request_code(budget: Optional[str], tto_subtype: Optional[str], project_number: Optional[str], sequence: int) -> str:
+    """
+    Talep ID formatı: [BÜTÇE ÜST BAŞLIĞI]-[PROJE NO]-[SIRALI ID].
+    Örnek: BAP-202614-001, TUBITAK-123G456-015.
+    """
     header = tto_subtype if budget == 'TTO' and tto_subtype else budget
     header = normalize_request_code_part(header) or DEFAULT_BUDGET_CODE
     project_part = normalize_request_code_part(project_number)
@@ -100,7 +104,6 @@ def build_purchase_request_code(budget: Optional[str], tto_subtype: Optional[str
 
 def assign_request_code(req: Request) -> None:
     if not req or req.req_type != 'satin_alma':
-        req.request_code = None
         return
     req.request_code = build_purchase_request_code(req.budget, req.tto_subtype, req.project_number, req.id)
 
