@@ -2,7 +2,6 @@
 {% block title %}Yeni İstek Oluştur{% endblock %}
 
 {% block styles %}
-<link href="{{ url_for('static', filename='css/selectize.default.css') }}" rel="stylesheet" />
 <style>
   /* ============================================
      CREATE REQUEST - Bootstrap-consistent styling
@@ -243,6 +242,21 @@
     box-shadow: 0 0 0 0.1rem rgba(25, 135, 84, 0.15) !important;
   }
 
+  /* Purchase type pills */
+  .purchase-type-pill {
+    padding: 0.45rem 1rem;
+    border-radius: 20px;
+    border: 1px solid #dee2e6;
+    background: #fff;
+    cursor: pointer;
+    font-weight: 500;
+    font-size: 0.88rem;
+    color: #495057;
+    user-select: none;
+  }
+  .purchase-type-pill:hover { background: #f8f9fa; }
+  .purchase-type-pill.active { background: #0d6efd; color: #fff; border-color: #0d6efd; }
+
   /* Hide number input spin arrows */
   input[type="number"]::-webkit-outer-spin-button,
   input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none !important; margin: 0; }
@@ -296,7 +310,23 @@
       <!-- SATIN ALMA İSTEĞİ - Birden Fazla Ürün -->
       <!-- ============================================================= -->
       <div id="satinAlmaSection">
-        
+
+        <!-- Talep Türü -->
+        <div class="mb-3">
+          <div class="section-header">
+            <i class="bi bi-grid-fill"></i>Talep Türü <span class="text-danger">*</span>
+          </div>
+          <div class="d-flex gap-2 flex-wrap" id="purchaseTypePills">
+            {% set pt_options = ['Nalbur', 'Yazılım', 'Elektronik', 'Kırtasiye', 'Mobilya'] %}
+            {% for pt in pt_options %}
+            <label class="purchase-type-pill {% if fs.get('purchase_type') == pt %}active{% endif %}" data-pt="{{ pt }}">
+              {{ pt }}
+            </label>
+            {% endfor %}
+          </div>
+          <input type="hidden" id="purchaseTypeHidden" name="purchase_type" value="{{ fs.get('purchase_type', '') }}">
+        </div>
+
         <!-- Add Product Section -->
         <div class="add-product-section">
           <div class="section-header">
@@ -353,44 +383,23 @@
           
           <!-- New Product Form -->
           <div id="newProductForm" class="new-product-form active">
+              <div class="mb-3">
+                <label class="form-label fw-bold">Ürün Cinsi <span class="text-danger">*</span></label>
+                <input type="text" id="newProductName" class="form-control mandatory-field" maxlength="120" placeholder="Ürün cinsini yazın">
+              </div>
+              <div class="mb-3">
+                <label class="form-label fw-bold">Ürün Özellikleri <span class="text-danger">*</span></label>
+                <textarea id="newProductDesc" class="form-control mandatory-field" rows="2" placeholder="Ürün hakkında detay..."></textarea>
+              </div>
             <div class="row">
               <div class="col-md-6 mb-3">
-                <label class="form-label fw-bold">Ürün Kategorisi <span class="text-danger">*</span></label>
-                <div class="category-btn-group">
-                  <button type="button" class="btn btn-outline-primary category-btn" data-category="demirbas">Demirbaş</button>
-                  <button type="button" class="btn btn-outline-primary category-btn" data-category="gerec">Gereçler</button>
-                  <button type="button" class="btn btn-outline-secondary category-btn" data-category="sarf">Sarf</button>
-                </div>
-                <input type="hidden" id="newProductCategory" value="">
+                <label class="form-label">Ürün Markası <span class="text-muted small">(Opsiyonel)</span></label>
+                <input type="text" id="newProductBrand" class="form-control" maxlength="120" placeholder="Marka adı">
               </div>
               <div class="col-md-6 mb-3">
-                <label class="form-label fw-bold">Ürün Türü <span class="text-danger">*</span></label>
-                <select id="newProductType" class="form-control" placeholder="Tür seçin veya yazın...">
-                  <option value=""></option>
-                  {% for t in component_types %}
-                  <option value="{{ t }}">{{ t }}</option>
-                  {% endfor %}
-                </select>
-                <small class="text-muted">Listede yoksa yeni tür adı yazabilirsiniz</small>
+                <label class="form-label">Ürün Modeli <span class="text-muted small">(Opsiyonel)</span></label>
+                <input type="text" id="newProductModel" class="form-control" maxlength="120" placeholder="Model adı / numarası">
               </div>
-            </div>
-              <div class="mb-3">
-                <label class="form-label fw-bold">Ürün Adı <span class="text-danger">*</span></label>
-                <input type="text" id="newProductName" class="form-control mandatory-field" maxlength="120" placeholder="Ürün adını yazın">
-                <small class="text-muted"><i class="bi bi-info-circle me-1"></i>Ürün adı ve açıklaması satıcı web sitesinden alıntılanmalıdır.</small>
-              </div>
-              <div class="mb-3">
-                <label class="form-label fw-bold">Ürün Açıklaması <span class="text-danger">*</span></label>
-                <textarea id="newProductDesc" class="form-control mandatory-field" rows="2" placeholder="Ürün hakkında detay..."></textarea>
-                <small class="text-muted"><i class="bi bi-info-circle me-1"></i>Ürün adı ve açıklaması satıcı web sitesinden alıntılanmalıdır.</small>
-              </div>
-            <div class="mb-3">
-              <label class="form-label">Etiketler</label>
-              <select id="newProductTags" multiple class="form-control">
-                {% for tag in existing_tags %}
-                <option value="{{ tag.name }}">{{ tag.name }}</option>
-                {% endfor %}
-              </select>
             </div>
           </div>
           
@@ -405,7 +414,7 @@
               <input type="url" id="itemLink" class="form-control mandatory-field" placeholder="https://...">
             </div>
             <div class="col-md-4 mb-3">
-              <label class="form-label fw-bold">Tahmini Birim Fiyat <span class="text-danger">*</span></label>
+              <label class="form-label fw-bold">KDV Hariç Birim Fiyat <span class="text-danger">*</span></label>
               <div class="input-group">
                 <input type="number" id="itemPrice" class="form-control no-spin mandatory-field" step="0.01" min="0" placeholder="Fiyat girin">
                 <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="currencyBtn" data-bs-toggle="dropdown" aria-expanded="false" style="font-weight: 600; min-width: 55px;">
@@ -420,7 +429,7 @@
               <div id="currencyConversionInfo" style="display:none;">
                 <small class="text-success fw-bold"><i class="bi bi-arrow-repeat me-1"></i><span id="conversionText"></span></small>
               </div>
-              <small class="text-muted"><i class="bi bi-info-circle me-1"></i>Tahmini birim fiyatı KDV hariç olacak şekilde giriniz.</small>
+              <small class="text-muted"><i class="bi bi-info-circle me-1"></i>KDV hariç, kargo ve gümrük bedelleri dahil.</small>
               <div id="wetSignatureWarning" class="small text-warning fw-bold mt-1 d-none">Islak imza gerekli</div>
             </div>
           </div>
@@ -457,11 +466,21 @@
             <option value="Merkez" {% if fs.budget == 'Merkez' %}selected{% endif %}>Merkez</option>
             <option value="TTO" {% if fs.budget == 'TTO' %}selected{% endif %}>TTO</option>
             <option value="SSB" {% if fs.budget == 'SSB' %}selected{% endif %}>SSB</option>
-            <option value="Emin degilim" {% if fs.budget == 'Emin degilim' %}selected{% endif %}>Emin değilim</option>
           </select>
-          <div class="mt-2 {% if fs.budget != 'TTO' %}d-none{% endif %}" id="projectNumberWrap">
-            <label for="projectNumberInput" class="form-label fw-bold">Proje Numarası <span class="text-danger">*</span></label>
-            <input type="text" name="project_number" id="projectNumberInput" class="form-control" value="{{ fs.project_number or '' }}" placeholder="Proje numarası giriniz">
+          <div class="mt-2 {% if fs.budget != 'TTO' %}d-none{% endif %}" id="ttoSubtypeWrap">
+            <label for="ttoSubtypeSelect" class="form-label fw-bold">TTO Alt Türü <span class="text-danger">*</span></label>
+            <select name="tto_subtype" id="ttoSubtypeSelect" class="form-select">
+              <option value="" {% if not fs.tto_subtype %}selected{% endif %}>Alt tür seçin...</option>
+              <option value="BAP" {% if fs.tto_subtype == 'BAP' %}selected{% endif %}>BAP</option>
+              <option value="Tübitak" {% if fs.tto_subtype == 'Tübitak' %}selected{% endif %}>Tübitak</option>
+              <option value="Tuseb" {% if fs.tto_subtype == 'Tuseb' %}selected{% endif %}>Tuseb</option>
+              <option value="USI" {% if fs.tto_subtype == 'USI' %}selected{% endif %}>USI</option>
+            </select>
+          </div>
+          <div class="mt-2" id="projectNumberWrap">
+            <label for="projectNumberInput" class="form-label fw-bold">Proje Numarası</label>
+            <input type="text" name="project_number" id="projectNumberInput" class="form-control" value="{{ fs.project_number or '' }}" placeholder="Proje numarası giriniz" {% if fs.budget != 'TTO' %}disabled{% endif %}>
+            <small class="text-muted">Yalnızca TTO bütçesi seçildiğinde düzenlenebilir.</small>
           </div>
         </div>
         
@@ -584,8 +603,6 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/jquery-3.7.1.min.js') }}"></script>
-<script src="{{ url_for('static', filename='js/selectize.min.js') }}"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
   const formState = {{ (form_state or {})|tojson }};
@@ -625,15 +642,16 @@ document.addEventListener('DOMContentLoaded', function() {
   const formMessageBox = document.getElementById('formMessageBox');
   const projectNumberWrap = document.getElementById('projectNumberWrap');
   const projectNumberInput = document.getElementById('projectNumberInput');
+  const ttoSubtypeWrap = document.getElementById('ttoSubtypeWrap');
+  const ttoSubtypeSelect = document.getElementById('ttoSubtypeSelect');
   const wetSignatureWarning = document.getElementById('wetSignatureWarning');
   const budgetSelect = document.getElementById('budgetSelect');
   
   // New product form elements
-  const categoryButtons = document.querySelectorAll('.category-btn');
-  const newProductCategory = document.getElementById('newProductCategory');
-  const newProductType = document.getElementById('newProductType');
   const newProductName = document.getElementById('newProductName');
   const newProductDesc = document.getElementById('newProductDesc');
+  const newProductBrand = document.getElementById('newProductBrand');
+  const newProductModel = document.getElementById('newProductModel');
   
   // Item inputs
   const itemQuantity = document.getElementById('itemQuantity');
@@ -653,6 +671,10 @@ document.addEventListener('DOMContentLoaded', function() {
   const serialNumberSelect = document.getElementById('serialNumberSelect');
   const externalDescLabel = document.getElementById('externalDescLabel');
   
+  // Purchase type pills
+  const purchaseTypePills = document.querySelectorAll('.purchase-type-pill');
+  const purchaseTypeHidden = document.getElementById('purchaseTypeHidden');
+
   // State
   let items = [];
   let selectedComponent = null;
@@ -690,36 +712,14 @@ document.addEventListener('DOMContentLoaded', function() {
     return div.innerHTML;
   }
   
-  // Initialize Selectize for tags
-  var tagsSelectize = $('#newProductTags').selectize({
-    plugins: ['remove_button'],
-    create: true,
-    persist: false,
-    placeholder: 'Etiket seçin veya yazın...'
-  })[0].selectize;
-  
-  // Initialize Selectize for product type (with create option)
-  var typeSelectize = $('#newProductType').selectize({
-    create: true,
-    sortField: 'text',
-    placeholder: 'Tür seçin veya yazın...',
-    createOnBlur: true,
-    persist: false
-  })[0].selectize;
-  
-  // Category button click
-  categoryButtons.forEach(btn => {
-    btn.addEventListener('click', function() {
-      categoryButtons.forEach(b => {
-        b.classList.remove('active', 'btn-primary', 'btn-secondary');
-        b.classList.add(b.dataset.category === 'sarf' ? 'btn-outline-secondary' : 'btn-outline-primary');
-      });
-      this.classList.remove('btn-outline-primary', 'btn-outline-secondary');
-      this.classList.add('active', this.dataset.category === 'sarf' ? 'btn-secondary' : 'btn-primary');
-      newProductCategory.value = this.dataset.category;
+  // Purchase type pill click handler
+  purchaseTypePills.forEach(pill => {
+    pill.addEventListener('click', function() {
+      purchaseTypePills.forEach(p => p.classList.remove('active'));
+      this.classList.add('active');
+      purchaseTypeHidden.value = this.dataset.pt;
     });
   });
-  
   // Product source toggle (satin alma)
   existingProductRadio.addEventListener('change', function() {
     if (this.checked) {
@@ -851,30 +851,19 @@ document.addEventListener('DOMContentLoaded', function() {
     if (isNewProduct) {
       // New product validation
       const name = newProductName.value.trim();
-      const category = newProductCategory.value;
       
       if (!name) {
         updateMandatoryFieldBorder(newProductName, false);
-        showFormMessage('Ürün adı zorunludur.');
+        showFormMessage('Ürün cinsi zorunludur.');
         newProductName.focus();
         return;
       }
       updateMandatoryFieldBorder(newProductName, true);
-      if (!category) {
-        showFormMessage('Ürün kategorisi seçiniz.');
-        return;
-      }
-      
-      const type = typeSelectize.getValue();
-      if (!type) {
-        showFormMessage('Ürün türü zorunludur.');
-        return;
-      }
       
       const desc = newProductDesc.value.trim();
       if (!desc) {
         updateMandatoryFieldBorder(newProductDesc, false);
-        showFormMessage('Ürün açıklaması zorunludur.');
+        showFormMessage('Ürün özellikleri zorunludur.');
         newProductDesc.focus();
         return;
       }
@@ -883,10 +872,9 @@ document.addEventListener('DOMContentLoaded', function() {
       itemData = {
         component_id: '',
         name: name,
-        category: category,
-        type: typeSelectize.getValue(),
-        description: newProductDesc.value.trim(),
-        tags: tagsSelectize.getValue().join(', '),
+        description: desc,
+        brand: newProductBrand.value.trim(),
+        model: newProductModel.value.trim(),
         isNew: true
       };
     } else {
@@ -899,10 +887,9 @@ document.addEventListener('DOMContentLoaded', function() {
       itemData = {
         component_id: selectedComponent.id,
         name: selectedComponent.name,
-        category: selectedComponent.category,
-        type: selectedComponent.type,
         description: '',
-        tags: '',
+        brand: '',
+        model: '',
         isNew: false
       };
     }
@@ -928,7 +915,7 @@ document.addEventListener('DOMContentLoaded', function() {
     updateMandatoryFieldBorder(itemLink, true);
     if (price <= 0) {
       updateMandatoryFieldBorder(itemPrice, false);
-      showFormMessage('Tahmini birim fiyat giriniz.');
+      showFormMessage('KDV hariç birim fiyat giriniz.');
       itemPrice.focus();
       return;
     }
@@ -976,13 +963,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // Clear new product form
     newProductName.value = '';
     newProductDesc.value = '';
-    newProductCategory.value = '';
-    categoryButtons.forEach(b => {
-      b.classList.remove('active', 'btn-primary', 'btn-secondary');
-      b.classList.add(b.dataset.category === 'sarf' ? 'btn-outline-secondary' : 'btn-outline-primary');
-    });
-    tagsSelectize.clear();
-    typeSelectize.clear();
+    newProductBrand.value = '';
+    newProductModel.value = '';
     
     // Clear common fields
     itemQuantity.value = '1';
@@ -1029,10 +1011,10 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
           </div>
           <div class="item-details">
-            <div><span class="detail-label">Kategori:</span> ${item.category || '-'}</div>
-            <div><span class="detail-label">Tür:</span> ${item.type || '-'}</div>
+            ${item.brand ? `<div><span class="detail-label">Marka:</span> ${escapeHtml(item.brand)}</div>` : ''}
+            ${item.model ? `<div><span class="detail-label">Model:</span> ${escapeHtml(item.model)}</div>` : ''}
             <div><span class="detail-label">Adet:</span> ${item.quantity}</div>
-            <div><span class="detail-label">Tahmini Birim Fiyat:</span> ${item.price.toFixed(2)} ₺</div>
+            <div><span class="detail-label">KDV Hariç Birim Fiyat:</span> ${item.price.toFixed(2)} ₺</div>
           </div>
           <div class="item-total">Toplam (KDV Hariç): ${item.total.toFixed(2)} ₺</div>
         </div>
@@ -1042,10 +1024,9 @@ document.addEventListener('DOMContentLoaded', function() {
       hiddenInputs += `
         <input type="hidden" name="item_name[]" value="${escapeHtml(item.name)}">
         <input type="hidden" name="item_component_id[]" value="${item.component_id}">
-        <input type="hidden" name="item_category[]" value="${item.category}">
-        <input type="hidden" name="item_type[]" value="${item.type}">
         <input type="hidden" name="item_description[]" value="${escapeHtml(item.description)}">
-        <input type="hidden" name="item_tags[]" value="${escapeHtml(item.tags)}">
+        <input type="hidden" name="item_brand[]" value="${escapeHtml(item.brand || '')}">
+        <input type="hidden" name="item_model[]" value="${escapeHtml(item.model || '')}">
         <input type="hidden" name="item_quantity[]" value="${item.quantity}">
         <input type="hidden" name="item_link[]" value="${escapeHtml(item.link)}">
         <input type="hidden" name="item_price[]" value="${item.price}">
@@ -1090,39 +1071,14 @@ document.addEventListener('DOMContentLoaded', function() {
           newProductRadio.dispatchEvent(new Event('change'));
           newProductName.value = item.name || '';
           newProductDesc.value = item.description || '';
-          newProductCategory.value = item.category || '';
-          categoryButtons.forEach(b => {
-            b.classList.remove('active', 'btn-primary', 'btn-secondary');
-            b.classList.add(b.dataset.category === 'sarf' ? 'btn-outline-secondary' : 'btn-outline-primary');
-            if (b.dataset.category === item.category) {
-              b.classList.remove('btn-outline-primary', 'btn-outline-secondary');
-              b.classList.add('active', b.dataset.category === 'sarf' ? 'btn-secondary' : 'btn-primary');
-            }
-          });
-          if (item.type) {
-            if (!typeSelectize.options[item.type]) {
-              typeSelectize.addOption({ value: item.type, text: item.type });
-            }
-            typeSelectize.setValue(item.type, true);
-          } else {
-            typeSelectize.clear();
-          }
-          tagsSelectize.clear(true);
-          const tagValues = (item.tags || '').split(',').map(t => t.trim()).filter(Boolean);
-          tagValues.forEach(tag => {
-            if (!tagsSelectize.options[tag]) {
-              tagsSelectize.addOption({ value: tag, text: tag });
-            }
-          });
-          tagsSelectize.setValue(tagValues, true);
+          newProductBrand.value = item.brand || '';
+          newProductModel.value = item.model || '';
         } else {
           existingProductRadio.checked = true;
           existingProductRadio.dispatchEvent(new Event('change'));
           selectedComponent = {
             id: item.component_id,
-            name: item.name,
-            category: item.category || '',
-            type: item.type || ''
+            name: item.name
           };
           componentGrid.querySelectorAll('.component-card').forEach(c => {
             c.classList.toggle('selected', c.dataset.id === String(item.component_id || ''));
@@ -1315,32 +1271,32 @@ document.addEventListener('DOMContentLoaded', function() {
     return Math.round(val * rate * 100) / 100;
   }
 
-  function toggleProjectNumberRequirement() {
+  function toggleTtoUI() {
     const isTto = budgetSelect.value === 'TTO';
-    projectNumberWrap.classList.toggle('d-none', !isTto);
+    ttoSubtypeWrap.classList.toggle('d-none', !isTto);
     if (isTto) {
-      projectNumberInput.setAttribute('required', '');
-      projectNumberInput.classList.add('mandatory-field');
-      bindMandatoryField(projectNumberInput);
+      projectNumberInput.removeAttribute('disabled');
     } else {
-      projectNumberInput.removeAttribute('required');
-      projectNumberInput.classList.remove('mandatory-empty', 'mandatory-filled');
+      projectNumberInput.setAttribute('disabled', '');
       projectNumberInput.value = '';
+      ttoSubtypeSelect.value = '';
     }
   }
 
   budgetSelect.addEventListener('change', () => {
-    toggleProjectNumberRequirement();
+    toggleTtoUI();
     updateMandatoryFieldBorder(budgetSelect);
   });
+
+  // Keep backward compat alias
+  function toggleProjectNumberRequirement() { toggleTtoUI(); }
 
   function restoreItemsFromFormState() {
     const names = formState.item_name || [];
     const componentIds = formState.item_component_id || [];
-    const categories = formState.item_category || [];
-    const types = formState.item_type || [];
     const descriptions = formState.item_description || [];
-    const tags = formState.item_tags || [];
+    const brands = formState.item_brand || [];
+    const models = formState.item_model || [];
     const quantities = formState.item_quantity || [];
     const links = formState.item_link || [];
     const prices = formState.item_price || [];
@@ -1355,10 +1311,9 @@ document.addEventListener('DOMContentLoaded', function() {
       restored.push({
         component_id: componentIds[i] || '',
         name,
-        category: categories[i] || '',
-        type: types[i] || '',
         description: descriptions[i] || '',
-        tags: tags[i] || '',
+        brand: brands[i] || '',
+        model: models[i] || '',
         quantity: qty,
         link: links[i] || '',
         price,
@@ -1382,8 +1337,18 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     if (editPayload.req_type === 'satin_alma') {
+      if (editPayload.purchase_type) {
+        purchaseTypePills.forEach(p => {
+          p.classList.toggle('active', p.dataset.pt === editPayload.purchase_type);
+        });
+        purchaseTypeHidden.value = editPayload.purchase_type;
+      }
       if (editPayload.budget) {
         document.getElementById('budgetSelect').value = editPayload.budget;
+        toggleTtoUI();
+      }
+      if (editPayload.tto_subtype && ttoSubtypeSelect) {
+        ttoSubtypeSelect.value = editPayload.tto_subtype;
       }
       if (editPayload.project_number) {
         projectNumberInput.value = editPayload.project_number;
@@ -1394,10 +1359,9 @@ document.addEventListener('DOMContentLoaded', function() {
         return {
           component_id: item.component_id || '',
           name: item.name || '',
-          category: item.category || '',
-          type: item.type || '',
           description: item.description || '',
-          tags: item.tags || '',
+          brand: item.brand || '',
+          model: item.model || '',
           quantity: qty,
           link: item.link || '',
           price: price,
@@ -1433,12 +1397,12 @@ document.addEventListener('DOMContentLoaded', function() {
   document.querySelectorAll('.mandatory-field').forEach(bindMandatoryField);
   if (editMode) {
     preloadEditForm();
-    toggleProjectNumberRequirement();
+    toggleTtoUI();
   } else {
     // Initial UI sync from server form state
     setRequestTypeUI(currentReqType);
     restoreItemsFromFormState();
-    toggleProjectNumberRequirement();
+    toggleTtoUI();
     if (currentReqType !== 'satin_alma' && (formState.external_product_name || formState.external_description)) {
       arizaExternalRadio.checked = true;
       arizaExternalRadio.dispatchEvent(new Event('change'));
@@ -1465,6 +1429,14 @@ document.addEventListener('DOMContentLoaded', function() {
     const reqType = currentReqType;
     
     if (reqType === 'satin_alma') {
+      const purchaseType = purchaseTypeHidden.value;
+      if (!purchaseType) {
+        e.preventDefault();
+        showFormMessage('Lütfen talep türü seçin.');
+        document.getElementById('purchaseTypePills').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+      }
+
       if (items.length === 0) {
         e.preventDefault();
         showFormMessage('En az bir ürün eklemelisiniz.');

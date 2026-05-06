@@ -179,10 +179,9 @@ def build_request_snapshot(req) -> dict:
         items.append({
             'name': item.name or '',
             'component_id': item.component_id,
-            'product_category': item.product_category or '',
-            'product_type': item.product_type or '',
             'product_description': item.product_description or '',
-            'tags': item.tags or '',
+            'brand': item.brand or '',
+            'model_name': item.model_name or '',
             'quantity': item.quantity or 0,
             'purchase_link': item.purchase_link or '',
             'unit_price': item.unit_price,
@@ -195,15 +194,14 @@ def build_request_snapshot(req) -> dict:
         'description': req.description or '',
         'component_id': req.component_id,
         'serial_number': req.serial_number or '',
-        'product_category': req.product_category or '',
-        'product_type': req.product_type or '',
+        'purchase_type': req.purchase_type or '',
         'product_description': req.product_description or '',
-        'tags': req.tags or '',
         'quantity': req.quantity or 0,
         'purchase_link': req.purchase_link or '',
         'unit_price': req.unit_price,
         'total_price': req.total_price,
         'budget': req.budget or '',
+        'tto_subtype': req.tto_subtype or '',
         'items': items
     }
 
@@ -248,15 +246,14 @@ def build_snapshot_diff(old_snapshot: dict, new_snapshot: dict) -> dict:
         'description': 'Açıklama',
         'component_id': 'Bileşen ID',
         'serial_number': 'Seri Numarası',
-        'product_category': 'Kategori',
-        'product_type': 'Ürün Türü',
-        'product_description': 'Ürün Açıklaması',
-        'tags': 'Etiketler',
+        'purchase_type': 'Talep Türü',
+        'product_description': 'Ürün Özellikleri',
         'quantity': 'Adet',
         'purchase_link': 'Satın Alma Linki',
         'unit_price': 'Birim Fiyat',
         'total_price': 'Toplam Fiyat',
-        'budget': 'Bütçe'
+        'budget': 'Bütçe',
+        'tto_subtype': 'TTO Alt Türü'
     }
 
     changed_fields = []
@@ -279,10 +276,9 @@ def build_snapshot_diff(old_snapshot: dict, new_snapshot: dict) -> dict:
     item_field_labels = {
         'name': 'Ürün',
         'component_id': 'Bileşen ID',
-        'product_category': 'Kategori',
-        'product_type': 'Tür',
-        'product_description': 'Açıklama',
-        'tags': 'Etiketler',
+        'product_description': 'Ürün Özellikleri',
+        'brand': 'Ürün Markası',
+        'model_name': 'Ürün Modeli',
         'quantity': 'Adet',
         'purchase_link': 'Link',
         'unit_price': 'Birim Fiyat',
@@ -504,6 +500,10 @@ def ensure_request_schema_columns():
                 db.session.execute(text("ALTER TABLE request ADD COLUMN project_number VARCHAR(120)"))
             if 'requires_wet_signature' not in req_cols:
                 db.session.execute(text("ALTER TABLE request ADD COLUMN requires_wet_signature BOOLEAN DEFAULT 0"))
+            if 'purchase_type' not in req_cols:
+                db.session.execute(text("ALTER TABLE request ADD COLUMN purchase_type VARCHAR(50)"))
+            if 'tto_subtype' not in req_cols:
+                db.session.execute(text("ALTER TABLE request ADD COLUMN tto_subtype VARCHAR(50)"))
 
             req_item_cols = {
                 row[1]
@@ -511,6 +511,10 @@ def ensure_request_schema_columns():
             }
             if 'requires_wet_signature' not in req_item_cols:
                 db.session.execute(text("ALTER TABLE request_item ADD COLUMN requires_wet_signature BOOLEAN DEFAULT 0"))
+            if 'brand' not in req_item_cols:
+                db.session.execute(text("ALTER TABLE request_item ADD COLUMN brand VARCHAR(120)"))
+            if 'model_name' not in req_item_cols:
+                db.session.execute(text("ALTER TABLE request_item ADD COLUMN model_name VARCHAR(120)"))
 
             db.session.commit()
     except Exception:
@@ -1916,7 +1920,9 @@ def create_request():
     if request.method == 'POST':
         req_type = request.form.get('req_type', 'satin_alma').strip()
         description = request.form.get('description', '').strip()
+        purchase_type = request.form.get('purchase_type', '').strip()
         budget = request.form.get('budget', '').strip()
+        tto_subtype = request.form.get('tto_subtype', '').strip()
         project_number = request.form.get('project_number', '').strip()
         external_product_name = request.form.get('external_product_name', '').strip()
         external_description = request.form.get('external_description', '').strip()
@@ -1925,10 +1931,9 @@ def create_request():
 
         item_names = request.form.getlist('item_name[]')
         item_component_ids = request.form.getlist('item_component_id[]')
-        item_categories = request.form.getlist('item_category[]')
-        item_types = request.form.getlist('item_type[]')
         item_descriptions = request.form.getlist('item_description[]')
-        item_tags = request.form.getlist('item_tags[]')
+        item_brands = request.form.getlist('item_brand[]')
+        item_models = request.form.getlist('item_model[]')
         item_quantities = request.form.getlist('item_quantity[]')
         item_links = request.form.getlist('item_link[]')
         item_prices = request.form.getlist('item_price[]')
@@ -1936,7 +1941,9 @@ def create_request():
         form_state = {
             'req_type': req_type,
             'description': description,
+            'purchase_type': purchase_type,
             'budget': budget,
+            'tto_subtype': tto_subtype,
             'project_number': project_number,
             'external_product_name': external_product_name,
             'external_description': external_description,
@@ -1944,10 +1951,9 @@ def create_request():
             'serial_number': serial_number,
             'item_name': item_names,
             'item_component_id': item_component_ids,
-            'item_category': item_categories,
-            'item_type': item_types,
             'item_description': item_descriptions,
-            'item_tags': item_tags,
+            'item_brand': item_brands,
+            'item_model': item_models,
             'item_quantity': item_quantities,
             'item_link': item_links,
             'item_price': item_prices
@@ -2011,6 +2017,8 @@ def create_request():
 
         # Satın Alma
         else:
+            if not purchase_type:
+                errors.append('Talep Türü seçimi zorunlu.')
             if not budget:
                 errors.append('Bütçe seçimi zorunlu.')
             if budget == 'TTO' and not project_number:
@@ -2031,7 +2039,9 @@ def create_request():
                 description=description,
                 created_by=current_user.id,
                 req_type=req_type,
+                purchase_type=purchase_type if purchase_type else None,
                 budget=budget,
+                tto_subtype=tto_subtype if budget == 'TTO' and tto_subtype else None,
                 project_number=project_number if budget == 'TTO' else None
             )
             req.username = current_user.username
@@ -2043,10 +2053,9 @@ def create_request():
                     continue
 
                 component_id_raw = item_component_ids[i] if i < len(item_component_ids) else ''
-                category = item_categories[i] if i < len(item_categories) else ''
-                item_type = item_types[i] if i < len(item_types) else ''
                 item_desc = item_descriptions[i] if i < len(item_descriptions) else ''
-                tags = item_tags[i] if i < len(item_tags) else ''
+                item_brand = item_brands[i] if i < len(item_brands) else ''
+                item_model = item_models[i] if i < len(item_models) else ''
                 link = item_links[i] if i < len(item_links) else ''
 
                 try:
@@ -2071,10 +2080,9 @@ def create_request():
                 request_item = RequestItem(
                     name=name,
                     component_id=int(component_id_raw) if component_id_raw and component_id_raw.isdigit() else None,
-                    product_category=category if category else None,
-                    product_type=item_type if item_type else None,
                     product_description=item_desc if item_desc else None,
-                    tags=tags if tags else None,
+                    brand=item_brand if item_brand else None,
+                    model_name=item_model if item_model else None,
                     quantity=quantity,
                     purchase_link=link if link else None,
                     unit_price=unit_price,
@@ -2098,7 +2106,9 @@ def create_request():
     return render_create_request_form({
         'req_type': 'satin_alma',
         'description': '',
+        'purchase_type': '',
         'budget': '',
+        'tto_subtype': '',
         'project_number': '',
         'external_product_name': '',
         'external_description': '',
@@ -2106,10 +2116,9 @@ def create_request():
         'serial_number': '',
         'item_name': [],
         'item_component_id': [],
-        'item_category': [],
-        'item_type': [],
         'item_description': [],
-        'item_tags': [],
+        'item_brand': [],
+        'item_model': [],
         'item_quantity': [],
         'item_link': [],
         'item_price': []
@@ -2138,7 +2147,9 @@ def edit_request(req_id):
         payload = {
             'req_type': req.req_type,
             'description': req.description or '',
+            'purchase_type': req.purchase_type or '',
             'budget': req.budget or '',
+            'tto_subtype': req.tto_subtype or '',
             'project_number': req.project_number or '',
             'component_id': req.component_id,
             'serial_number': req.serial_number or '',
@@ -2154,10 +2165,9 @@ def edit_request(req_id):
                     {
                         'component_id': item.component_id or '',
                         'name': item.name or '',
-                        'category': item.product_category or '',
-                        'type': item.product_type or '',
                         'description': item.product_description or '',
-                        'tags': item.tags or '',
+                        'brand': item.brand or '',
+                        'model': item.model_name or '',
                         'quantity': item.quantity or 1,
                         'link': item.purchase_link or '',
                         'price': item.unit_price or 0,
@@ -2169,10 +2179,9 @@ def edit_request(req_id):
                 payload['items'] = [{
                     'component_id': req.component_id or '',
                     'name': req.name or '',
-                    'category': req.product_category or '',
-                    'type': req.product_type or '',
                     'description': req.product_description or '',
-                    'tags': req.tags or '',
+                    'brand': '',
+                    'model': '',
                     'quantity': req.quantity or 1,
                     'link': req.purchase_link or '',
                     'price': req.unit_price or 0,
@@ -2184,7 +2193,9 @@ def edit_request(req_id):
         payload = {
             'req_type': state.get('req_type', req.req_type),
             'description': state.get('description', ''),
+            'purchase_type': state.get('purchase_type', ''),
             'budget': state.get('budget', ''),
+            'tto_subtype': state.get('tto_subtype', ''),
             'project_number': state.get('project_number', ''),
             'component_id': state.get('component_id', ''),
             'serial_number': state.get('serial_number', ''),
@@ -2196,10 +2207,9 @@ def edit_request(req_id):
         if payload['req_type'] == 'satin_alma':
             names = state.get('item_name', []) or []
             component_ids = state.get('item_component_id', []) or []
-            categories_state = state.get('item_category', []) or []
-            types_state = state.get('item_type', []) or []
             descriptions = state.get('item_description', []) or []
-            tags = state.get('item_tags', []) or []
+            brands = state.get('item_brand', []) or []
+            models = state.get('item_model', []) or []
             quantities = state.get('item_quantity', []) or []
             links = state.get('item_link', []) or []
             prices = state.get('item_price', []) or []
@@ -2211,10 +2221,9 @@ def edit_request(req_id):
                 payload['items'].append({
                     'component_id': component_ids[i] if i < len(component_ids) else '',
                     'name': item_name,
-                    'category': categories_state[i] if i < len(categories_state) else '',
-                    'type': types_state[i] if i < len(types_state) else '',
                     'description': descriptions[i] if i < len(descriptions) else '',
-                    'tags': tags[i] if i < len(tags) else '',
+                    'brand': brands[i] if i < len(brands) else '',
+                    'model': models[i] if i < len(models) else '',
                     'quantity': quantities[i] if i < len(quantities) else 1,
                     'link': links[i] if i < len(links) else '',
                     'price': prices[i] if i < len(prices) else 0,
@@ -2240,7 +2249,9 @@ def edit_request(req_id):
     if request.method == 'POST':
         description = request.form.get('description', '').strip()
         req_type = request.form.get('req_type', 'satin_alma')
+        purchase_type = request.form.get('purchase_type', '').strip()
         budget = request.form.get('budget', '').strip()
+        tto_subtype = request.form.get('tto_subtype', '').strip()
         project_number = request.form.get('project_number', '').strip()
         external_product_name = request.form.get('external_product_name', '').strip()
         external_description = request.form.get('external_description', '').strip()
@@ -2249,10 +2260,9 @@ def edit_request(req_id):
 
         item_names = request.form.getlist('item_name[]')
         item_component_ids = request.form.getlist('item_component_id[]')
-        item_categories = request.form.getlist('item_category[]')
-        item_types = request.form.getlist('item_type[]')
         item_descriptions = request.form.getlist('item_description[]')
-        item_tags = request.form.getlist('item_tags[]')
+        item_brands = request.form.getlist('item_brand[]')
+        item_models = request.form.getlist('item_model[]')
         item_quantities = request.form.getlist('item_quantity[]')
         item_links = request.form.getlist('item_link[]')
         item_prices = request.form.getlist('item_price[]')
@@ -2260,7 +2270,9 @@ def edit_request(req_id):
         form_state = {
             'req_type': req_type,
             'description': description,
+            'purchase_type': purchase_type,
             'budget': budget,
+            'tto_subtype': tto_subtype,
             'project_number': project_number,
             'external_product_name': external_product_name,
             'external_description': external_description,
@@ -2268,10 +2280,9 @@ def edit_request(req_id):
             'serial_number': serial_number,
             'item_name': item_names,
             'item_component_id': item_component_ids,
-            'item_category': item_categories,
-            'item_type': item_types,
             'item_description': item_descriptions,
-            'item_tags': item_tags,
+            'item_brand': item_brands,
+            'item_model': item_models,
             'item_quantity': item_quantities,
             'item_link': item_links,
             'item_price': item_prices
@@ -2287,7 +2298,9 @@ def edit_request(req_id):
         req.purchase_link = None
         req.unit_price = None
         req.total_price = None
+        req.purchase_type = None
         req.budget = None
+        req.tto_subtype = None
         req.project_number = None
         req.requires_wet_signature = False
         for existing_item in req.items.all():
@@ -2326,6 +2339,9 @@ def edit_request(req_id):
                 req.serial_number = serial_number
 
         else:
+            if not purchase_type:
+                flash('Talep Türü seçimi zorunlu.', 'danger')
+                return render_edit_request_form(form_state, build_edit_payload_from_form_state(form_state))
             if not budget:
                 flash('Bütçe seçimi zorunlu.', 'danger')
                 return render_edit_request_form(form_state, build_edit_payload_from_form_state(form_state))
@@ -2344,7 +2360,9 @@ def edit_request(req_id):
             req.req_type = req_type
             req.name = item_names[0].strip() if item_names else 'Satın Alma İsteği'
             req.description = description
+            req.purchase_type = purchase_type if purchase_type else None
             req.budget = budget if budget else None
+            req.tto_subtype = tto_subtype if budget == 'TTO' and tto_subtype else None
             req.project_number = project_number if budget == 'TTO' else None
 
             total_request_price = 0
@@ -2355,10 +2373,9 @@ def edit_request(req_id):
                     continue
 
                 component_id = item_component_ids[i] if i < len(item_component_ids) else ''
-                category = item_categories[i] if i < len(item_categories) else ''
-                item_type = item_types[i] if i < len(item_types) else ''
                 item_desc = item_descriptions[i] if i < len(item_descriptions) else ''
-                tags = item_tags[i] if i < len(item_tags) else ''
+                item_brand = item_brands[i] if i < len(item_brands) else ''
+                item_model = item_models[i] if i < len(item_models) else ''
 
                 try:
                     quantity = int(item_quantities[i]) if i < len(item_quantities) and item_quantities[i] else 1
@@ -2382,10 +2399,9 @@ def edit_request(req_id):
                 req.items.append(RequestItem(
                     name=name,
                     component_id=int(component_id) if component_id and component_id.isdigit() else None,
-                    product_category=category if category else None,
-                    product_type=item_type if item_type else None,
                     product_description=item_desc if item_desc else None,
-                    tags=tags if tags else None,
+                    brand=item_brand if item_brand else None,
+                    model_name=item_model if item_model else None,
                     quantity=quantity,
                     purchase_link=link if link else None,
                     unit_price=unit_price,
