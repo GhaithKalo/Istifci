@@ -74,6 +74,8 @@ REQUEST_MESSAGE_ALLOWED_EXTENSIONS = {
     'zip', 'rar'
 }
 WET_SIGNATURE_PRICE_THRESHOLD = 100000
+DEFAULT_BUDGET_CODE = 'GENEL'
+DEFAULT_PROJECT_CODE = 'NOPROJE'
 
 
 def normalize_request_code_part(value: Optional[str]) -> str:
@@ -88,10 +90,10 @@ def normalize_request_code_part(value: Optional[str]) -> str:
 
 def build_purchase_request_code(budget: Optional[str], tto_subtype: Optional[str], project_number: Optional[str], sequence: int) -> str:
     header = tto_subtype if budget == 'TTO' and tto_subtype else budget
-    header = normalize_request_code_part(header) or 'GENEL'
+    header = normalize_request_code_part(header) or DEFAULT_BUDGET_CODE
     project_part = normalize_request_code_part(project_number)
     if not project_part:
-        project_part = 'NOPROJE'
+        project_part = DEFAULT_PROJECT_CODE
     padded_sequence = str(sequence).zfill(3)
     return f"{header}-{project_part}-{padded_sequence}"
 
@@ -2120,7 +2122,7 @@ def create_request():
 
             db.session.add(req)
             db.session.flush()
-            if req.req_type == 'satin_alma' and not req.request_code:
+            if req.req_type == 'satin_alma':
                 req.request_code = build_purchase_request_code(req.budget, req.tto_subtype, req.project_number, req.id)
             create_request_revision(req, submitted_by=current_user.id, status_at_submit='beklemede')
             db.session.commit()
@@ -2438,8 +2440,10 @@ def edit_request(req_id):
             req.total_price = total_request_price if total_request_price > 0 else None
             req.requires_wet_signature = has_wet_signature_warning
 
-        if req.req_type == 'satin_alma' and not req.request_code:
+        if req.req_type == 'satin_alma':
             req.request_code = build_purchase_request_code(req.budget, req.tto_subtype, req.project_number, req.id)
+        else:
+            req.request_code = None
 
         old_status = req.req_status
         req.req_status = 'beklemede'
