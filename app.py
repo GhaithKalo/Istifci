@@ -4,6 +4,7 @@
 # GEREKLİ KÜTÜPHANELERİN VE MODÜLLERİN YÜKLENMESİ
 # ==============================================================================
 import uuid
+from typing import Optional
 from flask import Flask, render_template, request, redirect, url_for, flash, abort, g, send_file, jsonify
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -75,7 +76,7 @@ REQUEST_MESSAGE_ALLOWED_EXTENSIONS = {
 WET_SIGNATURE_PRICE_THRESHOLD = 100000
 
 
-def normalize_request_code_part(value: str) -> str:
+def normalize_request_code_part(value: Optional[str]) -> str:
     if not value:
         return ''
     cleaned = re.sub(r'\s+', '', value.strip())
@@ -85,7 +86,7 @@ def normalize_request_code_part(value: str) -> str:
     return normalized.upper()
 
 
-def build_purchase_request_code(budget: str, tto_subtype: str, project_number: str, sequence: int) -> str:
+def build_purchase_request_code(budget: Optional[str], tto_subtype: Optional[str], project_number: Optional[str], sequence: int) -> str:
     header = tto_subtype if budget == 'TTO' and tto_subtype else budget
     header = normalize_request_code_part(header) or 'GENEL'
     project_part = normalize_request_code_part(project_number)
