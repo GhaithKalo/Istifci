@@ -284,9 +284,6 @@
       
       <!-- Request Type -->
       <div class="mb-3">
-        <div class="section-header">
-          <i class="bi bi-tag-fill"></i>İstek Türü
-        </div>
         <div class="type-pills">
           <label class="type-pill active" data-type="satin_alma">
             <input type="radio" name="req_type" value="satin_alma" {% if (fs.req_type or 'satin_alma') == 'satin_alma' %}checked{% endif %} style="display:none;">
@@ -311,10 +308,10 @@
       <!-- ============================================================= -->
       <div id="satinAlmaSection">
 
-        <!-- Talep Türü -->
+        <!-- Satın Alma Talebi Türü -->
         <div class="mb-3">
           <div class="section-header">
-            <i class="bi bi-grid-fill"></i>Talep Türü <span class="text-danger">*</span>
+            <i class="bi bi-grid-fill"></i>Satın Alma Talebi Türü <span class="text-danger">*</span>
           </div>
           <div class="d-flex gap-2 flex-wrap" id="purchaseTypePills">
             {% set pt_options = ['Nalbur', 'Yazılım', 'Elektronik', 'Kırtasiye', 'Mobilya'] %}
@@ -338,11 +335,11 @@
             <div class="btn-group w-100" role="group">
               <input type="radio" class="btn-check" name="productSource" id="existingProduct">
               <label class="btn btn-outline-secondary" for="existingProduct">
-                <i class="bi bi-box-seam me-1"></i>Mevcut Ürün
+                <i class="bi bi-box-seam me-1"></i>Envanterdeki Ürün
               </label>
               <input type="radio" class="btn-check" name="productSource" id="newProduct" checked>
               <label class="btn btn-outline-secondary" for="newProduct">
-                <i class="bi bi-plus-circle me-1"></i>Yeni Ürün
+                <i class="bi bi-plus-circle me-1"></i>Envanter Dışı Ürün
               </label>
             </div>
           </div>
@@ -407,7 +404,7 @@
           <div class="row mt-3">
             <div class="col-md-3 mb-3">
               <label class="form-label fw-bold">Adet <span class="text-danger">*</span></label>
-              <input type="number" id="itemQuantity" class="form-control no-spin mandatory-field" min="1" value="1">
+              <input type="number" id="itemQuantity" class="form-control no-spin mandatory-field" min="1" placeholder="Adet">
             </div>
             <div class="col-md-5 mb-3">
               <label class="form-label fw-bold">Satın Alma Linki <span class="text-danger">*</span></label>
@@ -465,7 +462,6 @@
             <option value="" {% if not fs.budget %}selected{% endif %}>Bütçe seçin...</option>
             <option value="Merkez" {% if fs.budget == 'Merkez' %}selected{% endif %}>Merkez</option>
             <option value="TTO" {% if fs.budget == 'TTO' %}selected{% endif %}>TTO</option>
-            <option value="SSB" {% if fs.budget == 'SSB' %}selected{% endif %}>SSB</option>
           </select>
           <div class="mt-2 {% if fs.budget != 'TTO' %}d-none{% endif %}" id="ttoSubtypeWrap">
             <label for="ttoSubtypeSelect" class="form-label fw-bold">TTO Alt Türü <span class="text-danger">*</span></label>
@@ -895,16 +891,17 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // Common validation
-    const qty = parseInt(itemQuantity.value) || 1;
+    const qtyRaw = itemQuantity.value.trim();
     const link = itemLink.value.trim();
     const price = getTLPrice();
     
-    if (qty < 1) {
+    if (!qtyRaw || isNaN(parseInt(qtyRaw)) || parseInt(qtyRaw) < 1) {
       updateMandatoryFieldBorder(itemQuantity, false);
       showFormMessage('Adet en az 1 olmalıdır.');
       itemQuantity.focus();
       return;
     }
+    const qty = parseInt(qtyRaw);
     updateMandatoryFieldBorder(itemQuantity, true);
     if (!link) {
       updateMandatoryFieldBorder(itemLink, false);
@@ -967,7 +964,7 @@ document.addEventListener('DOMContentLoaded', function() {
     newProductModel.value = '';
     
     // Clear common fields
-    itemQuantity.value = '1';
+    itemQuantity.value = '';
     itemLink.value = '';
     itemPrice.value = '';
     currentCurrency = 'TRY';

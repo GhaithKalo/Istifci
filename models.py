@@ -253,7 +253,7 @@ class Request(db.Model):
     purchase_link = db.Column(db.String(500), nullable=True)  # Satın alma linki
     unit_price = db.Column(db.Float, nullable=True)  # Birim fiyatı (KDV'siz)
     total_price = db.Column(db.Float, nullable=True)  # Toplam fiyat (KDV'siz) = Adet * Birim Fiyatı
-    budget = db.Column(db.String(50), nullable=True)  # Bütçe: 'TTO', 'Merkez', 'SSB'
+    budget = db.Column(db.String(50), nullable=True)  # Bütçe: 'TTO', 'Merkez'
     tto_subtype = db.Column(db.String(50), nullable=True)  # TTO alt türü: 'BAP', 'Tübitak', 'Tuseb', 'USI'
     project_number = db.Column(db.String(120), nullable=True)  # TTO bütçeli talepler için proje numarası
     requires_wet_signature = db.Column(db.Boolean, default=False, nullable=False)  # Bilgilendirici ıslak imza uyarısı

@@ -75,6 +75,7 @@ REQUEST_MESSAGE_ALLOWED_EXTENSIONS = {
 WET_SIGNATURE_PRICE_THRESHOLD = 100000
 DEFAULT_BUDGET_CODE = 'GENEL'
 DEFAULT_PROJECT_CODE = 'NOPROJE'
+VALID_BUDGETS = {'TTO', 'Merkez'}
 
 
 def normalize_request_code_part(value: str | None) -> str:
@@ -87,31 +88,58 @@ def normalize_request_code_part(value: str | None) -> str:
     return normalized.upper()
 
 
-def build_purchase_request_code(budget: str | None, tto_subtype: str | None, project_number: str | None, sequence: int) -> str:
+def _next_sequence_for_budget_group(is_merkez: bool) -> int:
     """
-    Talep ID formatı: [BÜTÇE ÜST BAŞLIĞI]-[PROJE NO]-[SIRALI ID].
-    Örnek: BAP-202614-001, TUBITAK-123G456-015.
-    Parametreler:
-        budget: Formdaki bütçe seçimi.
-        tto_subtype: TTO bütçe alt türü (varsa).
-        project_number: Proje numarası (varsa).
-        sequence: Ardışık sıra numarası.
-    Döndürür:
-        Talep ID metni.
+    İlgili bütçe grubundaki (TTO veya Merkez) mevcut satın alma taleplerinin
+    sayısına bakarak bir sonraki sıra numarasını döndürür.
     """
-    header = tto_subtype if budget == 'TTO' and tto_subtype else budget
-    header = normalize_request_code_part(header) or DEFAULT_BUDGET_CODE
-    project_part = normalize_request_code_part(project_number)
-    if not project_part:
-        project_part = DEFAULT_PROJECT_CODE
-    padded_sequence = str(sequence).zfill(3)
-    return f"{header}-{project_part}-{padded_sequence}"
+    base_query = Request.query.filter(
+        Request.req_type == 'satin_alma',
+        Request.request_code.isnot(None)
+    )
+    if is_merkez:
+        count = base_query.filter(Request.budget == 'Merkez').count()
+    else:
+        # TTO alt bütçeleri: budget == 'TTO'
+        count = base_query.filter(Request.budget == 'TTO').count()
+    return count + 1
+
+
+def build_purchase_request_code(budget: str | None, tto_subtype: str | None, project_number: str | None) -> str:
+    """
+    Bütçe türüne göre koşullu Talep ID üretir.
+
+    Durum 1 – TTO alt bütçeleri (BAP, TÜBİTAK, TUSEB, USI vb.):
+        Format : [Proje Numarası]-[Sıra Numarası]
+        Örnek  : 112G456-001
+
+    Durum 2 – Merkez bütçesi:
+        Format : [Yıl]-Merkez-[Sıra Numarası]
+        Örnek  : 2026-Merkez-001
+
+    Sıra numaraları her zaman en az 3 haneli, sıfır dolgulu (zero-padded) olur.
+    """
+    is_merkez = (budget or '').strip().lower() == 'merkez'
+
+    sequence = _next_sequence_for_budget_group(is_merkez)
+    padded_seq = str(sequence).zfill(3)
+
+    if is_merkez:
+        year = datetime.now().year
+        return f"{year}-Merkez-{padded_seq}"
+    else:
+        # TTO grubu – proje numarası kullanılır
+        project_part = normalize_request_code_part(project_number)
+        if not project_part:
+            project_part = DEFAULT_PROJECT_CODE
+        return f"{project_part}-{padded_seq}"
 
 
 def assign_request_code(req: Request) -> None:
+    """Satın alma taleplerine bütçe grubuna göre benzersiz request_code atar."""
     if not req or req.req_type != 'satin_alma' or not req.id:
         return
-    req.request_code = build_purchase_request_code(req.budget, req.tto_subtype, req.project_number, req.id)
+    req.request_code = build_purchase_request_code(req.budget, req.tto_subtype, req.project_number)
 
 
 def status_label(status: str) -> str:
@@ -561,7 +589,8 @@ def ensure_request_schema_columns():
     except Exception:
         db.session.rollback()
 
-ensure_request_schema_columns()
+with app.app_context():
+    ensure_request_schema_columns()
 
 # ==============================================================================
 # FLASK-LOGIN YAPILANDIRMASI
@@ -2063,6 +2092,8 @@ def create_request():
                 errors.append('Talep Türü seçimi zorunlu.')
             if not budget:
                 errors.append('Bütçe seçimi zorunlu.')
+            elif budget not in VALID_BUDGETS:
+                errors.append('Geçersiz bütçe seçimi.')
             if budget == 'TTO' and not project_number:
                 errors.append('Proje Numarası zorunlu.')
             if not description:
@@ -2104,7 +2135,8 @@ def create_request():
                     quantity = int(item_quantities[i]) if i < len(item_quantities) and item_quantities[i] else 1
                 except ValueError:
                     quantity = 1
-                quantity = max(quantity, 1)
+                if quantity < 1:
+                    quantity = 1
 
                 try:
                     unit_price = float(item_prices[i]) if i < len(item_prices) and item_prices[i] else None
@@ -2388,6 +2420,9 @@ def edit_request(req_id):
             if not budget:
                 flash('Bütçe seçimi zorunlu.', 'danger')
                 return render_edit_request_form(form_state, build_edit_payload_from_form_state(form_state))
+            if budget not in VALID_BUDGETS:
+                flash('Geçersiz bütçe seçimi.', 'danger')
+                return render_edit_request_form(form_state, build_edit_payload_from_form_state(form_state))
             if budget == 'TTO' and not project_number:
                 flash('Proje Numarası zorunlu.', 'danger')
                 return render_edit_request_form(form_state, build_edit_payload_from_form_state(form_state))
@@ -2423,6 +2458,8 @@ def edit_request(req_id):
                 try:
                     quantity = int(item_quantities[i]) if i < len(item_quantities) and item_quantities[i] else 1
                 except ValueError:
+                    quantity = 1
+                if quantity < 1:
                     quantity = 1
 
                 link = item_links[i] if i < len(item_links) else ''
@@ -2460,14 +2497,6 @@ def edit_request(req_id):
         old_status = req.req_status
         req.req_status = 'beklemede'
         append_status_event_message(req, old_status, 'beklemede')
-        db.session.add(RequestMessage(
-            request_id=req.id,
-            author_user_id=current_user.id,
-            author_username_snapshot=current_user.username,
-            author_role='system',
-            message_type='status_event',
-            body='İstek kullanıcı tarafından düzenlenip yeniden gönderildi.'
-        ))
         create_request_revision(req, submitted_by=current_user.id, status_at_submit='beklemede')
         db.session.commit()
         flash('İstek düzenlendi ve yeniden gönderildi.', 'success')
