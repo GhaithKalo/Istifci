@@ -151,6 +151,7 @@ STATUS_GROUP_LABELS = {
     STATUS_GROUP_DELIVERED: 'Teslim Edildi'
 }
 
+# Legacy değerler, migration çalışmadan önceki kayıtlar için filtreleri korumak adına tutulur.
 PENDING_STATUSES = {REQUEST_STATUS_PENDING, 'beklemede'}
 REJECTED_STATUSES = {REQUEST_STATUS_REJECTED}
 DELIVERED_STATUSES = {REQUEST_STATUS_DELIVERED, 'tamamlandi'}
@@ -3168,7 +3169,8 @@ def admin_set_request_status(req_id):
         flash('Geçersiz durum.', 'danger')
         return redirect(url_for('admin_requests'))
     
-    old_status = req.req_status
+    old_status_raw = req.req_status
+    old_status = normalize_request_status(old_status_raw)
     if normalized_status != old_status:
         req.req_status = normalized_status
         append_status_event_message(req, old_status, normalized_status)
@@ -3181,6 +3183,8 @@ def admin_set_request_status(req_id):
         ))
         if normalized_status == REQUEST_STATUS_REJECTED:
             create_request_revision(req, submitted_by=current_user.id, status_at_submit=REQUEST_STATUS_REJECTED)
+    elif old_status_raw != old_status:
+        req.req_status = old_status
     if admin_note:
         req.admin_note = admin_note
         append_admin_note_message(req, admin_note, current_user)
@@ -3236,11 +3240,11 @@ def admin_bulk_request_status():
         if normalized_status not in allowed_statuses:
             invalid_count += 1
             continue
-        if req.req_status == normalized_status:
+        old_status = normalize_request_status(req.req_status)
+        if normalized_status == old_status:
             skipped_count += 1
             continue
 
-        old_status = req.req_status
         req.req_status = normalized_status
         append_status_event_message(req, old_status, normalized_status)
         db.session.add(RequestStatusHistory(
