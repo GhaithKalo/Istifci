@@ -32,10 +32,10 @@
     box-shadow: 0 3px 12px rgba(0,0,0,0.15);
   }
   .stat-card.stat-total { border-left-color: #0d6efd; }
-  .stat-card.stat-beklemede { border-left-color: #ffc107; }
-  .stat-card.stat-kabul { border-left-color: #198754; }
+  .stat-card.stat-onay_bekliyor { border-left-color: #ffc107; }
   .stat-card.stat-reddedildi { border-left-color: #dc3545; }
-  .stat-card.stat-tamamlandi { border-left-color: #6c757d; }
+  .stat-card.stat-surecte { border-left-color: #0d6efd; }
+  .stat-card.stat-teslim_edildi { border-left-color: #198754; }
   .stat-card .stat-number {
     font-size: 1.5rem;
     font-weight: 700;
@@ -171,6 +171,37 @@
     font-size: 0.7rem;
     margin-right: 0.4rem;
   }
+
+  /* Macro Stepper */
+  .macro-stepper {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .macro-step {
+    flex: 1 1 120px;
+    text-align: center;
+    position: relative;
+    padding: 0.5rem 0.4rem;
+    border-radius: 6px;
+    background: #f1f3f5;
+  }
+  .macro-step.completed {
+    background: #e7f1ff;
+    color: #0d6efd;
+    font-weight: 600;
+  }
+  .macro-step.active {
+    background: #0d6efd;
+    color: #fff;
+    font-weight: 600;
+  }
+  .macro-step small {
+    display: block;
+    font-size: 0.7rem;
+    opacity: 0.85;
+  }
   
   /* Empty State */
   .empty-state {
@@ -277,31 +308,13 @@
 
   <!-- Stats Row - Compact -->
   <div class="stats-row">
-    <a href="?status=all&type={{ current_type }}&q={{ current_search or '' }}&sort={{ current_sort }}" 
-       class="stat-card stat-total {% if current_status == 'all' %}active{% endif %}">
-      <div class="stat-number">{{ stats.total }}</div>
-      <div class="stat-label">Toplam</div>
+    {% for card in status_cards %}
+    <a href="?status={{ card.value }}&type={{ current_type }}&q={{ current_search or '' }}&sort={{ current_sort }}" 
+       class="stat-card {% if card.value == 'all' %}stat-total{% else %}stat-{{ card.value }}{% endif %} {% if current_status == card.value %}active{% endif %}">
+      <div class="stat-number">{{ card.count }}</div>
+      <div class="stat-label">{{ card.label }}</div>
     </a>
-    <a href="?status=beklemede&type={{ current_type }}&q={{ current_search or '' }}&sort={{ current_sort }}" 
-       class="stat-card stat-beklemede {% if current_status == 'beklemede' %}active{% endif %}">
-      <div class="stat-number">{{ stats.beklemede }}</div>
-      <div class="stat-label">Beklemede</div>
-    </a>
-    <a href="?status=kabul&type={{ current_type }}&q={{ current_search or '' }}&sort={{ current_sort }}" 
-       class="stat-card stat-kabul {% if current_status == 'kabul' %}active{% endif %}">
-      <div class="stat-number">{{ stats.kabul }}</div>
-      <div class="stat-label">Kabul</div>
-    </a>
-    <a href="?status=reddedildi&type={{ current_type }}&q={{ current_search or '' }}&sort={{ current_sort }}" 
-       class="stat-card stat-reddedildi {% if current_status == 'reddedildi' %}active{% endif %}">
-      <div class="stat-number">{{ stats.reddedildi }}</div>
-      <div class="stat-label">Reddedildi</div>
-    </a>
-    <a href="?status=tamamlandi&type={{ current_type }}&q={{ current_search or '' }}&sort={{ current_sort }}" 
-       class="stat-card stat-tamamlandi {% if current_status == 'tamamlandi' %}active{% endif %}">
-      <div class="stat-number">{{ stats.tamamlandi }}</div>
-      <div class="stat-label">Tamamlandı</div>
-    </a>
+    {% endfor %}
   </div>
 
   <!-- Search and Filter - Bootstrap style like index.html -->
@@ -354,7 +367,7 @@
     {% if current_status != 'all' %}
     <span class="filter-tag">
       <i class="bi bi-funnel-fill"></i>
-      {% if current_status == 'beklemede' %}Beklemede{% elif current_status == 'reddedildi' %}Reddedildi{% elif current_status == 'kabul' %}Kabul{% elif current_status == 'tamamlandi' %}Tamamlandı{% endif %}
+      {{ current_status|request_status_group_label }}
     </span>
     {% endif %}
     {% if current_type != 'all' %}
@@ -400,11 +413,8 @@
               {% elif req.req_type == 'ariza' %}<i class="bi bi-tools me-1"></i>Arıza
               {% elif req.req_type == 'bakim' %}<i class="bi bi-gear-fill me-1"></i>Bakım{% endif %}
             </span>
-            <span class="badge {% if req.req_status == 'beklemede' %}bg-warning text-dark{% elif req.req_status == 'reddedildi' %}bg-danger{% elif req.req_status == 'kabul' %}bg-success{% elif req.req_status == 'tamamlandi' %}bg-secondary{% endif %}">
-              {% if req.req_status == 'beklemede' %}<i class="bi bi-clock me-1"></i>Beklemede
-              {% elif req.req_status == 'reddedildi' %}<i class="bi bi-x-circle me-1"></i>Reddedildi
-              {% elif req.req_status == 'kabul' %}<i class="bi bi-check-circle me-1"></i>Kabul
-              {% elif req.req_status == 'tamamlandi' %}<i class="bi bi-check2-all me-1"></i>Tamamlandı{% endif %}
+            <span class="badge {{ req.req_status|request_status_badge_class }}">
+              <i class="bi bi-flag-fill me-1"></i>{{ req.req_status|request_status_label }}
             </span>
           </div>
         </div>
@@ -524,13 +534,41 @@
           <div class="detail-item">
             <span class="detail-label"><i class="bi bi-flag me-1"></i>Durum</span>
             <span class="detail-value">
-              {% if req.req_status == 'beklemede' %}<span class="badge bg-warning text-dark">Beklemede</span>
-              {% elif req.req_status == 'reddedildi' %}<span class="badge bg-danger">Reddedildi</span>
-              {% elif req.req_status == 'kabul' %}<span class="badge bg-success">Kabul Edildi</span>
-              {% elif req.req_status == 'tamamlandi' %}<span class="badge bg-secondary">Tamamlandı</span>
-              {% else %}<span class="badge bg-light text-dark">{{ req.req_status }}</span>{% endif %}
+              <span class="badge {{ req.req_status|request_status_badge_class }}">{{ req.req_status|request_status_label }}</span>
             </span>
           </div>
+          {% if req.req_type == 'satin_alma' %}
+          <div class="detail-item" style="grid-column: 1 / -1;">
+            <span class="detail-label"><i class="bi bi-diagram-3 me-1"></i>Süreç Özeti</span>
+            {% set phase = req.req_status|request_macro_phase %}
+            <div class="macro-stepper">
+              {% for step in macro_steps %}
+              {% set index = loop.index %}
+              <div class="macro-step {% if phase > index %}completed{% elif phase == index %}active{% endif %}">
+                {{ step }}
+                <small>{% if phase > index %}Tamamlandı{% elif phase == index %}Şu anda{% else %}Beklemede{% endif %}</small>
+              </div>
+              {% endfor %}
+            </div>
+            <div class="small text-muted mt-2">Güncel durum: {{ req.req_status|request_status_label }}</div>
+          </div>
+          {% endif %}
+          {% if req.req_type == 'satin_alma' %}
+          <div class="detail-item" style="grid-column: 1 / -1;">
+            <span class="detail-label"><i class="bi bi-diagram-3 me-1"></i>Süreç Özeti</span>
+            {% set phase = req.req_status|request_macro_phase %}
+            <div class="macro-stepper">
+              {% for step in macro_steps %}
+              {% set index = loop.index %}
+              <div class="macro-step {% if phase > index %}completed{% elif phase == index %}active{% endif %}">
+                {{ step }}
+                <small>{% if phase > index %}Tamamlandı{% elif phase == index %}Şu anda{% else %}Beklemede{% endif %}</small>
+              </div>
+              {% endfor %}
+            </div>
+            <div class="small text-muted mt-2">Güncel durum: {{ req.req_status|request_status_label }}</div>
+          </div>
+          {% endif %}
           
           <!-- Tarih -->
           <div class="detail-item">
@@ -577,11 +615,7 @@
           <div class="detail-item">
             <span class="detail-label"><i class="bi bi-flag me-1"></i>Durum</span>
             <span class="detail-value">
-              {% if req.req_status == 'beklemede' %}<span class="badge bg-warning text-dark">Beklemede</span>
-              {% elif req.req_status == 'reddedildi' %}<span class="badge bg-danger">Reddedildi</span>
-              {% elif req.req_status == 'kabul' %}<span class="badge bg-success">Kabul Edildi</span>
-              {% elif req.req_status == 'tamamlandi' %}<span class="badge bg-secondary">Tamamlandı</span>
-              {% else %}<span class="badge bg-light text-dark">{{ req.req_status }}</span>{% endif %}
+              <span class="badge {{ req.req_status|request_status_badge_class }}">{{ req.req_status|request_status_label }}</span>
             </span>
           </div>
           

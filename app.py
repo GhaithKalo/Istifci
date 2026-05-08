@@ -11,7 +11,7 @@ from flask_migrate import Migrate
 from werkzeug.utils import secure_filename
 from flask_wtf import CSRFProtect
 from flask_wtf.csrf import generate_csrf
-from sqlalchemy import func, or_, event, case, text
+from sqlalchemy import func, or_, event, case, text, inspect
 from sqlalchemy.orm import joinedload, selectinload, subqueryload
 from collections import defaultdict, Counter
 from datetime import datetime
@@ -43,7 +43,7 @@ LDAP_GROUP_MEMBER_ATTR = os.environ.get('LDAP_GROUP_MEMBER_ATTR', 'memberUid')
 from ldap3 import Server, Connection, ALL, SUBTREE
 
 # Proje içi modüller
-from models import db, User, Component, BorrowLog, Project, ProjectItem, Tag, Request, InventoryItem, RequestItem, RequestMessage, RequestRevision
+from models import db, User, Component, BorrowLog, Project, ProjectItem, Tag, Request, InventoryItem, RequestItem, RequestMessage, RequestRevision, RequestStatusHistory
 
 # ==============================================================================
 # YARDIMCI FONKSİYONLAR
@@ -76,6 +76,84 @@ WET_SIGNATURE_PRICE_THRESHOLD = 100000
 DEFAULT_BUDGET_CODE = 'GENEL'
 DEFAULT_PROJECT_CODE = 'NOPROJE'
 VALID_BUDGETS = {'TTO', 'Merkez'}
+
+REQUEST_STATUS_PENDING = 'onay_bekliyor'
+REQUEST_STATUS_REJECTED = 'reddedildi'
+REQUEST_STATUS_APPROVED = 'onaylandi'
+REQUEST_STATUS_WET_SIGNATURE = 'islak_imzaya_gonderildi'
+REQUEST_STATUS_EBYS = 'ebysye_girildi'
+REQUEST_STATUS_SIGNATURES_DONE = 'imzalar_tamamlandi'
+REQUEST_STATUS_PARAF_DONE = 'paraflar_tamamlandi'
+REQUEST_STATUS_PURCHASE_UNIT = 'satin_alma_biriminde'
+REQUEST_STATUS_TENDER = 'ihale_surecinde'
+REQUEST_STATUS_VENDOR = 'firmada'
+REQUEST_STATUS_ORDERED = 'siparis_verildi'
+REQUEST_STATUS_SHIPPING = 'kargoda'
+REQUEST_STATUS_ACCOUNTING = 'saymanlikta'
+REQUEST_STATUS_DELIVERED = 'teslim_edildi'
+
+PURCHASE_REQUEST_STATUSES = [
+    REQUEST_STATUS_PENDING,
+    REQUEST_STATUS_REJECTED,
+    REQUEST_STATUS_APPROVED,
+    REQUEST_STATUS_WET_SIGNATURE,
+    REQUEST_STATUS_EBYS,
+    REQUEST_STATUS_SIGNATURES_DONE,
+    REQUEST_STATUS_PARAF_DONE,
+    REQUEST_STATUS_PURCHASE_UNIT,
+    REQUEST_STATUS_TENDER,
+    REQUEST_STATUS_VENDOR,
+    REQUEST_STATUS_ORDERED,
+    REQUEST_STATUS_SHIPPING,
+    REQUEST_STATUS_ACCOUNTING,
+    REQUEST_STATUS_DELIVERED
+]
+
+MAINTENANCE_REQUEST_STATUSES = [
+    REQUEST_STATUS_PENDING,
+    REQUEST_STATUS_REJECTED,
+    REQUEST_STATUS_APPROVED,
+    REQUEST_STATUS_DELIVERED
+]
+
+LEGACY_STATUS_MAP = {
+    'beklemede': REQUEST_STATUS_PENDING,
+    'kabul': REQUEST_STATUS_APPROVED,
+    'tamamlandi': REQUEST_STATUS_DELIVERED
+}
+
+REQUEST_STATUS_LABELS = {
+    REQUEST_STATUS_PENDING: 'Onay Bekliyor',
+    REQUEST_STATUS_REJECTED: 'Reddedildi',
+    REQUEST_STATUS_APPROVED: 'Onaylandı',
+    REQUEST_STATUS_WET_SIGNATURE: 'Islak İmzaya Gönderildi',
+    REQUEST_STATUS_EBYS: "EBYS'ye Girildi",
+    REQUEST_STATUS_SIGNATURES_DONE: 'İmzalar Tamamlandı',
+    REQUEST_STATUS_PARAF_DONE: 'Paraflar Tamamlandı',
+    REQUEST_STATUS_PURCHASE_UNIT: 'Satın Alma Biriminde',
+    REQUEST_STATUS_TENDER: 'İhale Sürecinde',
+    REQUEST_STATUS_VENDOR: 'Firmada',
+    REQUEST_STATUS_ORDERED: 'Sipariş Verildi',
+    REQUEST_STATUS_SHIPPING: 'Kargoda',
+    REQUEST_STATUS_ACCOUNTING: 'Saymanlıkta',
+    REQUEST_STATUS_DELIVERED: 'Teslim Edildi'
+}
+
+STATUS_GROUP_PENDING = 'onay_bekliyor'
+STATUS_GROUP_REJECTED = 'reddedildi'
+STATUS_GROUP_IN_PROGRESS = 'surecte'
+STATUS_GROUP_DELIVERED = 'teslim_edildi'
+
+STATUS_GROUP_LABELS = {
+    STATUS_GROUP_PENDING: 'Onay Bekliyor',
+    STATUS_GROUP_REJECTED: 'Reddedildi',
+    STATUS_GROUP_IN_PROGRESS: 'Süreçte',
+    STATUS_GROUP_DELIVERED: 'Teslim Edildi'
+}
+
+PENDING_STATUSES = {REQUEST_STATUS_PENDING, 'beklemede'}
+REJECTED_STATUSES = {REQUEST_STATUS_REJECTED}
+DELIVERED_STATUSES = {REQUEST_STATUS_DELIVERED, 'tamamlandi'}
 
 
 def normalize_request_code_part(value: str | None) -> str:
@@ -142,14 +220,121 @@ def assign_request_code(req: Request) -> None:
     req.request_code = build_purchase_request_code(req.budget, req.tto_subtype, req.project_number)
 
 
+def normalize_request_status(status: str | None) -> str | None:
+    if not status:
+        return status
+    key = status.strip().lower()
+    return LEGACY_STATUS_MAP.get(key, key)
+
+
+def get_request_status_label(status: str | None) -> str:
+    normalized = normalize_request_status(status)
+    return REQUEST_STATUS_LABELS.get(normalized or '', status or '-')
+
+
+def get_request_status_group(status: str | None) -> str:
+    normalized = normalize_request_status(status)
+    if normalized in PENDING_STATUSES:
+        return STATUS_GROUP_PENDING
+    if normalized in REJECTED_STATUSES:
+        return STATUS_GROUP_REJECTED
+    if normalized in DELIVERED_STATUSES:
+        return STATUS_GROUP_DELIVERED
+    return STATUS_GROUP_IN_PROGRESS
+
+
+def get_request_status_badge_class(status: str | None) -> str:
+    group = get_request_status_group(status)
+    if group == STATUS_GROUP_PENDING:
+        return 'bg-warning text-dark'
+    if group == STATUS_GROUP_REJECTED:
+        return 'bg-danger'
+    if group == STATUS_GROUP_DELIVERED:
+        return 'bg-success'
+    return 'bg-primary'
+
+
+def get_request_status_options(req_type: str | None) -> list[str]:
+    if (req_type or '').lower() in ('ariza', 'bakim'):
+        return MAINTENANCE_REQUEST_STATUSES
+    return PURCHASE_REQUEST_STATUSES
+
+
+PHASE_ONAY = {
+    REQUEST_STATUS_PENDING,
+    REQUEST_STATUS_REJECTED,
+    REQUEST_STATUS_APPROVED
+}
+PHASE_SATIN_ALMA = {
+    REQUEST_STATUS_WET_SIGNATURE,
+    REQUEST_STATUS_EBYS,
+    REQUEST_STATUS_SIGNATURES_DONE,
+    REQUEST_STATUS_PARAF_DONE,
+    REQUEST_STATUS_PURCHASE_UNIT,
+    REQUEST_STATUS_TENDER,
+    REQUEST_STATUS_VENDOR,
+    REQUEST_STATUS_ORDERED
+}
+PHASE_LOJISTIK = {
+    REQUEST_STATUS_SHIPPING,
+    REQUEST_STATUS_ACCOUNTING
+}
+PHASE_TAMAMLANDI = {
+    REQUEST_STATUS_DELIVERED
+}
+
+
+def get_request_macro_phase(status: str | None) -> int:
+    normalized = normalize_request_status(status)
+    if normalized in PHASE_TAMAMLANDI:
+        return 4
+    if normalized in PHASE_LOJISTIK:
+        return 3
+    if normalized in PHASE_SATIN_ALMA:
+        return 2
+    return 1
+
+
+def request_has_high_unit_price(req: Request) -> bool:
+    if not req:
+        return False
+    if req.requires_wet_signature:
+        return True
+    try:
+        items = req.items.all() if hasattr(req.items, 'all') else list(req.items or [])
+    except Exception:
+        items = []
+    for item in items:
+        if item.unit_price and item.unit_price > WET_SIGNATURE_PRICE_THRESHOLD:
+            return True
+    if req.unit_price and req.unit_price > WET_SIGNATURE_PRICE_THRESHOLD:
+        return True
+    return False
+
+
+def get_recommended_purchase_status(req: Request) -> str | None:
+    if not req or normalize_request_status(req.req_status) != REQUEST_STATUS_APPROVED:
+        return None
+    return REQUEST_STATUS_WET_SIGNATURE if request_has_high_unit_price(req) else REQUEST_STATUS_EBYS
+
+
+def get_status_filter_values(status_value: str | None) -> tuple[set[str], bool]:
+    if not status_value or status_value == 'all':
+        return set(), False
+    if status_value == STATUS_GROUP_IN_PROGRESS:
+        return set(), True
+    normalized = normalize_request_status(status_value)
+    if normalized == REQUEST_STATUS_PENDING:
+        return set(PENDING_STATUSES), False
+    if normalized == REQUEST_STATUS_REJECTED:
+        return set(REJECTED_STATUSES), False
+    if normalized == REQUEST_STATUS_DELIVERED:
+        return set(DELIVERED_STATUSES), False
+    return {normalized} if normalized else set(), False
+
+
 def status_label(status: str) -> str:
-    labels = {
-        'beklemede': 'Beklemede',
-        'reddedildi': 'Reddedildi',
-        'kabul': 'Kabul Edildi',
-        'tamamlandi': 'Tamamlandı'
-    }
-    return labels.get(status or '', status or '-')
+    return get_request_status_label(status)
 
 
 def build_request_conversation_map(requests_list):
@@ -289,7 +474,7 @@ def create_request_revision(req, submitted_by=None, status_at_submit=None):
         request_id=req.id,
         revision_no=current_max + 1,
         submitted_by=submitted_by,
-        status_at_submit=status_at_submit or (req.req_status or 'beklemede'),
+        status_at_submit=status_at_submit or (req.req_status or REQUEST_STATUS_PENDING),
         snapshot=build_request_snapshot(req)
     )
     db.session.add(revision)
@@ -589,8 +774,35 @@ def ensure_request_schema_columns():
     except Exception:
         db.session.rollback()
 
+def ensure_request_status_history_table():
+    """RequestStatusHistory tablosu eksikse oluşturur."""
+    try:
+        with app.app_context():
+            inspector = inspect(db.engine)
+            if 'request_status_history' not in inspector.get_table_names():
+                RequestStatusHistory.__table__.create(db.engine)
+    except Exception:
+        db.session.rollback()
+
+
+def migrate_legacy_request_statuses():
+    """Eski statüleri yeni enum yapısına taşır."""
+    try:
+        with app.app_context():
+            for legacy, new in LEGACY_STATUS_MAP.items():
+                Request.query.filter(Request.req_status == legacy).update({'req_status': new})
+                RequestRevision.query.filter(RequestRevision.status_at_submit == legacy).update({'status_at_submit': new})
+                RequestMessage.query.filter(RequestMessage.status_from == legacy).update({'status_from': new})
+                RequestMessage.query.filter(RequestMessage.status_to == legacy).update({'status_to': new})
+            db.session.commit()
+    except Exception:
+        db.session.rollback()
+
+
 with app.app_context():
     ensure_request_schema_columns()
+    ensure_request_status_history_table()
+    migrate_legacy_request_statuses()
 
 # ==============================================================================
 # FLASK-LOGIN YAPILANDIRMASI
@@ -633,6 +845,33 @@ def get_user_by_username(username):
     Kullanıcı adına göre User nesnesini döndüren bir template filtresi.
     """
     return User.query.filter_by(username=username).first()
+
+
+@app.template_filter('request_status_label')
+def request_status_label_filter(status):
+    return get_request_status_label(status)
+
+
+@app.template_filter('request_status_badge_class')
+def request_status_badge_class_filter(status):
+    return get_request_status_badge_class(status)
+
+
+@app.template_filter('request_status_group')
+def request_status_group_filter(status):
+    return get_request_status_group(status)
+
+
+@app.template_filter('request_macro_phase')
+def request_macro_phase_filter(status):
+    return get_request_macro_phase(status)
+
+
+@app.template_filter('request_status_group_label')
+def request_status_group_label_filter(status):
+    if status in STATUS_GROUP_LABELS:
+        return STATUS_GROUP_LABELS[status]
+    return STATUS_GROUP_LABELS.get(get_request_status_group(status), status)
 
 
 @app.template_filter('tr_date')
@@ -1913,21 +2152,28 @@ def requests():
     base_q = Request.query.options(selectinload(Request.messages)).filter_by(created_by=current_user.id)
 
     # Calculate stats before filtering (but after user filter)
+    excluded_statuses = PENDING_STATUSES | REJECTED_STATUSES | DELIVERED_STATUSES
     stats = {
         'total': base_q.count(),
-        'beklemede': base_q.filter(Request.req_status == 'beklemede').count(),
-        'kabul': base_q.filter(Request.req_status == 'kabul').count(),
-        'reddedildi': base_q.filter(Request.req_status == 'reddedildi').count(),
-        'tamamlandi': base_q.filter(Request.req_status == 'tamamlandi').count()
+        'pending': base_q.filter(Request.req_status.in_(PENDING_STATUSES)).count(),
+        'rejected': base_q.filter(Request.req_status.in_(REJECTED_STATUSES)).count(),
+        'delivered': base_q.filter(Request.req_status.in_(DELIVERED_STATUSES)).count(),
+        'in_progress': base_q.filter(~Request.req_status.in_(excluded_statuses)).count()
     }
 
     # Apply status filter
-    if status and status != 'all':
-        base_q = base_q.filter(Request.req_status == status)
+    status_values, is_in_progress = get_status_filter_values(status)
+    if is_in_progress:
+        base_q = base_q.filter(~Request.req_status.in_(excluded_statuses))
+    elif status_values:
+        base_q = base_q.filter(Request.req_status.in_(status_values))
     
     # Apply exclude filter (hariç tutma)
-    if exclude_status:
-        base_q = base_q.filter(Request.req_status != exclude_status)
+    exclude_values, exclude_in_progress = get_status_filter_values(exclude_status)
+    if exclude_in_progress:
+        base_q = base_q.filter(Request.req_status.in_(excluded_statuses))
+    elif exclude_values:
+        base_q = base_q.filter(~Request.req_status.in_(exclude_values))
 
     # Apply type filter
     if req_type and req_type != 'all':
@@ -1955,6 +2201,15 @@ def requests():
     requests_list = base_q.all()
     conversation_map = build_request_conversation_map(requests_list)
 
+    status_cards = [
+        {'value': 'all', 'label': 'Toplam', 'count': stats['total']},
+        {'value': STATUS_GROUP_PENDING, 'label': STATUS_GROUP_LABELS[STATUS_GROUP_PENDING], 'count': stats['pending']},
+        {'value': STATUS_GROUP_REJECTED, 'label': STATUS_GROUP_LABELS[STATUS_GROUP_REJECTED], 'count': stats['rejected']},
+        {'value': STATUS_GROUP_IN_PROGRESS, 'label': STATUS_GROUP_LABELS[STATUS_GROUP_IN_PROGRESS], 'count': stats['in_progress']},
+        {'value': STATUS_GROUP_DELIVERED, 'label': STATUS_GROUP_LABELS[STATUS_GROUP_DELIVERED], 'count': stats['delivered']}
+    ]
+    macro_steps = ['Onay Süreci', 'Satın Alma', 'Lojistik', 'Tamamlandı']
+
     return render_template('requests.html', 
                            requests=requests_list, 
                            conversation_map=conversation_map,
@@ -1963,7 +2218,10 @@ def requests():
                            current_search=search_query,
                            current_sort=sort_by,
                            current_exclude=exclude_status,
-                           stats=stats)
+                           stats=stats,
+                           status_cards=status_cards,
+                           status_group_labels=STATUS_GROUP_LABELS,
+                           macro_steps=macro_steps)
 
 
 @app.route('/istek/olustur', methods=['GET', 'POST'])
@@ -2082,7 +2340,7 @@ def create_request():
                     inventory_item.is_defective = True
 
             db.session.flush()
-            create_request_revision(req, submitted_by=current_user.id, status_at_submit='beklemede')
+            create_request_revision(req, submitted_by=current_user.id, status_at_submit=REQUEST_STATUS_PENDING)
             db.session.commit()
             flash('İstek eklendi.', 'success')
 
@@ -2171,7 +2429,7 @@ def create_request():
             db.session.add(req)
             db.session.flush()
             assign_request_code(req)
-            create_request_revision(req, submitted_by=current_user.id, status_at_submit='beklemede')
+            create_request_revision(req, submitted_by=current_user.id, status_at_submit=REQUEST_STATUS_PENDING)
             db.session.commit()
             flash('İstek eklendi.', 'success')
         
@@ -2209,7 +2467,7 @@ def edit_request(req_id):
 
     if req.created_by != current_user.id:
         abort(403)
-    if req.req_status != 'reddedildi':
+    if normalize_request_status(req.req_status) != REQUEST_STATUS_REJECTED:
         flash('Sadece reddedilmiş istekler düzenlenebilir.', 'warning')
         return redirect(url_for('requests', status=status))
 
@@ -2495,9 +2753,9 @@ def edit_request(req_id):
         assign_request_code(req)
 
         old_status = req.req_status
-        req.req_status = 'beklemede'
-        append_status_event_message(req, old_status, 'beklemede')
-        create_request_revision(req, submitted_by=current_user.id, status_at_submit='beklemede')
+        req.req_status = REQUEST_STATUS_PENDING
+        append_status_event_message(req, old_status, REQUEST_STATUS_PENDING)
+        create_request_revision(req, submitted_by=current_user.id, status_at_submit=REQUEST_STATUS_PENDING)
         db.session.commit()
         flash('İstek düzenlendi ve yeniden gönderildi.', 'success')
         return redirect(url_for('requests', status=status))
@@ -2812,21 +3070,28 @@ def admin_requests():
     users_with_requests = db.session.query(User).join(Request, User.id == Request.created_by).distinct().order_by(User.username).all()
     
     # İstatistikler
+    excluded_statuses = PENDING_STATUSES | REJECTED_STATUSES | DELIVERED_STATUSES
     stats = {
         'total': Request.query.count(),
-        'beklemede': Request.query.filter_by(req_status='beklemede').count(),
-        'kabul': Request.query.filter_by(req_status='kabul').count(),
-        'reddedildi': Request.query.filter_by(req_status='reddedildi').count(),
-        'tamamlandi': Request.query.filter_by(req_status='tamamlandi').count()
+        'pending': Request.query.filter(Request.req_status.in_(PENDING_STATUSES)).count(),
+        'rejected': Request.query.filter(Request.req_status.in_(REJECTED_STATUSES)).count(),
+        'delivered': Request.query.filter(Request.req_status.in_(DELIVERED_STATUSES)).count(),
+        'in_progress': Request.query.filter(~Request.req_status.in_(excluded_statuses)).count()
     }
     
     q = Request.query.options(selectinload(Request.messages), selectinload(Request.revisions))
-    if status and status != 'all':
-        q = q.filter_by(req_status=status)
+    status_values, is_in_progress = get_status_filter_values(status)
+    if is_in_progress:
+        q = q.filter(~Request.req_status.in_(excluded_statuses))
+    elif status_values:
+        q = q.filter(Request.req_status.in_(status_values))
     
     # Exclude filter (hariç tutma)
-    if exclude_status:
-        q = q.filter(Request.req_status != exclude_status)
+    exclude_values, exclude_in_progress = get_status_filter_values(exclude_status)
+    if exclude_in_progress:
+        q = q.filter(Request.req_status.in_(excluded_statuses))
+    elif exclude_values:
+        q = q.filter(~Request.req_status.in_(exclude_values))
     
     if req_type and req_type != 'all':
         q = q.filter_by(req_type=req_type)
@@ -2852,8 +3117,23 @@ def admin_requests():
         q = q.order_by(Request.created_at.desc())
 
     requests_list = q.all()
+    for req in requests_list:
+        req.normalized_status = normalize_request_status(req.req_status)
+        req.recommended_status = get_recommended_purchase_status(req)
     conversation_map = build_request_conversation_map(requests_list)
     revision_diff_map = build_request_revision_diffs(requests_list)
+    status_cards = [
+        {'value': 'all', 'label': 'Toplam', 'count': stats['total']},
+        {'value': STATUS_GROUP_PENDING, 'label': STATUS_GROUP_LABELS[STATUS_GROUP_PENDING], 'count': stats['pending']},
+        {'value': STATUS_GROUP_REJECTED, 'label': STATUS_GROUP_LABELS[STATUS_GROUP_REJECTED], 'count': stats['rejected']},
+        {'value': STATUS_GROUP_IN_PROGRESS, 'label': STATUS_GROUP_LABELS[STATUS_GROUP_IN_PROGRESS], 'count': stats['in_progress']},
+        {'value': STATUS_GROUP_DELIVERED, 'label': STATUS_GROUP_LABELS[STATUS_GROUP_DELIVERED], 'count': stats['delivered']}
+    ]
+    status_options = {
+        'satin_alma': PURCHASE_REQUEST_STATUSES,
+        'bakim': MAINTENANCE_REQUEST_STATUSES,
+        'ariza': MAINTENANCE_REQUEST_STATUSES
+    }
     return render_template('admin/manage_requests.html', 
                            requests=requests_list, 
                            conversation_map=conversation_map,
@@ -2865,7 +3145,10 @@ def admin_requests():
                           current_user_filter=user_filter,
                           current_exclude=exclude_status,
                           users_with_requests=users_with_requests,
-                          stats=stats)
+                          stats=stats,
+                          status_cards=status_cards,
+                          status_options=status_options,
+                          status_group_labels=STATUS_GROUP_LABELS)
 
 
 @app.route('/admin/request/<int:req_id>/set_status', methods=['POST'])
@@ -2878,27 +3161,26 @@ def admin_set_request_status(req_id):
     new_status = request.form.get('status')
     admin_note = request.form.get('admin_note', '').strip()
     
-    if new_status not in ('beklemede', 'reddedildi', 'kabul', 'tamamlandi'):
-        flash('Geçersiz durum.', 'danger')
-        return redirect(url_for('admin_requests'))
-
     req = Request.query.get_or_404(req_id)
-    
-    # Kabul edilmiş veya tamamlanmış istekler reddedilemez
-    if req.req_status in ('kabul', 'tamamlandi') and new_status == 'reddedildi':
-        flash('Kabul edilmiş veya tamamlanmış istekler reddedilemez.', 'warning')
-        return redirect(url_for('admin_requests'))
-    
-    # Reddedilmiş istekler kabul edilemez
-    if req.req_status == 'reddedildi' and new_status in ('kabul', 'tamamlandi'):
-        flash('Reddedilmiş istekler kabul edilemez.', 'warning')
+    normalized_status = normalize_request_status(new_status)
+    allowed_statuses = get_request_status_options(req.req_type)
+    if normalized_status not in allowed_statuses:
+        flash('Geçersiz durum.', 'danger')
         return redirect(url_for('admin_requests'))
     
     old_status = req.req_status
-    req.req_status = new_status
-    append_status_event_message(req, old_status, new_status)
-    if new_status == 'reddedildi':
-        create_request_revision(req, submitted_by=current_user.id, status_at_submit='reddedildi')
+    if normalized_status != old_status:
+        req.req_status = normalized_status
+        append_status_event_message(req, old_status, normalized_status)
+        db.session.add(RequestStatusHistory(
+            request_id=req.id,
+            old_status=old_status,
+            new_status=normalized_status,
+            changed_by=current_user.id,
+            changed_by_username=current_user.username
+        ))
+        if normalized_status == REQUEST_STATUS_REJECTED:
+            create_request_revision(req, submitted_by=current_user.id, status_at_submit=REQUEST_STATUS_REJECTED)
     if admin_note:
         req.admin_note = admin_note
         append_admin_note_message(req, admin_note, current_user)
@@ -2918,7 +3200,9 @@ def admin_bulk_request_status():
     admin_note = request.form.get('admin_note', '').strip()
     request_ids_str = request.form.get('request_ids', '')
     
-    if new_status not in ('beklemede', 'reddedildi', 'kabul', 'tamamlandi'):
+    normalized_status = normalize_request_status(new_status)
+    allowed_union = set(PURCHASE_REQUEST_STATUSES) | set(MAINTENANCE_REQUEST_STATUSES)
+    if normalized_status not in allowed_union:
         flash('Geçersiz durum.', 'danger')
         return redirect(url_for('admin_requests'))
     
@@ -2940,6 +3224,7 @@ def admin_bulk_request_status():
     # Process each request
     updated_count = 0
     skipped_count = 0
+    invalid_count = 0
     
     for req_id in request_ids:
         req = Request.query.get(req_id)
@@ -2947,36 +3232,26 @@ def admin_bulk_request_status():
             skipped_count += 1
             continue
         
-        # Apply business rules
-        if new_status == 'kabul':
-            # Can't accept rejected requests
-            if req.req_status == 'reddedildi':
-                skipped_count += 1
-                continue
-            # Skip already accepted/completed
-            if req.req_status in ('kabul', 'tamamlandi'):
-                skipped_count += 1
-                continue
-        elif new_status == 'reddedildi':
-            # Can't reject accepted or completed requests
-            if req.req_status in ('kabul', 'tamamlandi'):
-                skipped_count += 1
-                continue
-            # Skip already rejected
-            if req.req_status == 'reddedildi':
-                skipped_count += 1
-                continue
-        elif new_status == 'tamamlandi':
-            # Can only complete accepted requests
-            if req.req_status != 'kabul':
-                skipped_count += 1
-                continue
-        
+        allowed_statuses = get_request_status_options(req.req_type)
+        if normalized_status not in allowed_statuses:
+            invalid_count += 1
+            continue
+        if req.req_status == normalized_status:
+            skipped_count += 1
+            continue
+
         old_status = req.req_status
-        req.req_status = new_status
-        append_status_event_message(req, old_status, new_status)
-        if new_status == 'reddedildi':
-            create_request_revision(req, submitted_by=current_user.id, status_at_submit='reddedildi')
+        req.req_status = normalized_status
+        append_status_event_message(req, old_status, normalized_status)
+        db.session.add(RequestStatusHistory(
+            request_id=req.id,
+            old_status=old_status,
+            new_status=normalized_status,
+            changed_by=current_user.id,
+            changed_by_username=current_user.username
+        ))
+        if normalized_status == REQUEST_STATUS_REJECTED:
+            create_request_revision(req, submitted_by=current_user.id, status_at_submit=REQUEST_STATUS_REJECTED)
         if admin_note:
             req.admin_note = admin_note
             append_admin_note_message(req, admin_note, current_user)
@@ -2985,8 +3260,10 @@ def admin_bulk_request_status():
     db.session.commit()
     
     # Generate appropriate flash message
+    if invalid_count > 0:
+        flash(f'{invalid_count} istek için seçilen durum uygun olmadığı için güncellenemedi.', 'warning')
     if updated_count > 0 and skipped_count > 0:
-        flash(f'{updated_count} istek güncellendi, {skipped_count} istek atlandı.', 'info')
+        flash(f'{updated_count} istek güncellendi, {skipped_count} istek değişmedi.', 'info')
     elif updated_count > 0:
         flash(f'{updated_count} istek başarıyla güncellendi.', 'success')
     else:
