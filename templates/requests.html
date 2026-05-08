@@ -553,22 +553,6 @@
             <div class="small text-muted mt-2">Güncel durum: {{ req.req_status|request_status_label }}</div>
           </div>
           {% endif %}
-          {% if req.req_type == 'satin_alma' %}
-          <div class="detail-item" style="grid-column: 1 / -1;">
-            <span class="detail-label"><i class="bi bi-diagram-3 me-1"></i>Süreç Özeti</span>
-            {% set phase = req.req_status|request_macro_phase %}
-            <div class="macro-stepper">
-              {% for step in macro_steps %}
-              {% set index = loop.index %}
-              <div class="macro-step {% if phase > index %}completed{% elif phase == index %}active{% endif %}">
-                {{ step }}
-                <small>{% if phase > index %}Tamamlandı{% elif phase == index %}Şu anda{% else %}Beklemede{% endif %}</small>
-              </div>
-              {% endfor %}
-            </div>
-            <div class="small text-muted mt-2">Güncel durum: {{ req.req_status|request_status_label }}</div>
-          </div>
-          {% endif %}
           
           <!-- Tarih -->
           <div class="detail-item">
