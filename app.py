@@ -3120,6 +3120,7 @@ def admin_requests():
     requests_list = q.all()
     for req in requests_list:
         req.normalized_status = normalize_request_status(req.req_status)
+        req.is_approved = req.normalized_status == REQUEST_STATUS_APPROVED
         req.recommended_status = get_recommended_purchase_status(req)
     conversation_map = build_request_conversation_map(requests_list)
     revision_diff_map = build_request_revision_diffs(requests_list)

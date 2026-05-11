@@ -543,7 +543,7 @@
             {% set phase = req.req_status|request_macro_phase %}
             <div class="macro-stepper">
               {% for step in macro_steps %}
-              {% set index = loop.index %}
+              {% set index = loop.index0 + 1 %}
               <div class="macro-step {% if phase > index %}completed{% elif phase == index %}active{% endif %}">
                 {{ step }}
                 <small>{% if phase > index %}Tamamlandı{% elif phase == index %}Şu anda{% else %}Beklemede{% endif %}</small>

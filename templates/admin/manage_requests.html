@@ -989,7 +989,7 @@
                           <select name="status" class="form-select form-select-sm mb-2">
                             {% for status_value in options %}
                             <option value="{{ status_value }}" {% if status_value == req.normalized_status %}selected{% endif %}>
-                              {{ status_value|request_status_label }}{% if req.normalized_status == 'onaylandi' and req.recommended_status == status_value %} (Önerilen){% endif %}
+                              {{ status_value|request_status_label }}{% if req.is_approved and req.recommended_status == status_value %} (Önerilen){% endif %}
                             </option>
                             {% endfor %}
                           </select>
