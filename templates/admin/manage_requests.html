@@ -1303,7 +1303,10 @@ function renderBulkStatusOptions(statusSelect, allowedStatuses, currentValue) {
     statusSelect.appendChild(option);
   });
   if (!statusSelect.value && statusSelect.options.length) {
-    statusSelect.options[0].selected = true;
+    const firstOption = statusSelect.options[0];
+    if (firstOption && firstOption.value) {
+      firstOption.selected = true;
+    }
   }
 }
 
@@ -1465,19 +1468,18 @@ function openBulkModal() {
   
   const validIds = [];
   let invalidCount = 0;
-  selectedRequests.forEach(id => {
-    const checkbox = document.querySelector(`.row-checkbox[data-id="${id}"]`);
-    const typeKey = checkbox ? normalizeBulkType(checkbox.dataset.type) : null;
-    const allowedValues = typeKey ? bulkStatusValuesByType[typeKey] || [] : [];
-    if (!statusValue) {
-      return;
-    }
-    if (allowedValues.includes(statusValue)) {
-      validIds.push(id);
-    } else {
-      invalidCount += 1;
-    }
-  });
+  if (statusValue) {
+    selectedRequests.forEach(id => {
+      const checkbox = document.querySelector(`.row-checkbox[data-id="${id}"]`);
+      const typeKey = checkbox ? normalizeBulkType(checkbox.dataset.type) : null;
+      const allowedValues = typeKey ? bulkStatusValuesByType[typeKey] || [] : [];
+      if (allowedValues.includes(statusValue)) {
+        validIds.push(id);
+      } else {
+        invalidCount += 1;
+      }
+    });
+  }
   requestIdsInput.value = validIds.join(',');
   
   modalHeader.className = 'modal-header';
