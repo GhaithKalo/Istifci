@@ -782,7 +782,7 @@ def ensure_request_status_history_table():
         with app.app_context():
             inspector = inspect(db.engine)
             if 'request_status_history' not in inspector.get_table_names():
-                RequestStatusHistory.__table__.create(db.engine)
+                RequestStatusHistory.__table__.create(db.engine, checkfirst=True)
     except Exception:
         app.logger.exception("RequestStatusHistory tablosu oluşturulamadı.")
         db.session.rollback()
