@@ -3124,7 +3124,10 @@ def admin_requests():
     for req in requests_list:
         req.normalized_status = normalize_request_status(req.req_status)
         req.is_approved = req.normalized_status == REQUEST_STATUS_APPROVED
-        req.recommended_status = get_recommended_purchase_status(req)
+        if req.is_approved and req.req_type == 'satin_alma':
+            req.recommended_status = get_recommended_purchase_status(req)
+        else:
+            req.recommended_status = None
     conversation_map = build_request_conversation_map(requests_list)
     revision_diff_map = build_request_revision_diffs(requests_list)
     status_cards = [
