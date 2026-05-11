@@ -303,7 +303,8 @@ def request_has_high_unit_price(req: Request) -> bool:
         return True
     try:
         items = req.items.all() if hasattr(req.items, 'all') else list(req.items or [])
-    except Exception:
+    except (AttributeError, TypeError) as exc:
+        app.logger.debug("Request items unavailable for price check: %s", exc)
         items = []
     for item in items:
         if item.unit_price and item.unit_price > WET_SIGNATURE_PRICE_THRESHOLD:
@@ -783,6 +784,7 @@ def ensure_request_status_history_table():
             if 'request_status_history' not in inspector.get_table_names():
                 RequestStatusHistory.__table__.create(db.engine)
     except Exception:
+        app.logger.exception("RequestStatusHistory tablosu oluşturulamadı.")
         db.session.rollback()
 
 
@@ -797,6 +799,7 @@ def migrate_legacy_request_statuses():
                 RequestMessage.query.filter(RequestMessage.status_to == legacy).update({'status_to': new})
             db.session.commit()
     except Exception:
+        app.logger.exception("Eski statü geçişi sırasında hata oluştu.")
         db.session.rollback()
 
 

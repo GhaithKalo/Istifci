@@ -1388,7 +1388,7 @@ function openBulkModal() {
   const statusSelect = document.getElementById('bulkStatusSelect');
   
   const statusValue = statusSelect ? statusSelect.value : '';
-  const statusLabel = statusSelect ? statusSelect.options[statusSelect.selectedIndex].text : statusValue;
+  const statusLabel = statusSelect ? statusSelect.options[statusSelect.selectedIndex].text : 'Seçim yok';
   
   statusInput.value = statusValue;
   noteInput.value = '';
@@ -1407,7 +1407,7 @@ function openBulkModal() {
   if (validIds.length === 0 || !statusValue) {
     submitBtn.disabled = true;
     infoAlert.className = 'alert alert-warning mb-3';
-    actionInfo.textContent = 'İşlem yapılacak uygun istek bulunamadı.';
+    actionInfo.textContent = statusValue ? 'İşlem yapılacak uygun istek bulunamadı.' : 'Toplu işlem için geçerli bir durum seçilmedi.';
   } else {
     submitBtn.disabled = false;
   }
