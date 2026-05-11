@@ -1228,6 +1228,85 @@ function copyText(element, text, e) {
   }
 }
 
+const bulkStatusLabels = (() => {
+  const labels = {};
+  ['bulkOptionsPurchase', 'bulkOptionsMaintenance'].forEach(templateId => {
+    const template = document.getElementById(templateId);
+    if (!template || !template.content) return;
+    template.content.querySelectorAll('option').forEach(option => {
+      labels[option.value] = option.textContent.trim();
+    });
+  });
+  return labels;
+})();
+
+const bulkStatusValuesByType = {
+  satin_alma: (() => {
+    const template = document.getElementById('bulkOptionsPurchase');
+    if (!template || !template.content) return [];
+    return Array.from(template.content.querySelectorAll('option')).map(option => option.value);
+  })(),
+  bakim: (() => {
+    const template = document.getElementById('bulkOptionsMaintenance');
+    if (!template || !template.content) return [];
+    return Array.from(template.content.querySelectorAll('option')).map(option => option.value);
+  })()
+};
+
+function normalizeBulkType(rawType) {
+  const normalized = (rawType || '').toLowerCase();
+  if (normalized === 'ariza' || normalized === 'bakim') {
+    return 'bakim';
+  }
+  return 'satin_alma';
+}
+
+function getSelectedBulkTypes() {
+  const types = new Set();
+  selectedRequests.forEach(id => {
+    const checkbox = document.querySelector(`.row-checkbox[data-id="${id}"]`);
+    if (checkbox && checkbox.dataset.type) {
+      types.add(normalizeBulkType(checkbox.dataset.type));
+    }
+  });
+  return Array.from(types);
+}
+
+function getAllowedBulkStatuses(typeKeys) {
+  if (!typeKeys.length) return [];
+  let allowed = [...(bulkStatusValuesByType[typeKeys[0]] || [])];
+  typeKeys.slice(1).forEach(typeKey => {
+    const allowedSet = new Set(bulkStatusValuesByType[typeKey] || []);
+    allowed = allowed.filter(value => allowedSet.has(value));
+  });
+  return allowed;
+}
+
+function renderBulkStatusOptions(statusSelect, allowedStatuses, currentValue) {
+  statusSelect.innerHTML = '';
+  if (!allowedStatuses.length) {
+    statusSelect.disabled = true;
+    const emptyOption = document.createElement('option');
+    emptyOption.value = '';
+    emptyOption.textContent = 'Uygun durum yok';
+    statusSelect.appendChild(emptyOption);
+    return;
+  }
+  statusSelect.disabled = false;
+  allowedStatuses.forEach(statusValue => {
+    const option = document.createElement('option');
+    option.value = statusValue;
+    option.textContent = bulkStatusLabels[statusValue] || statusValue;
+    if (statusValue === currentValue) {
+      option.selected = true;
+    }
+    statusSelect.appendChild(option);
+  });
+  if (!statusSelect.value && statusSelect.options.length) {
+    statusSelect.options[0].selected = true;
+  }
+}
+
 
 function clearSearch() {
   document.getElementById('searchInput').value = '';
@@ -1326,21 +1405,9 @@ function updateSelectAllCheckbox() {
 function updateBulkStatusOptions() {
   const statusSelect = document.getElementById('bulkStatusSelect');
   if (!statusSelect) return;
-  const types = new Set();
-  selectedRequests.forEach(id => {
-    const checkbox = document.querySelector(`.row-checkbox[data-id="${id}"]`);
-    if (checkbox && checkbox.dataset.type) {
-      types.add(checkbox.dataset.type);
-    }
-  });
-  let templateId = 'bulkOptionsPurchase';
-  if (types.size === 1 && (types.has('ariza') || types.has('bakim'))) {
-    templateId = 'bulkOptionsMaintenance';
-  }
-  const template = document.getElementById(templateId);
-  if (template) {
-    statusSelect.innerHTML = template.innerHTML.trim();
-  }
+  const selectedTypes = getSelectedBulkTypes();
+  const allowedStatuses = getAllowedBulkStatuses(selectedTypes);
+  renderBulkStatusOptions(statusSelect, allowedStatuses, statusSelect.value);
 }
 
 // Update bulk action bar visibility and button states
@@ -1386,14 +1453,31 @@ function openBulkModal() {
   const submitBtn = document.getElementById('bulkSubmitBtn');
   const noteInput = document.getElementById('bulkAdminNote');
   const statusSelect = document.getElementById('bulkStatusSelect');
+  const warningInfo = document.getElementById('bulkWarningInfo');
   
   const statusValue = statusSelect ? statusSelect.value : '';
-  const statusLabel = statusSelect ? statusSelect.options[statusSelect.selectedIndex].text : 'Seçim yok';
+  const statusLabel = statusSelect && statusSelect.options.length
+    ? statusSelect.options[statusSelect.selectedIndex].text
+    : 'Seçim yok';
   
   statusInput.value = statusValue;
   noteInput.value = '';
   
-  const validIds = Array.from(selectedRequests);
+  const validIds = [];
+  let invalidCount = 0;
+  selectedRequests.forEach(id => {
+    const checkbox = document.querySelector(`.row-checkbox[data-id="${id}"]`);
+    const typeKey = checkbox ? normalizeBulkType(checkbox.dataset.type) : null;
+    const allowedValues = typeKey ? bulkStatusValuesByType[typeKey] || [] : [];
+    if (!statusValue) {
+      return;
+    }
+    if (allowedValues.includes(statusValue)) {
+      validIds.push(id);
+    } else {
+      invalidCount += 1;
+    }
+  });
   requestIdsInput.value = validIds.join(',');
   
   modalHeader.className = 'modal-header';
@@ -1402,7 +1486,12 @@ function openBulkModal() {
   submitBtn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i>Güncelle';
   infoAlert.className = 'alert alert-info mb-3';
   actionInfo.textContent = `${validIds.length} istek "${statusLabel}" durumuna güncellenecek.`;
-  warningAlert.style.display = 'none';
+  warningAlert.style.display = invalidCount > 0 ? 'block' : 'none';
+  if (warningInfo) {
+    warningInfo.textContent = invalidCount > 0
+      ? `${invalidCount} istek seçili durumla uyumsuz olduğu için atlanacak.`
+      : '';
+  }
   
   if (validIds.length === 0 || !statusValue) {
     submitBtn.disabled = true;
