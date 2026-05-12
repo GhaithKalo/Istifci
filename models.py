@@ -231,8 +231,8 @@ class Request(db.Model):
     name = db.Column(db.String(120), nullable=False)
     # İstek türü: 'satin_alma', 'ariza', 'bakim'
     req_type = db.Column(db.String(30), nullable=False, default='satin_alma')
-    # İstek durumu: 'beklemede', 'reddedildi', 'kabul', 'tamamlandi'
-    req_status = db.Column(db.String(30), nullable=False, default='beklemede')
+    # İstek durumu: satın alma ve arıza/bakım için ayrı akışları destekler
+    req_status = db.Column(db.String(50), nullable=False, default='onay_bekliyor')
     description = db.Column(db.Text)  # İstek açıklaması
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     created_by = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='SET NULL'), nullable=True)
@@ -259,7 +259,7 @@ class Request(db.Model):
     requires_wet_signature = db.Column(db.Boolean, default=False, nullable=False)  # Bilgilendirici ıslak imza uyarısı
     request_code = db.Column(db.String(120), unique=True, nullable=True, index=True)  # Satın alma talebi için Talep ID
 
-    # Admin notu (kabul/red sırasında eklenen not)
+    # Admin notu (durum güncellemelerinde eklenen not)
     admin_note = db.Column(db.Text, nullable=True)
     
     # Tek ürünlü istekler için envantere eklenme durumu
@@ -288,6 +288,13 @@ class Request(db.Model):
         cascade='all, delete-orphan',
         lazy='select',
         order_by='RequestRevision.revision_no.asc()'
+    )
+    status_history = db.relationship(
+        'RequestStatusHistory',
+        backref='request',
+        cascade='all, delete-orphan',
+        lazy='select',
+        order_by='RequestStatusHistory.changed_at.asc(), RequestStatusHistory.id.asc()'
     )
     
     @property
@@ -379,7 +386,7 @@ class RequestRevision(db.Model):
     revision_no = db.Column(db.Integer, nullable=False)
     submitted_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
     submitted_by = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='SET NULL'), nullable=True)
-    status_at_submit = db.Column(db.String(30), nullable=False, default='beklemede')
+    status_at_submit = db.Column(db.String(50), nullable=False, default='onay_bekliyor')
     snapshot = db.Column(db.JSON, nullable=False)
 
     user = db.relationship('User', backref=db.backref('request_revisions', lazy=True))
@@ -387,4 +394,23 @@ class RequestRevision(db.Model):
     __table_args__ = (
         db.UniqueConstraint('request_id', 'revision_no', name='uq_request_revision_request_revision_no'),
         db.Index('ix_request_revision_request_id_submitted_at', 'request_id', 'submitted_at'),
+    )
+
+
+class RequestStatusHistory(db.Model):
+    """
+    Admin tarafından yapılan istek durum değişikliklerini kaydeder.
+    """
+    id = db.Column(db.Integer, primary_key=True)
+    request_id = db.Column(db.Integer, db.ForeignKey('request.id', ondelete='CASCADE'), nullable=False, index=True)
+    old_status = db.Column(db.String(50), nullable=True)
+    new_status = db.Column(db.String(50), nullable=False)
+    changed_by = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='SET NULL'), nullable=True, index=True)
+    changed_by_username = db.Column(db.String(64), nullable=True)
+    changed_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    user = db.relationship('User', backref=db.backref('request_status_changes', lazy=True))
+
+    __table_args__ = (
+        db.Index('ix_request_status_history_request_id_changed_at', 'request_id', 'changed_at'),
     )
