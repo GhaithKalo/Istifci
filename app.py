@@ -327,6 +327,8 @@ def get_suggested_next_status(req: Request) -> str | None:
     if not normalized:
         return None
     options = get_request_status_options(req.req_type)
+    if normalized not in options:
+        return None
     if normalized == REQUEST_STATUS_REJECTED:
         return normalized
     if normalized == REQUEST_STATUS_APPROVED and (req.req_type or '').lower() == 'satin_alma':
@@ -335,7 +337,7 @@ def get_suggested_next_status(req: Request) -> str | None:
             return suggested
     progression = [status for status in options if status != REQUEST_STATUS_REJECTED]
     if normalized not in progression:
-        return normalized if normalized in options else None
+        return normalized
     next_index = progression.index(normalized) + 1
     if next_index < len(progression):
         return progression[next_index]
