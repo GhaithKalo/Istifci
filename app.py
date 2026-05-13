@@ -299,16 +299,17 @@ def get_request_macro_phase(status: str | None) -> int:
 def request_has_high_unit_price(req: Request) -> bool:
     if not req:
         return False
+    items = None
     try:
         items = req.items.all() if hasattr(req.items, 'all') else list(req.items or [])
     except (AttributeError, TypeError) as exc:
         app.logger.debug("Request items unavailable for price check: %s", exc)
-        items = None
-    if items:
+    if items is not None:
         for item in items:
             if item.unit_price and item.unit_price > WET_SIGNATURE_PRICE_THRESHOLD:
                 return True
-        return False
+        if items:
+            return False
     if req.unit_price and req.unit_price > WET_SIGNATURE_PRICE_THRESHOLD:
         return True
     return bool(req.requires_wet_signature)
