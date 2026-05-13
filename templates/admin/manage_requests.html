@@ -984,15 +984,26 @@
                       <div class="d-grid gap-2">
                         <form method="post" action="{{ url_for('admin_set_request_status', req_id=req.id) }}" onclick="event.stopPropagation();">
                           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                          <label class="form-label small mb-1">Durumu Güncelle</label>
+                          <label class="form-label small mb-1">
+                            Durumu Güncelle
+                            {% if req.recommended_status %}
+                              <span class="badge bg-warning text-dark ms-1">Önerilen</span>
+                            {% endif %}
+                          </label>
                           {% set options = status_options.get(req.req_type, status_options.get('satin_alma', [])) %}
+                          {% set suggested_status = req.recommended_status or req.normalized_status %}
                           <select name="status" class="form-select form-select-sm mb-2">
                             {% for status_value in options %}
-                            <option value="{{ status_value }}" {% if status_value == req.normalized_status %}selected{% endif %}>
-                              {{ status_value|request_status_label }}{% if req.is_approved and req.recommended_status == status_value %} (Önerilen){% endif %}
+                            <option value="{{ status_value }}" {% if status_value == suggested_status %}selected{% endif %}>
+                              {{ status_value|request_status_label }}{% if req.recommended_status == status_value %} (Önerilen){% endif %}
                             </option>
                             {% endfor %}
                           </select>
+                          {% if req.recommended_status %}
+                            <div class="small text-muted mb-2">
+                              Sonraki Adım: <strong>{{ req.recommended_status|request_status_label }}</strong>
+                            </div>
+                          {% endif %}
                           <textarea name="admin_note" class="form-control form-control-sm" rows="2" placeholder="Not (opsiyonel)"></textarea>
                           <button type="submit" class="btn btn-action accept w-100 mt-2">
                             <i class="bi bi-arrow-repeat me-2"></i>Durumu Güncelle
