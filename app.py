@@ -304,12 +304,11 @@ def request_has_high_unit_price(req: Request) -> bool:
         items = req.items.all() if hasattr(req.items, 'all') else list(req.items or [])
     except (AttributeError, TypeError) as exc:
         app.logger.debug("Request items unavailable for price check: %s", exc)
-    if items is not None:
+    if items is not None and len(items) > 0:
         for item in items:
             if item.unit_price and item.unit_price > WET_SIGNATURE_PRICE_THRESHOLD:
                 return True
-        if items:
-            return False
+        return False
     if req.unit_price and req.unit_price > WET_SIGNATURE_PRICE_THRESHOLD:
         return True
     return bool(req.requires_wet_signature)
@@ -337,8 +336,6 @@ def get_suggested_next_status(req: Request) -> str | None:
         if suggested and suggested in options:
             return suggested
     progression = [status for status in options if status != REQUEST_STATUS_REJECTED]
-    if normalized not in progression:
-        return normalized
     next_index = progression.index(normalized) + 1
     if next_index < len(progression):
         return progression[next_index]
