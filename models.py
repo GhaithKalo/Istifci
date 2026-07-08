@@ -305,6 +305,23 @@ class Request(db.Model):
             if item.total_price:
                 total += item.total_price
         return total if total > 0 else self.total_price
+
+    @property
+    def total_items_price_with_vat(self):
+        """Tüm ürün kalemlerinin KDV dahil toplam fiyatını hesaplar."""
+        total = 0
+        has_items = False
+        for item in self.items:
+            has_items = True
+            total += item.total_price_with_vat
+
+        if has_items:
+            return total
+
+        if self.total_price:
+            return self.total_price * 1.2
+
+        return 0
     
     @property
     def items_count(self):
@@ -336,6 +353,7 @@ class RequestItem(db.Model):
     quantity = db.Column(db.Integer, nullable=False, default=1)
     purchase_link = db.Column(db.String(500), nullable=True)
     unit_price = db.Column(db.Float, nullable=True)
+    vat_rate = db.Column(db.Integer, nullable=False, default=20)
     total_price = db.Column(db.Float, nullable=True)
     requires_wet_signature = db.Column(db.Boolean, default=False, nullable=False)
     
@@ -346,6 +364,13 @@ class RequestItem(db.Model):
     # İlişkiler
     component = db.relationship('Component', foreign_keys=[component_id], backref='request_items')
     added_component = db.relationship('Component', foreign_keys=[added_component_id])
+
+    @property
+    def total_price_with_vat(self):
+        """Kalemin KDV dahil toplam tutarını hesaplar."""
+        base = self.total_price or 0
+        rate = self.vat_rate or 0
+        return base + (base * rate / 100)
 
 
 class RequestMessage(db.Model):

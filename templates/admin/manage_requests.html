@@ -185,6 +185,91 @@
     border-bottom: 2px solid #e8eaf6;
   }
   .detail-card h6 i { color: #5c6bc0; }
+
+  .detail-collapse-toggle {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    background: #f8f9fc;
+    border: 1px solid #dbe2f1;
+    border-radius: 10px;
+    padding: 0.7rem 0.9rem;
+    color: #1a237e;
+    font-weight: 600;
+    text-align: left;
+    transition: background-color 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  }
+  .detail-collapse-toggle:hover,
+  .detail-collapse-toggle:focus {
+    background: #eef3ff;
+    border-color: #c8d4f0;
+    box-shadow: none;
+  }
+  .detail-collapse-toggle .chevron {
+    transition: transform 0.2s ease;
+    color: #5c6bc0;
+    flex-shrink: 0;
+  }
+  .detail-collapse-toggle:not(.collapsed) .chevron {
+    transform: rotate(180deg);
+  }
+  .detail-collapse-body {
+    padding-top: 0.75rem;
+  }
+
+  .history-section-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin: 0 0 0.75rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #e8eaf6;
+    color: #1a237e;
+    font-weight: 600;
+  }
+
+  .truncatable-text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .truncatable-text-content {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .truncatable-text-content.is-clamped {
+    -webkit-line-clamp: 3;
+  }
+
+  .truncatable-toggle {
+    align-self: flex-start;
+    border: 0;
+    background: transparent;
+    padding: 0;
+    color: #3949ab;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-decoration: none;
+  }
+
+  .truncatable-toggle:hover,
+  .truncatable-toggle:focus {
+    color: #1a237e;
+    text-decoration: underline;
+    box-shadow: none;
+  }
+
+  .truncatable-toggle[hidden] {
+    display: none !important;
+  }
   
   /* Custom Badges */
   .badge-type {
@@ -448,6 +533,56 @@
     font-size: 0.8rem;
     font-weight: 600;
   }
+
+  .request-core-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 3fr);
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+    align-items: start;
+  }
+  .request-core-item {
+    background: #f8f9fc;
+    border: 1px solid #e1e7f5;
+    border-radius: 10px;
+    padding: 0.65rem 0.75rem;
+    min-height: 72px;
+    min-width: 0;
+    align-self: start;
+  }
+  .request-core-label {
+    display: block;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: #5c6bc0;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+  }
+  .project-id-chip {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-size: 0.82rem;
+  }
+  .request-description-copy {
+    display: block;
+    overflow-wrap: break-word;
+    word-break: break-word;
+  }
+  .col-description {
+    min-width: 260px;
+  }
+
+  @media (max-width: 1199.98px) {
+    .request-core-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 767.98px) {
+    .request-core-grid {
+      grid-template-columns: 1fr;
+    }
+  }
 </style>
 
 <div class="container my-4">
@@ -462,7 +597,7 @@
   <!-- Stats Row -->
   <div class="stats-row">
     {% for card in status_cards %}
-    <a href="?status={{ card.value }}&type={{ current_type }}&user={{ current_user_filter or 'all' }}&q={{ current_search or '' }}&sort={{ current_sort }}" 
+    <a href="?status={{ card.value }}&req_type={{ current_request_type }}&type={{ current_purchase_type }}&user={{ current_user_filter or 'all' }}&q={{ current_search or '' }}&sort={{ current_sort }}" 
        class="stat-card {% if card.value == 'all' %}stat-total{% else %}stat-{{ card.value }}{% endif %} {% if current_status == card.value and not current_exclude %}active{% endif %}{% if current_exclude == card.value %} excluded{% endif %}"
        data-status="{{ card.value }}"
        {% if card.value != 'all' %}oncontextmenu="return excludeStatus(event, '{{ card.value }}');"{% endif %}>
@@ -484,23 +619,33 @@
     
     <!-- Type Filter Buttons -->
     <div class="filter-btn-group mb-2">
-      <span class="text-muted small me-2">Tür:</span>
-      <a href="?status={{ current_status }}&type=all&user={{ current_user_filter or 'all' }}&q={{ current_search or '' }}&sort={{ current_sort }}" 
-         class="btn btn-sm {% if current_type == 'all' %}btn-primary{% else %}btn-outline-secondary{% endif %}">
+      <span class="text-muted small me-2">İstek Türü:</span>
+      <a href="?status={{ current_status }}&req_type=all&type={{ current_purchase_type }}&user={{ current_user_filter or 'all' }}&q={{ current_search or '' }}&sort={{ current_sort }}" 
+        class="btn btn-sm {% if current_request_type == 'all' %}btn-primary{% else %}btn-outline-secondary{% endif %}">
         <i class="bi bi-collection"></i>Tümü
       </a>
-      <a href="?status={{ current_status }}&type=satin_alma&user={{ current_user_filter or 'all' }}&q={{ current_search or '' }}&sort={{ current_sort }}" 
-         class="btn btn-sm {% if current_type == 'satin_alma' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+      <a href="?status={{ current_status }}&req_type=satin_alma&type={{ current_purchase_type }}&user={{ current_user_filter or 'all' }}&q={{ current_search or '' }}&sort={{ current_sort }}" 
+        class="btn btn-sm {% if current_request_type == 'satin_alma' %}btn-primary{% else %}btn-outline-primary{% endif %}">
         <i class="bi bi-cart-fill"></i>Satın Alma
       </a>
-      <a href="?status={{ current_status }}&type=ariza&user={{ current_user_filter or 'all' }}&q={{ current_search or '' }}&sort={{ current_sort }}" 
-         class="btn btn-sm {% if current_type == 'ariza' %}btn-danger{% else %}btn-outline-danger{% endif %}">
+      <a href="?status={{ current_status }}&req_type=ariza&type={{ current_purchase_type }}&user={{ current_user_filter or 'all' }}&q={{ current_search or '' }}&sort={{ current_sort }}" 
+        class="btn btn-sm {% if current_request_type == 'ariza' %}btn-danger{% else %}btn-outline-danger{% endif %}">
         <i class="bi bi-tools"></i>Arıza
       </a>
-      <a href="?status={{ current_status }}&type=bakim&user={{ current_user_filter or 'all' }}&q={{ current_search or '' }}&sort={{ current_sort }}" 
-         class="btn btn-sm {% if current_type == 'bakim' %}btn-success{% else %}btn-outline-success{% endif %}">
+      <a href="?status={{ current_status }}&req_type=bakim&type={{ current_purchase_type }}&user={{ current_user_filter or 'all' }}&q={{ current_search or '' }}&sort={{ current_sort }}" 
+        class="btn btn-sm {% if current_request_type == 'bakim' %}btn-success{% else %}btn-outline-success{% endif %}">
         <i class="bi bi-gear-fill"></i>Bakım
       </a>
+
+      <span class="ms-3 text-muted small">Talep Türüne Göre Filtrele:</span>
+      <select name="type" class="form-select form-select-sm d-inline-block" style="width: auto; min-width: 180px;" onchange="this.form.submit()">
+        <option value="all" {% if current_purchase_type == 'all' %}selected{% endif %}>Tümü</option>
+        <option value="Nalbur" {% if current_purchase_type == 'Nalbur' %}selected{% endif %}>Nalbur</option>
+        <option value="Yazılım" {% if current_purchase_type == 'Yazılım' %}selected{% endif %}>Yazılım</option>
+        <option value="Elektronik" {% if current_purchase_type == 'Elektronik' %}selected{% endif %}>Elektronik</option>
+        <option value="Kırtasiye" {% if current_purchase_type == 'Kırtasiye' %}selected{% endif %}>Kırtasiye</option>
+        <option value="Mobilya" {% if current_purchase_type == 'Mobilya' %}selected{% endif %}>Mobilya</option>
+      </select>
       
       <span class="ms-3 text-muted small">Sırala:</span>
       <select name="sort" class="form-select form-select-sm d-inline-block" style="width: auto;" onchange="this.form.submit()">
@@ -509,7 +654,7 @@
         <option value="name" {% if current_sort == 'name' %}selected{% endif %}>İsim (A-Z)</option>
       </select>
       
-      <span class="ms-3 text-muted small">Kullanıcı:</span>
+      <span class="ms-3 text-muted small">Oluşturan:</span>
       <select name="user" class="form-select form-select-sm d-inline-block" style="width: auto;" onchange="this.form.submit()">
         <option value="all" {% if current_user_filter == 'all' %}selected{% endif %}>Tümü</option>
         {% for user in users_with_requests %}
@@ -520,11 +665,11 @@
 
     <!-- Hidden inputs to preserve filter state -->
     <input type="hidden" name="status" value="{{ current_status }}">
-    <input type="hidden" name="type" value="{{ current_type }}">
+    <input type="hidden" name="req_type" value="{{ current_request_type }}">
   </form>
 
   <!-- Active Filters -->
-  {% if current_status != 'all' or current_type != 'all' or current_user_filter != 'all' or current_search %}
+  {% if current_status != 'all' or current_request_type != 'all' or current_purchase_type != 'all' or current_user_filter != 'all' or current_search %}
   <div class="active-filters mb-3">
     <span class="text-muted small me-2">Filtreler:</span>
     {% if current_status != 'all' %}
@@ -533,10 +678,16 @@
       {{ current_status|request_status_group_label }}
     </span>
     {% endif %}
-    {% if current_type != 'all' %}
+    {% if current_request_type != 'all' %}
     <span class="filter-tag">
       <i class="bi bi-tag-fill"></i>
-      {% if current_type == 'satin_alma' %}Satın Alma{% elif current_type == 'ariza' %}Arıza{% elif current_type == 'bakim' %}Bakım{% endif %}
+      {% if current_request_type == 'satin_alma' %}Satın Alma{% elif current_request_type == 'ariza' %}Arıza{% elif current_request_type == 'bakim' %}Bakım{% endif %}
+    </span>
+    {% endif %}
+    {% if current_purchase_type != 'all' %}
+    <span class="filter-tag">
+      <i class="bi bi-bag-check-fill"></i>
+      {{ current_purchase_type }}
     </span>
     {% endif %}
     {% if current_user_filter != 'all' %}
@@ -570,8 +721,11 @@
               </th>
               <th style="width: 40px;"></th>
               <th style="width: 50px;">Talep ID</th>
-              <th>İstek Açıklaması</th>
+              <th style="width: 140px;">Bütçe</th>
+              <th style="width: 150px;">Proje ID</th>
+              <th class="col-description">İstek Açıklaması</th>
               <th>Tür</th>
+              <th>Talep Türü</th>
               <th>Oluşturan</th>
               <th>Tarih</th>
               <th>Durum</th>
@@ -597,6 +751,26 @@
                 </span>
               </td>
               <td>
+                {% if req.budget %}
+                  {% if req.budget == 'TTO' %}
+                    <span class="badge bg-primary">TTO</span>{% if req.tto_subtype %} <span class="badge bg-info text-dark">{{ req.tto_subtype }}</span>{% endif %}
+                  {% elif req.budget == 'Merkez' %}
+                    <span class="badge bg-success">Merkez</span>
+                  {% else %}
+                    <span class="badge bg-warning text-dark">{{ req.budget }}</span>
+                  {% endif %}
+                {% else %}
+                  <span class="text-muted">-</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if req.project_number %}
+                  <span class="badge bg-light text-dark border project-id-chip">{{ req.project_number }}</span>
+                {% else %}
+                  <span class="text-muted">-</span>
+                {% endif %}
+              </td>
+              <td>
                 {% if req.description %}
                   <strong class="text-dark">{{ req.description[:60] }}{% if req.description|length > 60 %}...{% endif %}</strong>
                 {% else %}
@@ -612,6 +786,13 @@
                   <span class="badge-type bakim"><i class="bi bi-gear-fill"></i>Bakım</span>
                 {% else %}
                   <span class="badge-type">{{ req.req_type }}</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if req.purchase_type %}
+                  <span class="badge bg-light text-dark border">{{ req.purchase_type }}</span>
+                {% else %}
+                  <span class="text-muted">-</span>
                 {% endif %}
               </td>
               <td>
@@ -635,26 +816,70 @@
             
             <!-- Detay Satırı (Gizli) -->
             <tr class="request-details" id="details-{{ req.id }}" onclick="event.stopPropagation();">
-              <td colspan="8">
+              <td colspan="11">
                 <div class="row p-3">
                   <!-- Sol: Detaylar -->
                   <div class="col-md-8">
                     <div class="detail-card">
                       <h6><i class="bi bi-info-circle me-2"></i>İstek Detayları</h6>
                       {% set status_group = req.req_status|request_status_group %}
-                      {% if req.req_type == 'satin_alma' and req.request_code %}
-                        <p class="mb-2"><strong>Talep ID:</strong> <span class="copyable" onclick="copyText(this, '{{ req.request_code }}', event)">{{ req.request_code }} <i class="bi bi-clipboard ms-1 small text-muted"></i></span></p>
-                      {% endif %}
-                       
-                      {% if req.description %}
-                        <p class="mb-2"><strong>Açıklama:</strong> <span class="copyable" onclick="copyText(this, {{ req.description|tojson }}, event)">{{ req.description }} <i class="bi bi-clipboard ms-1 small text-muted"></i></span></p>
-                      {% endif %}
+                      <div class="request-core-grid">
+                        <div class="request-core-item">
+                          <span class="request-core-label">Talep ID</span>
+                          {% if req.req_type == 'satin_alma' and req.request_code %}
+                            <span class="copyable" onclick="copyText(this, '{{ req.request_code }}', event)">{{ req.request_code }} <i class="bi bi-clipboard ms-1 small text-muted"></i></span>
+                          {% else %}
+                            <span class="copyable" onclick="copyText(this, '#{{ req.id }}', event)">#{{ req.id }} <i class="bi bi-clipboard ms-1 small text-muted"></i></span>
+                          {% endif %}
+                        </div>
+                        <div class="request-core-item">
+                          <span class="request-core-label">Bütçe</span>
+                          {% if req.budget %}
+                            {% if req.budget == 'TTO' %}
+                              <span class="badge bg-primary">TTO</span>{% if req.tto_subtype %} <span class="badge bg-info text-dark">{{ req.tto_subtype }}</span>{% endif %}
+                            {% elif req.budget == 'Merkez' %}
+                              <span class="badge bg-success">Merkez</span>
+                            {% else %}
+                              <span class="badge bg-warning text-dark">{{ req.budget }}</span>
+                            {% endif %}
+                          {% else %}
+                            <small class="text-muted">Belirtilmedi</small>
+                          {% endif %}
+                        </div>
+                        <div class="request-core-item">
+                          <span class="request-core-label">Proje ID</span>
+                          {% if req.project_number %}
+                            <span class="copyable" onclick="copyText(this, '{{ req.project_number }}', event)"><span class="badge bg-light text-dark border project-id-chip">{{ req.project_number }}</span> <i class="bi bi-clipboard ms-1 small text-muted"></i></span>
+                          {% else %}
+                            <small class="text-muted">Belirtilmedi</small>
+                          {% endif %}
+                        </div>
+                        <div class="request-core-item">
+                          <span class="request-core-label">Açıklama</span>
+                          {% if req.description %}
+                            <span class="copyable request-description-copy" onclick="copyText(this, {{ req.description|tojson }}, event)">{{ req.description }} <i class="bi bi-clipboard ms-1 small text-muted"></i></span>
+                          {% else %}
+                            <small class="text-muted">Açıklama girilmedi</small>
+                          {% endif %}
+                        </div>
+                      </div>
                       
                       {% if req.req_type == 'satin_alma' and req.items.count() > 0 %}
                         <!-- Birden fazla ürün varsa -->
                         <div class="mb-3">
-                          <h6 class="mt-3" style="font-size: 0.9rem;"><i class="bi bi-list-check me-2"></i>Ürün Kalemleri ({{ req.items.count() }} adet)</h6>
-                          <div class="table-responsive">
+                          <button
+                            type="button"
+                            class="detail-collapse-toggle collapsed"
+                            data-bs-toggle="collapse"
+                            data-bs-target="#request-items-{{ req.id }}"
+                            aria-expanded="false"
+                            aria-controls="request-items-{{ req.id }}"
+                          >
+                            <span><i class="bi bi-list-check me-2"></i>Ürün Kalemlerini Göster ({{ req.items.count() }} adet)</span>
+                            <i class="bi bi-chevron-down chevron"></i>
+                          </button>
+                          <div class="collapse detail-collapse-body" id="request-items-{{ req.id }}">
+                            <div class="table-responsive">
                             <table class="table table-sm table-bordered mb-0">
                               <thead class="table-light">
                                 <tr>
@@ -665,6 +890,7 @@
                                   <th>Ürün Modeli</th>
                                   <th>Adet</th>
                                   <th>KDV Hariç Birim Fiyat</th>
+                                  <th>KDV Oranı (%)</th>
                                   <th>Toplam (KDV Hariç)</th>
                                   <th>Link</th>
                                   {% if status_group in ['surecte', 'teslim_edildi'] %}
@@ -709,6 +935,7 @@
                                       </span>
                                     {% else %}-{% endif %}
                                   </td>
+                                  <td>%{{ item.vat_rate if item.vat_rate is not none else 20 }}</td>
                                   <td class="fw-bold text-success">
                                     {% if item.total_price %}
                                       <span class="copyable" onclick="copyText(this, '{{ "%.2f"|format(item.total_price) }}', event)">
@@ -752,7 +979,7 @@
                               </tbody>
                               <tfoot class="table-light">
                                 <tr>
-                                  <td colspan="{% if status_group in ['surecte', 'teslim_edildi'] %}8{% else %}7{% endif %}" class="text-end fw-bold">Genel Toplam (KDV Hariç):</td>
+                                  <td colspan="{% if status_group in ['surecte', 'teslim_edildi'] %}9{% else %}8{% endif %}" class="text-end fw-bold">Genel Toplam (KDV Hariç):</td>
                                   <td class="fw-bold text-primary">
                                     <span class="copyable" onclick="copyText(this, '{{ "%.2f"|format(req.total_items_price or 0) }}', event)">
                                       {{ "%.2f"|format(req.total_items_price or 0) }} ₺
@@ -765,8 +992,8 @@
                                   {% endif %}
                                 </tr>
                                 <tr>
-                                  <td colspan="{% if status_group in ['surecte', 'teslim_edildi'] %}8{% else %}7{% endif %}" class="text-end fw-bold">KDV Dahil:</td>
-                                  <td class="fw-bold text-success">{{ "%.2f"|format((req.total_items_price or 0) * 1.2) }} ₺</td>
+                                  <td colspan="{% if status_group in ['surecte', 'teslim_edildi'] %}9{% else %}8{% endif %}" class="text-end fw-bold">KDV Dahil:</td>
+                                  <td class="fw-bold text-success">{{ "%.2f"|format(req.total_items_price_with_vat or 0) }} ₺</td>
                                   <td></td>
                                   {% if status_group in ['surecte', 'teslim_edildi'] %}
                                   <td></td>
@@ -775,21 +1002,8 @@
                               </tfoot>
                             </table>
                           </div>
+                          </div>
                         </div>
-                        {% if req.budget %}
-                          <p class="mb-2"><strong>Bütçe:</strong> 
-                            {% if req.budget == 'TTO' %}
-                            <span class="badge bg-primary">TTO</span>{% if req.tto_subtype %} <span class="badge bg-info text-dark">{{ req.tto_subtype }}</span>{% endif %}
-                            {% elif req.budget == 'Merkez' %}
-                            <span class="badge bg-success">Merkez</span>
-                            {% else %}
-                            <span class="badge bg-warning text-dark">{{ req.budget }}</span>
-                            {% endif %}
-                          </p>
-                        {% endif %}
-                        {% if req.project_number %}
-                          <p class="mb-2"><strong>Proje Numarası:</strong> <span class="copyable" onclick="copyText(this, '{{ req.project_number }}', event)">{{ req.project_number }} <i class="bi bi-clipboard ms-1 small text-muted"></i></span></p>
-                        {% endif %}
                         {% if req.requires_wet_signature %}
                           <p class="mb-2"><span class="badge bg-warning text-dark">Islak imza gerekli</span></p>
                         {% endif %}
@@ -814,20 +1028,6 @@
                                 <p class="mb-2"><strong>Genel Toplam (KDV Hariç):</strong> <span class="copyable text-success fw-bold" onclick="copyText(this, '{{ "%.2f"|format(req.total_price) }}', event)">{{ "%.2f"|format(req.total_price) }} ₺ <i class="bi bi-clipboard ms-1 small text-muted"></i></span></p>
                                 <p class="mb-2"><strong>KDV Dahil:</strong> <span class="copyable text-success fw-bold" onclick="copyText(this, '{{ "%.2f"|format(req.total_price * 1.2) }}', event)">{{ "%.2f"|format(req.total_price * 1.2) }} ₺ <i class="bi bi-clipboard ms-1 small text-muted"></i></span></p>
                               {% endif %}
-                              {% if req.budget %}
-                                <p class="mb-2"><strong>Bütçe:</strong> 
-                                  {% if req.budget == 'TTO' %}
-                                  <span class="badge bg-primary">TTO</span>{% if req.tto_subtype %} <span class="badge bg-info text-dark">{{ req.tto_subtype }}</span>{% endif %}
-                                  {% elif req.budget == 'Merkez' %}
-                                  <span class="badge bg-success">Merkez</span>
-                                  {% else %}
-                                  <span class="badge bg-warning text-dark">{{ req.budget }}</span>
-                                  {% endif %}
-                                </p>
-                              {% endif %}
-                              {% if req.project_number %}
-                                <p class="mb-2"><strong>Proje Numarası:</strong> <span class="copyable" onclick="copyText(this, '{{ req.project_number }}', event)">{{ req.project_number }} <i class="bi bi-clipboard ms-1 small text-muted"></i></span></p>
-                              {% endif %}
                               {% if req.requires_wet_signature %}
                                 <p class="mb-2"><span class="badge bg-warning text-dark">Islak imza gerekli</span></p>
                               {% endif %}
@@ -846,133 +1046,179 @@
                         </div>
                       {% endif %}
 
-                      {% set revision_diffs = revision_diff_map.get(req.id, []) %}
-                      <hr class="my-3">
-                      <h6 class="mt-0"><i class="bi bi-arrow-left-right me-2"></i>Revizyon Farkları</h6>
-                      {% if revision_diffs %}
-                        {% for rev in revision_diffs %}
-                        <div class="border rounded p-2 mb-2 bg-light">
-                          <div class="d-flex justify-content-between align-items-center mb-2">
-                            <div>
-                              <strong>Revizyon {{ rev.from_revision }} → {{ rev.to_revision }}</strong>
-                              <span class="badge bg-secondary ms-1">{{ rev.from_status|request_status_label }} → {{ rev.to_status|request_status_label }}</span>
-                            </div>
-                            <small class="text-muted">{{ rev.to_submitted_at|tr_date(True) if rev.to_submitted_at else '' }}</small>
-                          </div>
-
-                          {% if rev.diff.has_changes %}
-                            {% if rev.diff.changed_fields %}
-                              <div class="table-responsive mb-2">
-                                <table class="table table-sm table-bordered mb-0">
-                                  <thead class="table-light">
-                                    <tr>
-                                      <th>Alan</th>
-                                      <th>Eski</th>
-                                      <th>Yeni</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    {% for f in rev.diff.changed_fields %}
-                                    <tr>
-                                      <td>{{ f.label }}</td>
-                                      <td>{{ f.old if f.old != '' else '-' }}</td>
-                                      <td>{{ f.new if f.new != '' else '-' }}</td>
-                                    </tr>
-                                    {% endfor %}
-                                  </tbody>
-                                </table>
-                              </div>
-                            {% endif %}
-
-                            {% if rev.diff.updated_items %}
-                              <div class="mb-2">
-                                <strong class="small">Güncellenen Ürün Kalemleri</strong>
-                                {% for u in rev.diff.updated_items %}
-                                <div class="border rounded p-2 mt-1 bg-white">
-                                  <div class="small mb-1"><strong>#{{ u.index }}</strong> {{ u.old_name }} → {{ u.new_name }}</div>
-                                  <ul class="small mb-0">
-                                    {% for c in u.changes %}
-                                    <li><strong>{{ c.label }}:</strong> {{ c.old if c.old != '' else '-' }} → {{ c.new if c.new != '' else '-' }}</li>
-                                    {% endfor %}
-                                  </ul>
-                                </div>
-                                {% endfor %}
-                              </div>
-                            {% endif %}
-
-                            {% if rev.diff.added_items %}
-                              <div class="mb-2">
-                                <strong class="small text-success">Eklenen Ürün Kalemleri</strong>
-                                <ul class="small mb-0">
-                                  {% for a in rev.diff.added_items %}
-                                  <li>{{ a.name }} ({{ a.quantity }} adet)</li>
-                                  {% endfor %}
-                                </ul>
-                              </div>
-                            {% endif %}
-
-                            {% if rev.diff.removed_items %}
-                              <div class="mb-2">
-                                <strong class="small text-danger">Silinen Ürün Kalemleri</strong>
-                                <ul class="small mb-0">
-                                  {% for r in rev.diff.removed_items %}
-                                  <li>{{ r.name }} ({{ r.quantity }} adet)</li>
-                                  {% endfor %}
-                                </ul>
-                              </div>
-                            {% endif %}
-                          {% else %}
-                            <div class="text-muted small">Bu revizyonda değişiklik yok.</div>
-                          {% endif %}
-                        </div>
-                        {% endfor %}
-                      {% else %}
-                        <div class="text-muted small">Henüz revision farkı yok.</div>
-                      {% endif %}
-
                       {% set conv = conversation_map.get(req.id, []) %}
-                      <hr class="my-3">
-                      <h6 class="mt-0"><i class="bi bi-chat-square-text me-2"></i>Konuşma</h6>
-                      <div class="conversation-thread">
-                        {% if conv %}
-                          {% for msg in conv %}
-                          <div class="conversation-item role-{{ msg.author_role }}">
-                            <div class="conversation-meta d-flex justify-content-between">
-                              <span>
-                                <strong>{{ msg.author }}</strong>
-                                {% if msg.message_type == 'status_event' %}<span class="badge bg-warning text-dark ms-1">Durum</span>{% endif %}
-                                {% if msg.message_type == 'admin_note' %}<span class="badge bg-info text-dark ms-1">Admin Notu</span>{% endif %}
-                                {% if msg.legacy %}<span class="badge bg-secondary ms-1">Eski Not</span>{% endif %}
-                              </span>
-                              <span>{{ msg.created_at|tr_date(True) if msg.created_at else '' }}</span>
+                      <div class="mb-0">
+                        <button
+                          type="button"
+                          class="detail-collapse-toggle collapsed"
+                          data-bs-toggle="collapse"
+                          data-bs-target="#request-history-{{ req.id }}"
+                          aria-expanded="false"
+                          aria-controls="request-history-{{ req.id }}"
+                        >
+                          <span><i class="bi bi-chat-square-text me-2"></i>Süreç Geçmişini İncele</span>
+                          <i class="bi bi-chevron-down chevron"></i>
+                        </button>
+                        <div class="collapse detail-collapse-body" id="request-history-{{ req.id }}">
+                          {% set revision_diffs = revision_diff_map.get(req.id, []) %}
+                          <div class="history-section-title">
+                            <span><i class="bi bi-arrow-left-right me-2"></i>Revizyon Farkları</span>
+                          </div>
+                          {% if revision_diffs %}
+                            {% for rev in revision_diffs %}
+                            <div class="border rounded p-2 mb-2 bg-light">
+                              <div class="d-flex justify-content-between align-items-center mb-2">
+                                <div>
+                                  <strong>Revizyon {{ rev.from_revision }} → {{ rev.to_revision }}</strong>
+                                  <span class="badge bg-secondary ms-1">{{ rev.from_status|request_status_label }} → {{ rev.to_status|request_status_label }}</span>
+                                </div>
+                                <small class="text-muted">{{ rev.to_submitted_at|tr_date(True) if rev.to_submitted_at else '' }}</small>
+                              </div>
+
+                              {% if rev.diff.has_changes %}
+                                {% if rev.diff.changed_fields %}
+                                  <div class="table-responsive mb-2">
+                                    <table class="table table-sm table-bordered mb-0">
+                                      <thead class="table-light">
+                                        <tr>
+                                          <th>Alan</th>
+                                          <th>Eski</th>
+                                          <th>Yeni</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {% for f in rev.diff.changed_fields %}
+                                        <tr>
+                                          <td>{{ f.label }}</td>
+                                          <td>
+                                            <div class="truncatable-text" data-truncatable>
+                                              <div class="truncatable-text-content is-clamped">{{ f.old if f.old != '' else '-' }}</div>
+                                              <button type="button" class="truncatable-toggle" hidden onclick="toggleTruncation(this)">... <i class="bi bi-chevron-down"></i></button>
+                                            </div>
+                                          </td>
+                                          <td>
+                                            <div class="truncatable-text" data-truncatable>
+                                              <div class="truncatable-text-content is-clamped">{{ f.new if f.new != '' else '-' }}</div>
+                                              <button type="button" class="truncatable-toggle" hidden onclick="toggleTruncation(this)">... <i class="bi bi-chevron-down"></i></button>
+                                            </div>
+                                          </td>
+                                        </tr>
+                                        {% endfor %}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                {% endif %}
+
+                                {% if rev.diff.updated_items %}
+                                  <div class="mb-2">
+                                    <strong class="small">Güncellenen Ürün Kalemleri</strong>
+                                    {% for u in rev.diff.updated_items %}
+                                    <div class="border rounded p-2 mt-1 bg-white">
+                                      <div class="small mb-1"><strong>#{{ u.index }}</strong> {{ u.old_name }} → {{ u.new_name }}</div>
+                                      <ul class="small mb-0">
+                                        {% for c in u.changes %}
+                                        <li>
+                                          <strong>{{ c.label }}:</strong>
+                                          <div class="truncatable-text" data-truncatable>
+                                            <div class="truncatable-text-content is-clamped">{{ c.old if c.old != '' else '-' }} → {{ c.new if c.new != '' else '-' }}</div>
+                                            <button type="button" class="truncatable-toggle ms-1" hidden onclick="toggleTruncation(this)">... <i class="bi bi-chevron-down"></i></button>
+                                          </div>
+                                        </li>
+                                        {% endfor %}
+                                      </ul>
+                                    </div>
+                                    {% endfor %}
+                                  </div>
+                                {% endif %}
+
+                                {% if rev.diff.added_items %}
+                                  <div class="mb-2">
+                                    <strong class="small text-success">Eklenen Ürün Kalemleri</strong>
+                                    <ul class="small mb-0">
+                                      {% for a in rev.diff.added_items %}
+                                      <li>
+                                        <div class="truncatable-text" data-truncatable>
+                                          <div class="truncatable-text-content is-clamped">{{ a.name }} ({{ a.quantity }} adet)</div>
+                                          <button type="button" class="truncatable-toggle ms-1" hidden onclick="toggleTruncation(this)">... <i class="bi bi-chevron-down"></i></button>
+                                        </div>
+                                      </li>
+                                      {% endfor %}
+                                    </ul>
+                                  </div>
+                                {% endif %}
+
+                                {% if rev.diff.removed_items %}
+                                  <div class="mb-2">
+                                    <strong class="small text-danger">Silinen Ürün Kalemleri</strong>
+                                    <ul class="small mb-0">
+                                      {% for r in rev.diff.removed_items %}
+                                      <li>
+                                        <div class="truncatable-text" data-truncatable>
+                                          <div class="truncatable-text-content is-clamped">{{ r.name }} ({{ r.quantity }} adet)</div>
+                                          <button type="button" class="truncatable-toggle ms-1" hidden onclick="toggleTruncation(this)">... <i class="bi bi-chevron-down"></i></button>
+                                        </div>
+                                      </li>
+                                      {% endfor %}
+                                    </ul>
+                                  </div>
+                                {% endif %}
+                              {% else %}
+                                <div class="text-muted small">Bu revizyonda değişiklik yok.</div>
+                              {% endif %}
                             </div>
-                            {% if msg.body %}
-                            <div class="small">{{ msg.body|e|replace('\n', '<br>')|safe }}</div>
-                            {% endif %}
-                            {% if msg.attachment_path and msg.id %}
-                            <div class="mt-2">
-                              <a class="btn btn-sm btn-outline-primary" href="{{ url_for('request_message_attachment', req_id=req.id, msg_id=msg.id) }}" target="_blank">
-                                <i class="bi bi-paperclip me-1"></i>{{ msg.attachment_name or 'Dosya' }}
-                              </a>
-                            </div>
+                            {% endfor %}
+                          {% else %}
+                            <div class="text-muted small mb-3">Henüz revision farkı yok.</div>
+                          {% endif %}
+
+                          <div class="history-section-title mt-3">
+                            <span><i class="bi bi-chat-square-text me-2"></i>Süreç Geçmişi</span>
+                          </div>
+                          <div class="conversation-thread">
+                            {% if conv %}
+                              {% for msg in conv %}
+                              <div class="conversation-item role-{{ msg.author_role }}">
+                                <div class="conversation-meta d-flex justify-content-between">
+                                  <span>
+                                    <strong>{{ msg.author }}</strong>
+                                    {% if msg.message_type == 'status_event' %}<span class="badge bg-warning text-dark ms-1">Durum</span>{% endif %}
+                                    {% if msg.message_type == 'admin_note' %}<span class="badge bg-info text-dark ms-1">Admin Notu</span>{% endif %}
+                                    {% if msg.legacy %}<span class="badge bg-secondary ms-1">Eski Not</span>{% endif %}
+                                  </span>
+                                  <span>{{ msg.created_at|tr_date(True) if msg.created_at else '' }}</span>
+                                </div>
+                                {% if msg.body %}
+                                <div class="truncatable-text small" data-truncatable>
+                                  <div class="truncatable-text-content is-clamped">{{ msg.body|e|replace('\n', '<br>')|safe }}</div>
+                                  <button type="button" class="truncatable-toggle" hidden onclick="toggleTruncation(this)">... <i class="bi bi-chevron-down"></i></button>
+                                </div>
+                                {% endif %}
+                                {% if msg.attachment_path and msg.id %}
+                                <div class="mt-2">
+                                  <a class="btn btn-sm btn-outline-primary" href="{{ url_for('request_message_attachment', req_id=req.id, msg_id=msg.id) }}" target="_blank">
+                                    <i class="bi bi-paperclip me-1"></i>{{ msg.attachment_name or 'Dosya' }}
+                                  </a>
+                                </div>
+                                {% endif %}
+                              </div>
+                              {% endfor %}
+                            {% else %}
+                              <div class="text-muted small">Henüz mesaj yok.</div>
                             {% endif %}
                           </div>
-                          {% endfor %}
-                        {% else %}
-                          <div class="text-muted small">Henüz mesaj yok.</div>
-                        {% endif %}
-                      </div>
 
-                      <form method="post" action="{{ url_for('admin_request_messages', req_id=req.id) }}" class="mt-2" enctype="multipart/form-data">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                        <div class="mb-2">
-                          <textarea name="message" class="form-control form-control-sm" rows="2" maxlength="2000" placeholder="Kullanıcıya mesaj yazın..." aria-label="Kullanıcıya mesaj"></textarea>
+                          <form method="post" action="{{ url_for('admin_request_messages', req_id=req.id) }}" class="mt-2" enctype="multipart/form-data">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <div class="mb-2">
+                              <textarea name="message" class="form-control form-control-sm" rows="2" maxlength="2000" placeholder="Kullanıcıya mesaj yazın..." aria-label="Kullanıcıya mesaj"></textarea>
+                            </div>
+                            <div class="d-flex gap-2 align-items-center">
+                              <input type="file" name="attachment" class="form-control form-control-sm" aria-label="Dosya ekle">
+                              <button type="submit" class="btn btn-sm btn-primary">Gönder</button>
+                            </div>
+                          </form>
                         </div>
-                        <div class="d-flex gap-2 align-items-center">
-                          <input type="file" name="attachment" class="form-control form-control-sm" aria-label="Dosya ekle">
-                          <button type="submit" class="btn btn-sm btn-primary">Gönder</button>
-                        </div>
-                      </form>
+                      </div>
                     </div>
                   </div>
                   
@@ -1048,7 +1294,7 @@
             </tr>
             {% else %}
             <tr>
-              <td colspan="8" class="text-center text-muted py-4">
+              <td colspan="9" class="text-center text-muted py-4">
                 <i class="bi bi-inbox fs-1 d-block mb-2"></i>
                 Herhangi bir istek bulunamadı.
               </td>
@@ -1133,6 +1379,35 @@
 </div>
 
 <script>
+function toggleTruncation(button) {
+  const container = button.closest('.truncatable-text');
+  if (!container) return;
+
+  const content = container.querySelector('.truncatable-text-content');
+  if (!content) return;
+
+  const expanded = container.getAttribute('data-expanded') === 'true';
+  const nextExpanded = !expanded;
+
+  container.setAttribute('data-expanded', nextExpanded ? 'true' : 'false');
+  content.classList.toggle('is-clamped', !nextExpanded);
+  button.innerHTML = nextExpanded ? 'Daha az göster <i class="bi bi-chevron-up"></i>' : '... <i class="bi bi-chevron-down"></i>';
+}
+
+function initTruncationBlocks() {
+  document.querySelectorAll('.truncatable-text[data-truncatable]').forEach(container => {
+    const content = container.querySelector('.truncatable-text-content');
+    const button = container.querySelector('.truncatable-toggle');
+    if (!content || !button) return;
+
+    container.setAttribute('data-expanded', 'false');
+    content.classList.add('is-clamped');
+
+    const isOverflowing = content.scrollHeight > content.clientHeight + 1;
+    button.hidden = !isOverflowing;
+  });
+}
+
 function toggleDetails(id) {
   const detailsRow = document.getElementById('details-' + id);
   const icon = document.getElementById('icon-' + id);
@@ -1341,6 +1616,8 @@ document.getElementById('searchInput').addEventListener('keypress', function(e) 
     document.getElementById('filterForm').submit();
   }
 });
+
+initTruncationBlocks();
 
 // =============================================
 // BULK SELECTION & ACTIONS

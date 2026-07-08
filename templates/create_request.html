@@ -406,11 +406,11 @@
               <label class="form-label fw-bold">Adet <span class="text-danger">*</span></label>
               <input type="number" id="itemQuantity" class="form-control no-spin mandatory-field" min="1" placeholder="Adet">
             </div>
-            <div class="col-md-5 mb-3">
+            <div class="col-md-4 mb-3">
               <label class="form-label fw-bold">Satın Alma Linki <span class="text-danger">*</span></label>
               <input type="url" id="itemLink" class="form-control mandatory-field" placeholder="https://...">
             </div>
-            <div class="col-md-4 mb-3">
+            <div class="col-md-3 mb-3">
               <label class="form-label fw-bold">KDV Hariç Birim Fiyat <span class="text-danger">*</span></label>
               <div class="input-group">
                 <input type="number" id="itemPrice" class="form-control no-spin mandatory-field" step="0.01" min="0" placeholder="Fiyat girin">
@@ -426,8 +426,17 @@
               <div id="currencyConversionInfo" style="display:none;">
                 <small class="text-success fw-bold"><i class="bi bi-arrow-repeat me-1"></i><span id="conversionText"></span></small>
               </div>
-              <small class="text-muted"><i class="bi bi-info-circle me-1"></i>KDV hariç, kargo ve gümrük bedelleri dahil.</small>
+              <small class="text-muted"><i class="bi bi-info-circle me-1"></i>Kargo ve gümrük bedelleri dahil.</small>
               <div id="wetSignatureWarning" class="small text-warning fw-bold mt-1 d-none">Islak imza gerekli</div>
+            </div>
+            <div class="col-md-2 mb-3">
+              <label class="form-label fw-bold">KDV Oranı (%) <span class="text-danger">*</span></label>
+              <select id="itemVatRate" class="form-select mandatory-field" required>
+                <option value="0">%0 (Muaf)</option>
+                <option value="1">%1</option>
+                <option value="10">%10</option>
+                <option value="20" selected>%20</option>
+              </select>
             </div>
           </div>
           
@@ -653,6 +662,7 @@ document.addEventListener('DOMContentLoaded', function() {
   const itemQuantity = document.getElementById('itemQuantity');
   const itemLink = document.getElementById('itemLink');
   const itemPrice = document.getElementById('itemPrice');
+  const itemVatRate = document.getElementById('itemVatRate');
   
   // Ariza/bakim elements
   const arizaExistingRadio = document.getElementById('arizaExistingProduct');
@@ -894,6 +904,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const qtyRaw = itemQuantity.value.trim();
     const link = itemLink.value.trim();
     const price = getTLPrice();
+    const vatRate = parseInt(itemVatRate.value, 10);
     
     if (!qtyRaw || isNaN(parseInt(qtyRaw)) || parseInt(qtyRaw) < 1) {
       updateMandatoryFieldBorder(itemQuantity, false);
@@ -917,12 +928,21 @@ document.addEventListener('DOMContentLoaded', function() {
       return;
     }
     updateMandatoryFieldBorder(itemPrice, true);
+    if (![0, 1, 10, 20].includes(vatRate)) {
+      updateMandatoryFieldBorder(itemVatRate, false);
+      showFormMessage('KDV oranı seçimi zorunludur.');
+      itemVatRate.focus();
+      return;
+    }
+    updateMandatoryFieldBorder(itemVatRate, true);
     wetSignatureWarning.classList.toggle('d-none', !(price > WET_SIGNATURE_THRESHOLD));
     
     itemData.quantity = qty;
     itemData.link = link;
     itemData.price = price;
     itemData.total = qty * price;
+    itemData.vat_rate = vatRate;
+    itemData.total_with_vat = itemData.total + (itemData.total * vatRate / 100);
 
     if (editingIndex !== null) {
       items[editingIndex] = itemData;
@@ -967,6 +987,7 @@ document.addEventListener('DOMContentLoaded', function() {
     itemQuantity.value = '';
     itemLink.value = '';
     itemPrice.value = '';
+    itemVatRate.value = '20';
     currentCurrency = 'TRY';
     currencyBtn.textContent = '\u20ba';
     currencyMenu.querySelectorAll('.dropdown-item').forEach(i => i.classList.remove('active'));
@@ -990,11 +1011,15 @@ document.addEventListener('DOMContentLoaded', function() {
     
     let html = '';
     let totalAmount = 0;
+    let totalAmountWithVat = 0;
     let totalQty = 0;
     let hiddenInputs = '';
     
     items.forEach((item, index) => {
       totalAmount += item.total;
+      totalAmountWithVat += (item.total_with_vat !== undefined)
+        ? item.total_with_vat
+        : (item.total + (item.total * (parseInt(item.vat_rate || 0, 10) / 100)));
       totalQty += item.quantity;
       
       html += `
@@ -1012,8 +1037,10 @@ document.addEventListener('DOMContentLoaded', function() {
             ${item.model ? `<div><span class="detail-label">Model:</span> ${escapeHtml(item.model)}</div>` : ''}
             <div><span class="detail-label">Adet:</span> ${item.quantity}</div>
             <div><span class="detail-label">KDV Hariç Birim Fiyat:</span> ${item.price.toFixed(2)} ₺</div>
+            <div><span class="detail-label">KDV Oranı:</span> %${parseInt(item.vat_rate || 0, 10)}</div>
           </div>
           <div class="item-total">Toplam (KDV Hariç): ${item.total.toFixed(2)} ₺</div>
+          <div class="item-total mt-1">Toplam (KDV Dahil): ${(item.total_with_vat !== undefined ? item.total_with_vat : (item.total + (item.total * (parseInt(item.vat_rate || 0, 10) / 100)))).toFixed(2)} ₺</div>
         </div>
       `;
       
@@ -1027,6 +1054,7 @@ document.addEventListener('DOMContentLoaded', function() {
         <input type="hidden" name="item_quantity[]" value="${item.quantity}">
         <input type="hidden" name="item_link[]" value="${escapeHtml(item.link)}">
         <input type="hidden" name="item_price[]" value="${item.price}">
+        <input type="hidden" name="item_vat_rate[]" value="${parseInt(item.vat_rate || 0, 10)}">
       `;
     });
     
@@ -1037,7 +1065,7 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('totalItemCount').textContent = items.length;
     document.getElementById('totalQuantity').textContent = totalQty;
     document.getElementById('totalAmount').textContent = totalAmount.toFixed(2);
-    document.getElementById('totalAmountWithVat').textContent = (totalAmount * 1.2).toFixed(2);
+    document.getElementById('totalAmountWithVat').textContent = totalAmountWithVat.toFixed(2);
     
     // Add remove handlers
     productItemsList.querySelectorAll('.remove-item').forEach(btn => {
@@ -1087,6 +1115,7 @@ document.addEventListener('DOMContentLoaded', function() {
         itemQuantity.value = item.quantity || 1;
         itemLink.value = item.link || '';
         itemPrice.value = item.price || '';
+        itemVatRate.value = String(item.vat_rate ?? 20);
         currentCurrency = 'TRY';
         currencyBtn.textContent = '\u20ba';
         currencyMenu.querySelectorAll('.dropdown-item').forEach(i => i.classList.remove('active'));
@@ -1297,6 +1326,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const quantities = formState.item_quantity || [];
     const links = formState.item_link || [];
     const prices = formState.item_price || [];
+    const vatRates = formState.item_vat_rate || [];
 
     if (!names.length) return;
     const restored = [];
@@ -1305,6 +1335,7 @@ document.addEventListener('DOMContentLoaded', function() {
       if (!name) continue;
       const qty = parseInt(quantities[i] || '1', 10) || 1;
       const price = parseFloat(prices[i] || '0') || 0;
+      const vatRate = parseInt(vatRates[i] || '20', 10);
       restored.push({
         component_id: componentIds[i] || '',
         name,
@@ -1314,7 +1345,9 @@ document.addEventListener('DOMContentLoaded', function() {
         quantity: qty,
         link: links[i] || '',
         price,
+        vat_rate: [0, 1, 10, 20].includes(vatRate) ? vatRate : 20,
         total: qty * price,
+        total_with_vat: (qty * price) + ((qty * price) * (([0, 1, 10, 20].includes(vatRate) ? vatRate : 20) / 100)),
         isNew: !(componentIds[i] || '').toString().trim()
       });
     }
@@ -1362,7 +1395,9 @@ document.addEventListener('DOMContentLoaded', function() {
           quantity: qty,
           link: item.link || '',
           price: price,
+          vat_rate: [0, 1, 10, 20].includes(parseInt(item.vat_rate, 10)) ? parseInt(item.vat_rate, 10) : 20,
           total: qty * price,
+          total_with_vat: (qty * price) + ((qty * price) * (([0, 1, 10, 20].includes(parseInt(item.vat_rate, 10)) ? parseInt(item.vat_rate, 10) : 20) / 100)),
           isNew: item.isNew !== false
         };
       }) : [];

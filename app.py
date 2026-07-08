@@ -76,6 +76,7 @@ WET_SIGNATURE_PRICE_THRESHOLD = 100000
 DEFAULT_BUDGET_CODE = 'GENEL'
 DEFAULT_PROJECT_CODE = 'NOPROJE'
 VALID_BUDGETS = {'TTO', 'Merkez'}
+VALID_VAT_RATES = {0, 1, 10, 20}
 
 REQUEST_STATUS_PENDING = 'onay_bekliyor'
 REQUEST_STATUS_REJECTED = 'reddedildi'
@@ -170,18 +171,28 @@ def normalize_request_code_part(value: str | None) -> str:
 def _next_sequence_for_budget_group(is_merkez: bool) -> int:
     """
     İlgili bütçe grubundaki (TTO veya Merkez) mevcut satın alma taleplerinin
-    sayısına bakarak bir sonraki sıra numarasını döndürür.
+    en büyük sıra numarasına bakarak bir sonraki sıra numarasını döndürür.
     """
     base_query = Request.query.filter(
         Request.req_type == 'satin_alma',
         Request.request_code.isnot(None)
     )
     if is_merkez:
-        count = base_query.filter(Request.budget == 'Merkez').count()
+        codes = base_query.filter(Request.budget == 'Merkez').with_entities(Request.request_code).all()
     else:
         # TTO alt bütçeleri: budget == 'TTO'
-        count = base_query.filter(Request.budget == 'TTO').count()
-    return count + 1
+        codes = base_query.filter(Request.budget == 'TTO').with_entities(Request.request_code).all()
+
+    max_sequence = 0
+    for (request_code,) in codes:
+        if not request_code:
+            continue
+        suffix = request_code.rsplit('-', 1)[-1]
+        if not suffix.isdigit():
+            continue
+        max_sequence = max(max_sequence, int(suffix))
+
+    return max_sequence + 1
 
 
 def build_purchase_request_code(budget: str | None, tto_subtype: str | None, project_number: str | None) -> str:
@@ -259,6 +270,15 @@ def get_request_status_options(req_type: str | None) -> list[str]:
     if (req_type or '').lower() in ('ariza', 'bakim'):
         return MAINTENANCE_REQUEST_STATUSES
     return PURCHASE_REQUEST_STATUSES
+
+
+def parse_vat_rate(raw_value) -> int | None:
+    """Formdan gelen KDV oranını doğrular ve normalize eder."""
+    try:
+        value = int(str(raw_value).strip())
+    except (TypeError, ValueError, AttributeError):
+        return None
+    return value if value in VALID_VAT_RATES else None
 
 
 PHASE_ONAY = {
@@ -439,6 +459,7 @@ def build_request_snapshot(req) -> dict:
             'quantity': item.quantity or 0,
             'purchase_link': item.purchase_link or '',
             'unit_price': item.unit_price,
+            'vat_rate': item.vat_rate,
             'total_price': item.total_price
         })
 
@@ -538,6 +559,7 @@ def build_snapshot_diff(old_snapshot: dict, new_snapshot: dict) -> dict:
         'quantity': 'Adet',
         'purchase_link': 'Link',
         'unit_price': 'Birim Fiyat',
+        'vat_rate': 'KDV Oranı (%)',
         'total_price': 'Toplam'
     }
 
@@ -771,6 +793,8 @@ def ensure_request_schema_columns():
                 db.session.execute(text("ALTER TABLE request_item ADD COLUMN brand VARCHAR(120)"))
             if 'model_name' not in req_item_cols:
                 db.session.execute(text("ALTER TABLE request_item ADD COLUMN model_name VARCHAR(120)"))
+            if 'vat_rate' not in req_item_cols:
+                db.session.execute(text("ALTER TABLE request_item ADD COLUMN vat_rate INTEGER DEFAULT 20"))
 
             db.session.commit()
     except Exception:
@@ -2270,6 +2294,7 @@ def create_request():
         item_quantities = request.form.getlist('item_quantity[]')
         item_links = request.form.getlist('item_link[]')
         item_prices = request.form.getlist('item_price[]')
+        item_vat_rates = request.form.getlist('item_vat_rate[]')
 
         form_state = {
             'req_type': req_type,
@@ -2289,7 +2314,8 @@ def create_request():
             'item_model': item_models,
             'item_quantity': item_quantities,
             'item_link': item_links,
-            'item_price': item_prices
+            'item_price': item_prices,
+            'item_vat_rate': item_vat_rates
         }
         errors = []
         has_wet_signature_warning = False
@@ -2392,6 +2418,11 @@ def create_request():
                 item_brand = item_brands[i] if i < len(item_brands) else ''
                 item_model = item_models[i] if i < len(item_models) else ''
                 link = item_links[i] if i < len(item_links) else ''
+                vat_rate = parse_vat_rate(item_vat_rates[i] if i < len(item_vat_rates) else None)
+
+                if vat_rate is None:
+                    errors.append(f'{i + 1}. ürün için KDV oranı zorunludur ve sadece %0, %1, %10 veya %20 olabilir.')
+                    continue
 
                 try:
                     quantity = int(item_quantities[i]) if i < len(item_quantities) and item_quantities[i] else 1
@@ -2422,10 +2453,16 @@ def create_request():
                     quantity=quantity,
                     purchase_link=link if link else None,
                     unit_price=unit_price,
+                    vat_rate=vat_rate,
                     total_price=item_total,
                     requires_wet_signature=wet_signature_for_item
                 )
                 req.items.append(request_item)
+
+            if errors:
+                for err in errors:
+                    flash(err, 'danger')
+                return render_create_request_form(form_state)
 
             req.total_price = total_request_price if total_request_price > 0 else None
             req.requires_wet_signature = has_wet_signature_warning
@@ -2458,7 +2495,8 @@ def create_request():
         'item_model': [],
         'item_quantity': [],
         'item_link': [],
-        'item_price': []
+        'item_price': [],
+        'item_vat_rate': []
     })
 
 
@@ -2508,6 +2546,7 @@ def edit_request(req_id):
                         'quantity': item.quantity or 1,
                         'link': item.purchase_link or '',
                         'price': item.unit_price or 0,
+                        'vat_rate': item.vat_rate if item.vat_rate is not None else 20,
                         'isNew': not bool(item.component_id)
                     }
                     for item in existing_items
@@ -2522,6 +2561,7 @@ def edit_request(req_id):
                     'quantity': req.quantity or 1,
                     'link': req.purchase_link or '',
                     'price': req.unit_price or 0,
+                    'vat_rate': 20,
                     'isNew': not bool(req.component_id)
                 }]
         return payload
@@ -2550,6 +2590,7 @@ def edit_request(req_id):
             quantities = state.get('item_quantity', []) or []
             links = state.get('item_link', []) or []
             prices = state.get('item_price', []) or []
+            vat_rates = state.get('item_vat_rate', []) or []
 
             for i, name in enumerate(names):
                 item_name = (name or '').strip()
@@ -2564,6 +2605,7 @@ def edit_request(req_id):
                     'quantity': quantities[i] if i < len(quantities) else 1,
                     'link': links[i] if i < len(links) else '',
                     'price': prices[i] if i < len(prices) else 0,
+                    'vat_rate': vat_rates[i] if i < len(vat_rates) else 20,
                     'isNew': not bool((component_ids[i] if i < len(component_ids) else '').strip())
                 })
         return payload
@@ -2603,6 +2645,7 @@ def edit_request(req_id):
         item_quantities = request.form.getlist('item_quantity[]')
         item_links = request.form.getlist('item_link[]')
         item_prices = request.form.getlist('item_price[]')
+        item_vat_rates = request.form.getlist('item_vat_rate[]')
 
         form_state = {
             'req_type': req_type,
@@ -2622,7 +2665,8 @@ def edit_request(req_id):
             'item_model': item_models,
             'item_quantity': item_quantities,
             'item_link': item_links,
-            'item_price': item_prices
+            'item_price': item_prices,
+            'item_vat_rate': item_vat_rates
         }
 
         req.component_id = None
@@ -2725,6 +2769,10 @@ def edit_request(req_id):
                     quantity = 1
 
                 link = item_links[i] if i < len(item_links) else ''
+                vat_rate = parse_vat_rate(item_vat_rates[i] if i < len(item_vat_rates) else None)
+                if vat_rate is None:
+                    flash(f'{i + 1}. ürün için KDV oranı zorunludur ve sadece %0, %1, %10 veya %20 olabilir.', 'danger')
+                    return render_edit_request_form(form_state, build_edit_payload_from_form_state(form_state))
 
                 try:
                     unit_price = float(item_prices[i]) if i < len(item_prices) and item_prices[i] else None
@@ -2747,6 +2795,7 @@ def edit_request(req_id):
                     quantity=quantity,
                     purchase_link=link if link else None,
                     unit_price=unit_price,
+                    vat_rate=vat_rate,
                     total_price=item_total,
                     requires_wet_signature=wet_signature_for_item
                 ))
@@ -3064,11 +3113,26 @@ def admin_requests():
         abort(403)
 
     status = request.args.get('status', 'all')
-    req_type = request.args.get('type', 'all')
+    req_type = request.args.get('req_type', '').strip()
+    purchase_type = request.args.get('type', 'all').strip()
     search_query = request.args.get('q', '').strip()
     sort_by = request.args.get('sort', 'newest')
     user_filter = request.args.get('user', 'all')
     exclude_status = request.args.get('exclude', '')  # Hariç tutulacak durum
+
+    allowed_request_types = {'all', 'satin_alma', 'ariza', 'bakim'}
+    allowed_purchase_types = {'all', 'Nalbur', 'Yazılım', 'Elektronik', 'Kırtasiye', 'Mobilya'}
+    purchase_type_aliases = {
+        'Yazilim': 'Yazılım',
+        'Kirtasiye': 'Kırtasiye'
+    }
+
+    if not req_type:
+        req_type = purchase_type if purchase_type in allowed_request_types else 'all'
+    req_type = req_type if req_type in allowed_request_types else 'all'
+
+    purchase_type = purchase_type_aliases.get(purchase_type, purchase_type)
+    purchase_type = purchase_type if purchase_type in allowed_purchase_types else 'all'
     
     # Kullanıcı listesi (istek oluşturmuş kullanıcılar)
     users_with_requests = db.session.query(User).join(Request, User.id == Request.created_by).distinct().order_by(User.username).all()
@@ -3099,6 +3163,8 @@ def admin_requests():
     
     if req_type and req_type != 'all':
         q = q.filter_by(req_type=req_type)
+    if purchase_type and purchase_type != 'all':
+        q = q.filter_by(purchase_type=purchase_type)
     if user_filter and user_filter != 'all':
         q = q.filter_by(created_by=int(user_filter))
     if search_query:
@@ -3147,7 +3213,8 @@ def admin_requests():
                            conversation_map=conversation_map,
                            revision_diff_map=revision_diff_map,
                            current_status=status, 
-                           current_type=req_type,
+                           current_request_type=req_type,
+                           current_purchase_type=purchase_type,
                           current_search=search_query,
                           current_sort=sort_by,
                           current_user_filter=user_filter,

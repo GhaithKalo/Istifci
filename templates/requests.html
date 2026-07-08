@@ -454,6 +454,7 @@
                     <th>Ürün Modeli</th>
                     <th>Adet</th>
                     <th>KDV Hariç Birim Fiyat</th>
+                    <th>KDV Oranı (%)</th>
                     <th>Toplam</th>
                     <th>Link</th>
                   </tr>
@@ -475,6 +476,7 @@
                     <td>{{ item.model_name or '-' }}</td>
                     <td>{{ item.quantity }}</td>
                     <td>{% if item.unit_price %}{{ "%.2f"|format(item.unit_price) }} ₺{% else %}-{% endif %}</td>
+                    <td>%{{ item.vat_rate if item.vat_rate is not none else 20 }}</td>
                     <td class="fw-bold text-success">{% if item.total_price %}{{ "%.2f"|format(item.total_price) }} ₺ (KDV Hariç){% else %}-{% endif %}</td>
                     <td>
                       {% if item.purchase_link %}
@@ -486,13 +488,13 @@
                 </tbody>
                 <tfoot class="table-light">
                   <tr>
-                      <td colspan="8" class="text-end fw-bold">Genel Toplam (KDV Hariç):</td>
+                      <td colspan="9" class="text-end fw-bold">Genel Toplam (KDV Hariç):</td>
                       <td class="fw-bold text-primary">{{ "%.2f"|format(req.total_items_price or 0) }} ₺</td>
                       <td></td>
                     </tr>
                     <tr>
-                      <td colspan="8" class="text-end fw-bold">KDV Dahil:</td>
-                      <td class="fw-bold text-success">{{ "%.2f"|format((req.total_items_price or 0) * 1.2) }} ₺</td>
+                      <td colspan="9" class="text-end fw-bold">KDV Dahil:</td>
+                      <td class="fw-bold text-success">{{ "%.2f"|format(req.total_items_price_with_vat or 0) }} ₺</td>
                       <td></td>
                     </tr>
                   </tfoot>
