@@ -319,25 +319,50 @@ def get_request_macro_phase(status: str | None) -> int:
 def request_has_high_unit_price(req: Request) -> bool:
     if not req:
         return False
-    if req.requires_wet_signature:
-        return True
+    items = None
     try:
         items = req.items.all() if hasattr(req.items, 'all') else list(req.items or [])
     except (AttributeError, TypeError) as exc:
         app.logger.debug("Request items unavailable for price check: %s", exc)
-        items = []
-    for item in items:
-        if item.unit_price and item.unit_price > WET_SIGNATURE_PRICE_THRESHOLD:
-            return True
+    if items:
+        for item in items:
+            if item.unit_price and item.unit_price > WET_SIGNATURE_PRICE_THRESHOLD:
+                return True
+        return False
     if req.unit_price and req.unit_price > WET_SIGNATURE_PRICE_THRESHOLD:
         return True
-    return False
+    return bool(req.requires_wet_signature)
 
 
 def get_recommended_purchase_status(req: Request) -> str | None:
     if not req or normalize_request_status(req.req_status) != REQUEST_STATUS_APPROVED:
         return None
     return REQUEST_STATUS_WET_SIGNATURE if request_has_high_unit_price(req) else REQUEST_STATUS_EBYS
+
+
+def get_suggested_next_status(req: Request) -> str | None:
+    if not req:
+        return None
+    normalized = normalize_request_status(req.req_status)
+    if not normalized:
+        return None
+    options = get_request_status_options(req.req_type)
+    if normalized not in options:
+        return None
+    if normalized == REQUEST_STATUS_REJECTED:
+        return normalized
+    if normalized == REQUEST_STATUS_APPROVED and (req.req_type or '').lower() == 'satin_alma':
+        suggested = get_recommended_purchase_status(req)
+        if suggested and suggested in options:
+            return suggested
+    progression = [status for status in options if status != REQUEST_STATUS_REJECTED]
+    try:
+        next_index = progression.index(normalized) + 1
+    except ValueError:
+        return normalized
+    if next_index < len(progression):
+        return progression[next_index]
+    return normalized
 
 
 def get_status_filter_values(status_value: str | None) -> tuple[set[str], bool]:
@@ -3190,10 +3215,7 @@ def admin_requests():
     for req in requests_list:
         req.normalized_status = normalize_request_status(req.req_status)
         req.is_approved = req.normalized_status == REQUEST_STATUS_APPROVED
-        if req.is_approved and req.req_type == 'satin_alma':
-            req.recommended_status = get_recommended_purchase_status(req)
-        else:
-            req.recommended_status = None
+        req.recommended_status = get_suggested_next_status(req)
     conversation_map = build_request_conversation_map(requests_list)
     revision_diff_map = build_request_revision_diffs(requests_list)
     status_cards = [
